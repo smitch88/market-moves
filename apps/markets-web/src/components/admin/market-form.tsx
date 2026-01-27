@@ -171,7 +171,7 @@ export function MarketForm({ market }: MarketFormProps) {
             <Select
               value={formData.category}
               onValueChange={(value) =>
-                setFormData((prev) => ({ ...prev, category: value }))
+                setFormData((prev) => ({ ...prev, category: value as MarketCategory }))
               }
             >
               <SelectTrigger>

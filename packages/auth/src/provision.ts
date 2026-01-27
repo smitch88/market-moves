@@ -48,6 +48,7 @@ export async function provisionUser(input: ProvisionUserInput) {
         id: true,
         privyUserId: true,
         email: true,
+        twitterSubject: true,
         handle: true,
         name: true,
         profileImageUrl: true,

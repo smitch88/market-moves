@@ -116,7 +116,7 @@ export async function verifyTweetByTimeline(
             verified: true,
             matchedText: tweet.text.slice(0, 500),
             verifiedAt: new Date(),
-            raw: { tweet, hasContent, hasLink },
+            raw: JSON.parse(JSON.stringify({ tweet, hasContent, hasLink })),
           },
         });
 
@@ -186,7 +186,7 @@ export async function verifyTweetByUrl(
         verified: matches,
         matchedText: tweet.text.slice(0, 500),
         verifiedAt: matches ? new Date() : null,
-        raw: { tweet, hasContent, hasLink },
+        raw: JSON.parse(JSON.stringify({ tweet, hasContent, hasLink })),
       },
     });
 
