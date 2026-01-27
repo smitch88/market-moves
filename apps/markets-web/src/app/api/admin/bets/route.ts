@@ -10,8 +10,10 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get("status") as BetStatus | null;
     const marketId = searchParams.get("marketId");
     const userId = searchParams.get("userId");
-    const limit = parseInt(searchParams.get("limit") || "100");
-    const offset = parseInt(searchParams.get("offset") || "0");
+    const page = parseInt(searchParams.get("page") || "1");
+    const pageSize = parseInt(searchParams.get("pageSize") || "50");
+    const limit = pageSize;
+    const offset = (page - 1) * pageSize;
 
     const where: any = {};
     if (status) where.status = status;
@@ -60,7 +62,13 @@ export async function GET(request: NextRequest) {
       prisma.bet.count({ where }),
     ]);
 
-    return NextResponse.json({ bets, total });
+    return NextResponse.json({
+      bets,
+      total,
+      page,
+      pageSize,
+      totalPages: Math.ceil(total / pageSize),
+    });
   } catch (error) {
     if (error instanceof Error && error.message === "Unauthorized") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

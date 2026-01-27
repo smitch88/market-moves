@@ -88,17 +88,17 @@ export function VerifyStep({
           )}
         </button>
 
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
           <Input
             placeholder="Or paste tweet URL"
             value={tweetUrl}
             onChange={(e) => onTweetUrlChange(e.target.value)}
-            className="flex-1 bg-background border-border"
+            className="flex-1 h-11 bg-background border-border"
           />
           <button
             onClick={() => onVerify("url")}
             disabled={!tweetUrl || isLoading}
-            className="h-11 px-4 rounded-xl bg-muted border border-border text-foreground hover:bg-accent transition-all duration-200 font-medium disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+            className="h-11 px-4 rounded-xl bg-muted border border-border text-foreground hover:bg-accent transition-all duration-200 font-medium disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap flex items-center justify-center"
           >
             {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Verify"}
           </button>

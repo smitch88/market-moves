@@ -3,8 +3,8 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { GlassCard, GlassCardContent, GlassCardHeader, Badge, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@vault/ui";
-import { ExternalLink, Loader2 } from "lucide-react";
+import { GlassCard, GlassCardContent, GlassCardHeader, Badge, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Button } from "@vault/ui";
+import { ExternalLink, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
 import { BetStatus } from "@vault/database";
 import Link from "next/link";
 
@@ -31,14 +31,18 @@ export default function AdminBetsPage() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [marketFilter, setMarketFilter] = useState<string>("");
   const [userFilter, setUserFilter] = useState<string>("");
+  const [page, setPage] = useState(1);
+  const pageSize = 50;
 
   const { data, isLoading } = useQuery({
-    queryKey: ["adminBets", statusFilter, marketFilter, userFilter],
+    queryKey: ["adminBets", statusFilter, marketFilter, userFilter, page],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (statusFilter !== "all") params.set("status", statusFilter);
       if (marketFilter) params.set("marketId", marketFilter);
       if (userFilter) params.set("userId", userFilter);
+      params.set("page", String(page));
+      params.set("pageSize", String(pageSize));
 
       const res = await fetch(`/api/admin/bets?${params.toString()}`);
       if (!res.ok) throw new Error("Failed to fetch bets");
@@ -48,6 +52,13 @@ export default function AdminBetsPage() {
 
   const bets = data?.bets || [];
   const total = data?.total || 0;
+  const totalPages = data?.totalPages || 1;
+  const currentPage = data?.page || page;
+
+  // Reset to page 1 when filters change
+  const handleFilterChange = () => {
+    setPage(1);
+  };
 
   return (
     <div className="space-y-6">
@@ -65,7 +76,13 @@ export default function AdminBetsPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="text-sm font-medium mb-2 block">Status</label>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <Select
+                value={statusFilter}
+                onValueChange={(value) => {
+                  setStatusFilter(value);
+                  handleFilterChange();
+                }}
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -83,7 +100,10 @@ export default function AdminBetsPage() {
               <Input
                 placeholder="Filter by market ID"
                 value={marketFilter}
-                onChange={(e) => setMarketFilter(e.target.value)}
+                onChange={(e) => {
+                  setMarketFilter(e.target.value);
+                  handleFilterChange();
+                }}
               />
             </div>
             <div>
@@ -91,7 +111,10 @@ export default function AdminBetsPage() {
               <Input
                 placeholder="Filter by user ID"
                 value={userFilter}
-                onChange={(e) => setUserFilter(e.target.value)}
+                onChange={(e) => {
+                  setUserFilter(e.target.value);
+                  handleFilterChange();
+                }}
               />
             </div>
           </div>
@@ -103,7 +126,10 @@ export default function AdminBetsPage() {
         <GlassCardHeader>
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold">All Bets</h2>
-            <span className="text-sm text-muted-foreground">{total} total</span>
+            <span className="text-sm text-muted-foreground">
+              Showing {bets.length > 0 ? (currentPage - 1) * pageSize + 1 : 0}-
+              {Math.min(currentPage * pageSize, total)} of {total}
+            </span>
           </div>
         </GlassCardHeader>
         <GlassCardContent className="p-0">
@@ -205,6 +231,61 @@ export default function AdminBetsPage() {
                   )}
                 </tbody>
               </table>
+            </div>
+          )}
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between p-4 border-t border-border">
+              <div className="text-sm text-muted-foreground">
+                Page {currentPage} of {totalPages}
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage === 1 || isLoading}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  Previous
+                </Button>
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    let pageNum: number;
+                    if (totalPages <= 5) {
+                      pageNum = i + 1;
+                    } else if (currentPage <= 3) {
+                      pageNum = i + 1;
+                    } else if (currentPage >= totalPages - 2) {
+                      pageNum = totalPages - 4 + i;
+                    } else {
+                      pageNum = currentPage - 2 + i;
+                    }
+                    return (
+                      <Button
+                        key={pageNum}
+                        variant={currentPage === pageNum ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setPage(pageNum)}
+                        disabled={isLoading}
+                        className="min-w-[40px]"
+                      >
+                        {pageNum}
+                      </Button>
+                    );
+                  })}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages || isLoading}
+                >
+                  Next
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
           )}
         </GlassCardContent>
