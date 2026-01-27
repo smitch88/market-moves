@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -14,21 +14,15 @@ import {
   DialogContent,
   toast,
 } from "@vault/ui";
-import { ExternalLink, Check, Loader2, Sparkles, Trophy, Copy, Download, ImageIcon } from "lucide-react";
-import { motion } from "framer-motion";
-import Image from "next/image";
+import { Check, Loader2, Sparkles, Copy, Download } from "lucide-react";
 import { toPng } from "html-to-image";
 import type { Market, Outcome } from "@vault/database";
 import { BettingTicket } from "./betting-ticket";
-
-// Custom X (Twitter) logo icon
-function XIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" className={className} fill="currentColor">
-      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-    </svg>
-  );
-}
+import { XIcon } from "./x-icon";
+import { SelectOutcomeStep } from "./betting-panel/select-outcome-step";
+import { AmountStep } from "./betting-panel/amount-step";
+import { VerifyStep } from "./betting-panel/verify-step";
+import { SuccessModal } from "./betting-panel/success-modal";
 
 interface BettingPanelProps {
   market: Market & { outcomes: Outcome[] };
@@ -39,19 +33,28 @@ interface BettingPanelProps {
   };
 }
 
-type BettingStep = "select" | "amount" | "tweet" | "verify" | "success";
+type BettingStep = "select" | "amount" | "verify";
 
 export function BettingPanel({ market, stats }: BettingPanelProps) {
-  const { login, authenticated, user } = usePrivy();
+  const { login, authenticated } = usePrivy();
   const queryClient = useQueryClient();
 
+  // Betting flow state
+  const [step, setStep] = useState<BettingStep>("select");
   const [selectedOutcome, setSelectedOutcome] = useState<"A" | "B" | null>(null);
   const [amount, setAmount] = useState("");
-  const [step, setStep] = useState<BettingStep>("select");
   const [betId, setBetId] = useState<string | null>(null);
   const [tweetUrl, setTweetUrl] = useState("");
-  const [intentUrl, setIntentUrl] = useState("");
 
+  // Success modal state
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [confirmedBetAmount, setConfirmedBetAmount] = useState(0);
+  const [confirmedOutcome, setConfirmedOutcome] = useState<"A" | "B" | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+  const ticketRef = useRef<HTMLDivElement>(null);
+
+  // Fetch user profile
   const { data: profile } = useQuery({
     queryKey: ["profile"],
     queryFn: async () => {
@@ -62,8 +65,36 @@ export function BettingPanel({ market, stats }: BettingPanelProps) {
     enabled: authenticated,
   });
 
-  const balance = profile?.balance ?? 10000;
+  // Check for pending bets
+  const { data: pendingBetData } = useQuery({
+    queryKey: ["pendingBet", market.id],
+    queryFn: async () => {
+      const res = await fetch(`/api/bets/pending?marketId=${market.id}`);
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: authenticated,
+  });
 
+  const balance = profile?.balance ?? 10000;
+  const outcomeA = market.outcomes.find((o) => o.key === "A");
+  const outcomeB = market.outcomes.find((o) => o.key === "B");
+  const canBet =
+    market.status === "OPEN" ||
+    (market.status === "PUBLISHED" && (!market.closesAt || new Date(market.closesAt) > new Date()));
+
+  // Initialize pending bet if found
+  useEffect(() => {
+    if (pendingBetData?.pendingBet && !betId) {
+      const pendingBet = pendingBetData.pendingBet;
+      setBetId(pendingBet.id);
+      setSelectedOutcome(pendingBet.outcome.key as "A" | "B");
+      setAmount(String(pendingBet.amount));
+      setStep("verify");
+    }
+  }, [pendingBetData, betId]);
+
+  // Place bet mutation
   const placeBetMutation = useMutation({
     mutationFn: async () => {
       const res = await fetch("/api/bets", {
@@ -83,7 +114,8 @@ export function BettingPanel({ market, stats }: BettingPanelProps) {
     },
     onSuccess: (data) => {
       setBetId(data.bet.id);
-      setStep("tweet");
+      setStep("verify");
+      queryClient.invalidateQueries({ queryKey: ["pendingBet", market.id] });
       toast.info("Bet reserved! Now share your prediction on X to confirm.");
     },
     onError: (error: Error) => {
@@ -91,6 +123,7 @@ export function BettingPanel({ market, stats }: BettingPanelProps) {
     },
   });
 
+  // Tweet intent mutation
   const tweetIntentMutation = useMutation({
     mutationFn: async () => {
       const res = await fetch("/api/tweet/intent", {
@@ -108,8 +141,6 @@ export function BettingPanel({ market, stats }: BettingPanelProps) {
       return res.json();
     },
     onSuccess: (data) => {
-      setIntentUrl(data.intentUrl);
-      // Open tweet intent in new window
       window.open(data.intentUrl, "_blank", "width=550,height=420");
     },
     onError: (error: Error) => {
@@ -117,6 +148,7 @@ export function BettingPanel({ market, stats }: BettingPanelProps) {
     },
   });
 
+  // Verify tweet mutation
   const verifyTweetMutation = useMutation({
     mutationFn: async (method: "timeline" | "url") => {
       const res = await fetch("/api/tweet/verify", {
@@ -139,9 +171,12 @@ export function BettingPanel({ market, stats }: BettingPanelProps) {
       if (data.verified) {
         queryClient.invalidateQueries({ queryKey: ["profile"] });
         queryClient.invalidateQueries({ queryKey: ["market", market.slug] });
+        queryClient.invalidateQueries({ queryKey: ["pendingBet", market.id] });
         handleBetSuccess();
       } else {
-        toast.warning(data.message || "Tweet verification failed. Please make sure you posted the tweet and try again.");
+        toast.warning(
+          data.message || "Tweet verification failed. Please make sure you posted the tweet and try again."
+        );
       }
     },
     onError: (error: Error) => {
@@ -149,13 +184,7 @@ export function BettingPanel({ market, stats }: BettingPanelProps) {
     },
   });
 
-  const outcomeA = market.outcomes.find((o) => o.key === "A");
-  const outcomeB = market.outcomes.find((o) => o.key === "B");
-
-  const canBet =
-    market.status === "OPEN" ||
-    (market.status === "PUBLISHED" && (!market.closesAt || new Date(market.closesAt) > new Date()));
-
+  // Handlers
   const handleSelectOutcome = (key: "A" | "B") => {
     if (!authenticated) {
       login();
@@ -171,47 +200,29 @@ export function BettingPanel({ market, stats }: BettingPanelProps) {
   };
 
   const handleOpenTweetIntent = () => {
+    if (!betId) return;
     tweetIntentMutation.mutate();
-    setStep("verify");
   };
 
   const handleVerify = (method: "timeline" | "url") => {
     verifyTweetMutation.mutate(method);
   };
 
-  const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [confirmedBetAmount, setConfirmedBetAmount] = useState(0);
-  const [confirmedOutcome, setConfirmedOutcome] = useState<"A" | "B" | null>(null);
-  const [copied, setCopied] = useState(false);
-  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
-  const [showTicketPreview, setShowTicketPreview] = useState(false);
-  const ticketRef = useRef<HTMLDivElement>(null);
-
-  const resetPanel = () => {
+  const handleBetSuccess = () => {
+    setConfirmedBetAmount(parseInt(amount, 10));
+    setConfirmedOutcome(selectedOutcome);
+    setShowSuccessModal(true);
+    // Reset betting flow
+    setStep("select");
     setSelectedOutcome(null);
     setAmount("");
-    setStep("select");
     setBetId(null);
     setTweetUrl("");
-    setIntentUrl("");
-    setShowSuccessModal(false);
-    setShowTicketPreview(false);
-  };
-
-  // Get the confirmed outcome details
-  const getConfirmedOutcomeDetails = () => {
-    if (!confirmedOutcome) return null;
-    const outcome = confirmedOutcome === "A" ? outcomeA : outcomeB;
-    const percent = confirmedOutcome === "A" ? stats.percentA : stats.percentB;
-    const isYes = confirmedOutcome === "A";
-    return { outcome, percent, isYes };
   };
 
   const generateTicketImage = useCallback(async (): Promise<string | null> => {
     if (!ticketRef.current) return null;
-    
     try {
-      // Ensure the ticket is visible for rendering
       const dataUrl = await toPng(ticketRef.current, {
         quality: 1.0,
         pixelRatio: 2,
@@ -247,30 +258,27 @@ export function BettingPanel({ market, stats }: BettingPanelProps) {
   const handleShareTicketOnX = useCallback(async () => {
     const outcome = confirmedOutcome === "A" ? outcomeA : outcomeB;
     if (!outcome) return;
-    
-    // Generate and download the image first
+
     setIsGeneratingImage(true);
     try {
       const dataUrl = await generateTicketImage();
       if (dataUrl) {
-        // Download the image
-        const link = document.createElement("a");
-        link.download = `vault-bet-${market.slug}.png`;
-        link.href = dataUrl;
-        link.click();
-        
-        // Small delay then open tweet intent
+        const response = await fetch(dataUrl);
+        const blob = await response.blob();
+        await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+
         setTimeout(() => {
           const tweetText = encodeURIComponent(
             `🎯 I just bet $${confirmedBetAmount.toLocaleString()} on "${outcome.label}" for "${market.title}" on @VaultMarkets!\n\nMake your prediction 👇\n${window.location.href}`
           );
           window.open(`https://x.com/intent/tweet?text=${tweetText}`, "_blank");
         }, 500);
-        
-        toast.success("Ticket downloaded! Attach it to your tweet.", { duration: 4000 });
+
+        toast.success("Ticket copied to clipboard! Paste it in your tweet.", { duration: 4000 });
       }
-    } catch {
-      toast.error("Failed to generate ticket");
+    } catch (error) {
+      console.error("Failed to copy ticket:", error);
+      toast.error("Failed to copy ticket to clipboard");
     } finally {
       setIsGeneratingImage(false);
     }
@@ -285,20 +293,6 @@ export function BettingPanel({ market, stats }: BettingPanelProps) {
     } catch {
       toast.error("Failed to copy link");
     }
-  };
-
-  // Update the success step to show modal
-  const handleBetSuccess = () => {
-    setConfirmedBetAmount(parseInt(amount, 10));
-    setConfirmedOutcome(selectedOutcome);
-    setShowSuccessModal(true);
-    setShowTicketPreview(true);
-    setStep("select");
-    setSelectedOutcome(null);
-    setAmount("");
-    setBetId(null);
-    setTweetUrl("");
-    setIntentUrl("");
   };
 
   return (
@@ -318,253 +312,58 @@ export function BettingPanel({ market, stats }: BettingPanelProps) {
               This market is no longer accepting bets
             </p>
           ) : step === "select" ? (
-            <>
-              <p className="text-sm text-muted-foreground">Pick your prediction:</p>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => handleSelectOutcome("A")}
-                  className="flex-1 h-12 rounded-lg font-medium text-sm transition-all duration-200 flex items-center justify-center gap-2 bg-outcome-yes/[0.08] border border-outcome-yes/25 text-outcome-yes hover:bg-outcome-yes/[0.15] hover:border-outcome-yes/40"
-                >
-                  <span>{outcomeA?.label}</span>
-                  <span className="opacity-60">{stats.percentA}%</span>
-                </button>
-                <button
-                  onClick={() => handleSelectOutcome("B")}
-                  className="flex-1 h-12 rounded-lg font-medium text-sm transition-all duration-200 flex items-center justify-center gap-2 bg-outcome-no/[0.08] border border-outcome-no/25 text-outcome-no hover:bg-outcome-no/[0.15] hover:border-outcome-no/40"
-                >
-                  <span>{outcomeB?.label}</span>
-                  <span className="opacity-60">{stats.percentB}%</span>
-                </button>
-              </div>
-              {!authenticated && (
-                <Button onClick={login} className="w-full">
-                  Sign in to bet
-                </Button>
-              )}
-            </>
+            <SelectOutcomeStep
+              outcomeA={outcomeA}
+              outcomeB={outcomeB}
+              stats={stats}
+              authenticated={authenticated}
+              onSelect={handleSelectOutcome}
+              onLogin={login}
+            />
           ) : step === "amount" ? (
-            <>
-              <div className="space-y-2">
-                <Label>Amount</Label>
-                <Input
-                  type="number"
-                  placeholder="Enter amount"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  max={balance}
-                  min={1}
-                />
-                <div className="flex gap-2">
-                  {[100, 500, 1000, balance].map((preset) => (
-                    <Button
-                      key={preset}
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setAmount(String(Math.min(preset, balance)))}
-                    >
-                      {preset === balance ? "Max" : `$${preset}`}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={() => setStep("select")} className="flex-1">
-                  Back
-                </Button>
-                <Button
-                  onClick={handlePlaceBet}
-                  disabled={!amount || parseInt(amount, 10) > balance || placeBetMutation.isPending}
-                  className="flex-1"
-                >
-                  {placeBetMutation.isPending ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    "Continue"
-                  )}
-                </Button>
-              </div>
-            </>
-          ) : step === "tweet" ? (
-            <>
-              <p className="text-sm text-muted-foreground">
-                Share your prediction on X to confirm your bet!
-              </p>
-              <Button onClick={handleOpenTweetIntent} className="w-full">
-                <ExternalLink className="h-4 w-4 mr-2" />
-                Post on X
-              </Button>
-            </>
+            <AmountStep
+              selectedOutcome={selectedOutcome}
+              outcomeA={outcomeA}
+              outcomeB={outcomeB}
+              amount={amount}
+              balance={balance}
+              onAmountChange={setAmount}
+              onBack={() => setStep("select")}
+              onContinue={handlePlaceBet}
+              isLoading={placeBetMutation.isPending}
+            />
           ) : step === "verify" ? (
-            <>
-              <p className="text-sm text-muted-foreground">
-                After posting, verify your tweet:
-              </p>
-              <Button
-                onClick={() => handleVerify("timeline")}
-                disabled={verifyTweetMutation.isPending}
-                className="w-full"
-              >
-                {verifyTweetMutation.isPending ? (
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                ) : null}
-                Verify Tweet
-              </Button>
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <span className="w-full border-t" />
-                </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-background px-2 text-muted-foreground">Or paste URL</span>
-                </div>
-              </div>
-              <Input
-                placeholder="Paste your tweet URL"
-                value={tweetUrl}
-                onChange={(e) => setTweetUrl(e.target.value)}
-              />
-              <Button
-                variant="outline"
-                onClick={() => handleVerify("url")}
-                disabled={!tweetUrl || verifyTweetMutation.isPending}
-                className="w-full"
-              >
-                Verify with URL
-              </Button>
-            </>
+            <VerifyStep
+              pendingBet={pendingBetData?.pendingBet}
+              selectedOutcome={selectedOutcome}
+              outcomeA={outcomeA}
+              outcomeB={outcomeB}
+              tweetUrl={tweetUrl}
+              onTweetUrlChange={setTweetUrl}
+              onOpenTweetIntent={handleOpenTweetIntent}
+              onVerify={handleVerify}
+              isLoading={verifyTweetMutation.isPending}
+            />
           ) : null}
         </GlassCardContent>
       </GlassCard>
 
-      {/* Success Modal with Ticket */}
-      <Dialog open={showSuccessModal} onOpenChange={setShowSuccessModal}>
-        <DialogContent className="sm:max-w-lg overflow-hidden p-0">
-          <div className="relative">
-            {/* Celebration background gradient */}
-            <div className="absolute inset-0 bg-gradient-to-br from-purple-900/30 via-background to-pink-900/30" />
-            
-            {/* Floating particles animation */}
-            <div className="absolute inset-0 overflow-hidden pointer-events-none">
-              {[...Array(12)].map((_, i) => (
-                <motion.div
-                  key={i}
-                  className="absolute w-2 h-2 rounded-full bg-purple-400/40"
-                  initial={{ 
-                    x: Math.random() * 400, 
-                    y: 400,
-                    scale: 0,
-                    opacity: 0 
-                  }}
-                  animate={{ 
-                    y: -100,
-                    scale: [0, 1, 0.5],
-                    opacity: [0, 1, 0],
-                  }}
-                  transition={{ 
-                    duration: 2 + Math.random() * 2,
-                    delay: Math.random() * 0.5,
-                    repeat: Infinity,
-                    repeatDelay: Math.random() * 2
-                  }}
-                />
-              ))}
-            </div>
-
-            <div className="relative p-6 text-center space-y-5">
-              {/* Success header */}
-              <motion.div
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1 }}
-                className="flex items-center justify-center gap-2"
-              >
-                <Sparkles className="h-5 w-5 text-purple-400" />
-                <h2 className="text-xl font-bold">Bet Confirmed!</h2>
-                <Sparkles className="h-5 w-5 text-purple-400" />
-              </motion.div>
-
-              {/* Ticket Preview */}
-              {showTicketPreview && confirmedOutcome && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: 0.2, type: "spring", bounce: 0.3 }}
-                  className="flex justify-center"
-                >
-                  <div className="rounded-lg overflow-hidden shadow-2xl shadow-purple-500/20 ring-1 ring-white/10">
-                    <BettingTicket
-                      ref={ticketRef}
-                      market={market}
-                      outcome={(confirmedOutcome === "A" ? outcomeA : outcomeB)!}
-                      amount={confirmedBetAmount}
-                      userName={profile?.name}
-                      userHandle={profile?.handle}
-                      userAvatar={profile?.profileImageUrl}
-                    />
-                  </div>
-                </motion.div>
-              )}
-
-              {/* Action buttons */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.4 }}
-                className="space-y-3"
-              >
-                <p className="text-sm text-muted-foreground">Share your betting ticket</p>
-                <div className="flex gap-2">
-                  <Button 
-                    onClick={handleShareTicketOnX}
-                    disabled={isGeneratingImage}
-                    className="flex-1 gap-2 bg-black hover:bg-black/80 text-white"
-                  >
-                    {isGeneratingImage ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <XIcon className="h-4 w-4" />
-                    )}
-                    Share on X
-                  </Button>
-                  <Button 
-                    onClick={handleDownloadTicket}
-                    disabled={isGeneratingImage}
-                    variant="outline"
-                    className="gap-2"
-                  >
-                    {isGeneratingImage ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Download className="h-4 w-4" />
-                    )}
-                  </Button>
-                  <Button 
-                    onClick={handleCopyBetLink}
-                    variant="outline"
-                    className="gap-2"
-                  >
-                    {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                  </Button>
-                </div>
-              </motion.div>
-
-              {/* Close button */}
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.5 }}
-              >
-                <Button 
-                  onClick={() => setShowSuccessModal(false)} 
-                  variant="ghost" 
-                  className="w-full text-muted-foreground"
-                >
-                  Continue Browsing
-                </Button>
-              </motion.div>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <SuccessModal
+        open={showSuccessModal}
+        onOpenChange={setShowSuccessModal}
+        market={market}
+        outcomeA={outcomeA}
+        outcomeB={outcomeB}
+        confirmedOutcome={confirmedOutcome}
+        confirmedBetAmount={confirmedBetAmount}
+        profile={profile}
+        ticketRef={ticketRef}
+        isGeneratingImage={isGeneratingImage}
+        copied={copied}
+        onShareOnX={handleShareTicketOnX}
+        onDownload={handleDownloadTicket}
+        onCopyLink={handleCopyBetLink}
+      />
     </>
   );
 }

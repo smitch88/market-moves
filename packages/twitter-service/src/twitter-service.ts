@@ -177,7 +177,7 @@ export class TwitterService {
   async getTweetById(tweetId: string): Promise<Tweet | null> {
     try {
       const url = new URL("/tweet", this.baseUrl);
-      url.searchParams.set("id", tweetId);
+      url.searchParams.set("pid", tweetId);
 
       const response = await fetch(url.toString(), {
         method: "GET",
@@ -190,6 +190,18 @@ export class TwitterService {
       }
 
       const data = await response.json();
+
+      // Try threaded conversation format first
+      const threaded = data?.data?.threaded_conversation_with_injections_v2;
+      if (threaded) {
+        const tweets = this.extractTweetsFromThreadedConversation(data);
+        // Return the first tweet (main tweet) or the one matching the requested ID
+        if (tweets.length > 0) {
+          return tweets.find(t => t.tweetId === tweetId) || tweets[0];
+        }
+      }
+      
+      // Fallback to other formats
       const result = data?.result || data?.data?.tweetResult?.result;
       if (!result) return null;
 
@@ -455,7 +467,14 @@ export class TwitterService {
     const tweets: Tweet[] = [];
 
     try {
+      // Try threaded conversation format first
       const d = data as Record<string, unknown>;
+      const dataField = d?.data as Record<string, unknown> | undefined;
+      const threaded = dataField?.threaded_conversation_with_injections_v2;
+      if (threaded) {
+        return this.extractTweetsFromThreadedConversation(data);
+      }
+
       const result = d?.result as Record<string, unknown>;
       const timeline = result?.timeline as Record<string, unknown>;
       const instructions = (timeline?.instructions || []) as Array<Record<string, unknown>>;
@@ -466,13 +485,33 @@ export class TwitterService {
 
         for (const entry of entries) {
           const content = entry.content as Record<string, unknown>;
-          const itemContent = content?.itemContent as Record<string, unknown>;
-          const tweetResults = itemContent?.tweet_results as Record<string, unknown>;
-          const tweet = tweetResults?.result as Record<string, unknown>;
+          
+          // Handle TimelineTimelineItem (direct tweet)
+          if (content?.entryType === "TimelineTimelineItem") {
+            const itemContent = content.itemContent as Record<string, unknown>;
+            const tweetResults = itemContent?.tweet_results as Record<string, unknown>;
+            const tweet = tweetResults?.result as Record<string, unknown>;
 
-          if (tweet && tweet.__typename === "Tweet") {
-            const parsed = this.parseTweet(tweet, "");
-            if (parsed) tweets.push(parsed);
+            if (tweet && tweet.__typename === "Tweet") {
+              const parsed = this.parseTweet(tweet, "");
+              if (parsed) tweets.push(parsed);
+            }
+          }
+          
+          // Handle TimelineTimelineModule (conversation thread)
+          if (content?.entryType === "TimelineTimelineModule" && content.items) {
+            const items = content.items as Array<Record<string, unknown>>;
+            for (const item of items) {
+              const itemData = item.item as Record<string, unknown>;
+              const itemContent = itemData?.itemContent as Record<string, unknown>;
+              const tweetResults = itemContent?.tweet_results as Record<string, unknown>;
+              const tweet = tweetResults?.result as Record<string, unknown>;
+
+              if (tweet && tweet.__typename === "Tweet") {
+                const parsed = this.parseTweet(tweet, "");
+                if (parsed) tweets.push(parsed);
+              }
+            }
           }
         }
       }
@@ -534,11 +573,13 @@ export class TwitterService {
 
         for (const entry of entries) {
           const entryId = entry.entryId as string;
-          if (entryId?.startsWith("promoted-tweet") || entryId?.startsWith("who-to-follow")) {
+          if (entryId?.startsWith("promoted-tweet") || entryId?.startsWith("who-to-follow") || entryId?.startsWith("cursor-")) {
             continue;
           }
 
           const content = entry.content as Record<string, unknown>;
+          
+          // Handle TimelineTimelineItem (direct tweet)
           if (content?.entryType === "TimelineTimelineItem") {
             const itemContent = content.itemContent as Record<string, unknown>;
             const tweetResults = itemContent?.tweet_results as Record<string, unknown>;
@@ -546,6 +587,21 @@ export class TwitterService {
             if (tweetResult && tweetResult.__typename === "Tweet") {
               const parsed = this.parseTweet(tweetResult, keyword);
               if (parsed) tweets.push(parsed);
+            }
+          }
+          
+          // Handle TimelineTimelineModule (conversation thread with nested items)
+          if (content?.entryType === "TimelineTimelineModule" && content.items) {
+            const items = content.items as Array<Record<string, unknown>>;
+            for (const item of items) {
+              const itemData = item.item as Record<string, unknown>;
+              const itemContent = itemData?.itemContent as Record<string, unknown>;
+              const tweetResults = itemContent?.tweet_results as Record<string, unknown>;
+              const tweetResult = tweetResults?.result as Record<string, unknown>;
+              if (tweetResult && tweetResult.__typename === "Tweet") {
+                const parsed = this.parseTweet(tweetResult, keyword);
+                if (parsed) tweets.push(parsed);
+              }
             }
           }
         }
@@ -560,6 +616,13 @@ export class TwitterService {
   private getInstructions(data: unknown): Array<Record<string, unknown>> {
     const d = data as Record<string, unknown>;
 
+    // Try threaded conversation format
+    const dataField = d?.data as Record<string, unknown>;
+    const threaded = dataField?.threaded_conversation_with_injections_v2 as Record<string, unknown>;
+    if (threaded?.instructions) {
+      return (threaded.instructions || []) as Array<Record<string, unknown>>;
+    }
+
     // Try new format
     const result = d?.result as Record<string, unknown>;
     if (result?.timeline) {
@@ -568,7 +631,6 @@ export class TwitterService {
     }
 
     // Try original format
-    const dataField = d?.data as Record<string, unknown>;
     const searchByRawQuery = dataField?.search_by_raw_query as Record<string, unknown>;
     const searchTimeline = searchByRawQuery?.search_timeline as Record<string, unknown>;
     const timeline = searchTimeline?.timeline as Record<string, unknown>;
@@ -611,6 +673,69 @@ export class TwitterService {
     }
 
     return null;
+  }
+
+  /**
+   * Extract tweets from threaded conversation format
+   */
+  private extractTweetsFromThreadedConversation(data: unknown): Tweet[] {
+    const tweets: Tweet[] = [];
+
+    try {
+      const d = data as Record<string, unknown>;
+      const dataField = d?.data as Record<string, unknown>;
+      const threaded = dataField?.threaded_conversation_with_injections_v2 as Record<string, unknown>;
+      const instructions = (threaded?.instructions || []) as Array<Record<string, unknown>>;
+
+      for (const instruction of instructions) {
+        if (instruction.type !== "TimelineAddEntries") continue;
+
+        const entries = instruction.entries as Array<Record<string, unknown>>;
+        if (!entries) continue;
+
+        for (const entry of entries) {
+          const entryId = entry.entryId as string;
+          // Skip cursor entries
+          if (entryId?.startsWith("cursor-")) {
+            continue;
+          }
+
+          const content = entry.content as Record<string, unknown>;
+          
+          // Handle TimelineTimelineItem (direct tweet)
+          if (content?.entryType === "TimelineTimelineItem") {
+            const itemContent = content.itemContent as Record<string, unknown>;
+            const tweetResults = itemContent?.tweet_results as Record<string, unknown>;
+            const tweet = tweetResults?.result as Record<string, unknown>;
+
+            if (tweet && tweet.__typename === "Tweet") {
+              const parsed = this.parseTweet(tweet, "");
+              if (parsed) tweets.push(parsed);
+            }
+          }
+          
+          // Handle TimelineTimelineModule (conversation thread with nested items)
+          if (content?.entryType === "TimelineTimelineModule" && content.items) {
+            const items = content.items as Array<Record<string, unknown>>;
+            for (const item of items) {
+              const itemData = item.item as Record<string, unknown>;
+              const itemContent = itemData?.itemContent as Record<string, unknown>;
+              const tweetResults = itemContent?.tweet_results as Record<string, unknown>;
+              const tweet = tweetResults?.result as Record<string, unknown>;
+
+              if (tweet && tweet.__typename === "Tweet") {
+                const parsed = this.parseTweet(tweet, "");
+                if (parsed) tweets.push(parsed);
+              }
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error("[TwitterService] Error extracting tweets from threaded conversation:", error);
+    }
+
+    return tweets;
   }
 }
 

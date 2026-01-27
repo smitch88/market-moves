@@ -15,7 +15,6 @@ interface BettingTicketProps {
 
 export const BettingTicket = forwardRef<HTMLDivElement, BettingTicketProps>(
   ({ market, outcome, amount, userName, userHandle, timestamp = new Date() }, ref) => {
-    const isOutcomeA = outcome.key === "A";
     const formattedDate = timestamp.toLocaleDateString("en-US", {
       month: "short",
       day: "numeric",
@@ -70,31 +69,20 @@ export const BettingTicket = forwardRef<HTMLDivElement, BettingTicketProps>(
           </div>
 
           {/* Prediction */}
-          <div className="bg-white/5 rounded-xl p-4 border border-white/10">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <div className="text-xs text-white/50 uppercase tracking-wide mb-1">Your Pick</div>
-                <div 
-                  className={`text-2xl font-bold ${isOutcomeA ? "text-[#00cb4e]" : "text-[#ff2f36]"}`}
-                >
+          <div className="space-y-5">
+            <div className="flex items-center justify-between">
+              <div className="flex-1 text-center">
+                <div className="text-xs text-white/40 uppercase tracking-wider mb-2">Your Pick</div>
+                <div className="text-3xl font-bold text-purple-300 leading-tight">
                   {outcome.label}
                 </div>
-              </div>
-              <div 
-                className={`w-16 h-16 rounded-full flex items-center justify-center text-3xl font-black ${
-                  isOutcomeA 
-                    ? "bg-[#00cb4e]/20 text-[#00cb4e] ring-2 ring-[#00cb4e]/30" 
-                    : "bg-[#ff2f36]/20 text-[#ff2f36] ring-2 ring-[#ff2f36]/30"
-                }`}
-              >
-                {isOutcomeA ? "✓" : "✗"}
               </div>
             </div>
 
             {/* Amount */}
-            <div className="flex items-center justify-between pt-3 border-t border-white/10">
-              <div className="text-xs text-white/50 uppercase tracking-wide">Wager</div>
-              <div className="text-2xl font-bold text-[#df2421]">
+            <div className="flex items-center justify-between pt-4 border-t border-white/5">
+              <div className="text-xs text-white/40 uppercase tracking-wider">Wager</div>
+              <div className="text-3xl font-bold text-[#df2421] tracking-tight">
                 ${amount.toLocaleString()}
               </div>
             </div>
