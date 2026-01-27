@@ -1,0 +1,406 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// ENUMS
+// ============================================================================
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum MarketStatus {
+  DRAFT
+  PUBLISHED
+  OPEN
+  CLOSED
+  RESOLVED
+  SETTLED
+  CANCELLED
+}
+
+enum MarketCategory {
+  NFL
+  NBA
+  NHL
+  MLB
+  SOCCER
+  UFC
+  TENNIS
+  GOLF
+  ESPORTS
+  POLITICS
+  CRYPTO
+  FINANCE
+  ENTERTAINMENT
+  OTHER
+}
+
+enum OutcomeKey {
+  A
+  B
+}
+
+enum BetStatus {
+  PENDING_TWEET  // Awaiting tweet verification
+  CONFIRMED      // Tweet verified, bet active
+  WON            // Market resolved, user won
+  LOST           // Market resolved, user lost
+  REJECTED       // Bet rejected
+  CANCELLED      // Bet cancelled
+}
+
+enum BalanceReason {
+  INITIAL_CREDIT
+  BET_PLACED
+  SETTLEMENT_PAYOUT
+  SETTLEMENT_LOSS
+  ADMIN_ADJUST
+  REFERRAL_BONUS
+  OTHER
+}
+
+enum RaffleReason {
+  CORRECT_PREDICTION
+  REFERRAL_BONUS
+}
+
+enum TweetProofMethod {
+  TIMELINE_SCAN
+  TWEET_URL
+}
+
+enum AdminAction {
+  MARKET_CREATE
+  MARKET_UPDATE
+  MARKET_CLOSE
+  MARKET_RESOLVE
+  MARKET_SETTLE
+  USER_ROLE_UPDATE
+}
+
+// ============================================================================
+// USER
+// ============================================================================
+
+model User {
+  id              String    @id @default(cuid())
+  
+  // Privy identity fields
+  privyUserId     String    @unique
+  email           String?
+  walletAddress   String?
+  twitterSubject  String?   // Twitter OAuth subject/ID
+  
+  // Profile fields
+  handle          String?
+  name            String?
+  profileImageUrl String?
+  
+  // Role
+  role            UserRole  @default(USER)
+  
+  // Balance
+  balance         Int       @default(10000)
+  balanceLocked   Boolean   @default(false)
+  
+  // Referral
+  referralCode    String    @unique @default(cuid())
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  bets            Bet[]
+  positions       Position[]
+  balanceLedger   BalanceLedger[]
+  tweetProofs     TweetProof[]
+  raffleEntries   RaffleEntry[]
+  
+  // Referrals (as referrer)
+  referralsGiven  Referral[] @relation("ReferrerUser")
+  // Referrals (as referred)
+  referralReceived Referral? @relation("ReferredUser")
+  
+  // Admin actions performed
+  adminActions    AdminActionLog[]
+  
+  // Balance ledger entries where this admin made adjustment
+  adminAdjustments BalanceLedger[] @relation("AdminActor")
+
+  @@index([email])
+  @@index([twitterSubject])
+  @@index([referralCode])
+}
+
+// ============================================================================
+// BALANCE LEDGER (Audit)
+// ============================================================================
+
+model BalanceLedger {
+  id              String        @id @default(cuid())
+  userId          String
+  user            User          @relation(fields: [userId], references: [id])
+  
+  delta           Int           // Can be positive or negative
+  balanceBefore   Int
+  balanceAfter    Int
+  
+  reason          BalanceReason
+  correlationId   String?       // e.g., bet ID, settlement run ID
+  
+  // If admin made this adjustment
+  actorAdminUserId String?
+  actorAdmin       User?        @relation("AdminActor", fields: [actorAdminUserId], references: [id])
+  
+  createdAt       DateTime      @default(now())
+
+  @@index([userId])
+  @@index([correlationId])
+  @@index([createdAt])
+}
+
+// ============================================================================
+// MARKET
+// ============================================================================
+
+model Market {
+  id              String        @id @default(cuid())
+  slug            String        @unique
+  
+  title           String
+  question        String?
+  
+  category        MarketCategory @default(OTHER)
+  status          MarketStatus   @default(DRAFT)
+  
+  // Media
+  bannerUrl       String?
+  logoUrl         String?
+  
+  // Details (Markdown)
+  detailsMarkdown String?       @db.Text
+  
+  // Resolution
+  resolutionSourceUrl String?
+  resolvedOutcomeId   String?
+  
+  // Timestamps
+  publishedAt     DateTime?
+  opensAt         DateTime?
+  closesAt        DateTime?
+  resolvedAt      DateTime?
+  settledAt       DateTime?
+  
+  // Settlement idempotency
+  settlementRunId String?       @unique
+  
+  // Pari-mutuel params
+  feeBps          Int           @default(100)    // 1% = 100 basis points
+  seedA           Int           @default(1000)   // Bootstrap liquidity for outcome A
+  seedB           Int           @default(1000)   // Bootstrap liquidity for outcome B
+  
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  // Relations
+  outcomes        Outcome[]
+  bets            Bet[]
+  positions       Position[]
+  tweetProofs     TweetProof[]
+  raffleEntries   RaffleEntry[]
+
+  @@index([status])
+  @@index([category])
+  @@index([closesAt])
+  @@index([publishedAt])
+}
+
+// ============================================================================
+// OUTCOME
+// ============================================================================
+
+model Outcome {
+  id        String     @id @default(cuid())
+  marketId  String
+  market    Market     @relation(fields: [marketId], references: [id], onDelete: Cascade)
+  
+  key       OutcomeKey // A or B
+  label     String     // e.g., "Seahawks", "Patriots", "Yes", "No"
+  color     String?    // Optional hex color
+  
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  // Relations
+  bets      Bet[]
+
+  @@unique([marketId, key])
+  @@index([marketId])
+}
+
+// ============================================================================
+// BET (Ledger)
+// ============================================================================
+
+model Bet {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id])
+  
+  marketId      String
+  market        Market    @relation(fields: [marketId], references: [id])
+  
+  outcomeId     String
+  outcome       Outcome   @relation(fields: [outcomeId], references: [id])
+  
+  amount        Int
+  weight        Float     @default(1)
+  payout        Int?      // Calculated payout after settlement (null until settled)
+  
+  status        BetStatus @default(PENDING_TWEET)
+  
+  // Tweet proof reference
+  tweetProofId  String?
+  tweetProof    TweetProof? @relation(fields: [tweetProofId], references: [id])
+  
+  createdAt     DateTime  @default(now())
+  confirmedAt   DateTime?
+
+  @@index([userId])
+  @@index([marketId])
+  @@index([outcomeId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+// ============================================================================
+// POSITION (Aggregate)
+// ============================================================================
+
+model Position {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id])
+  
+  marketId        String
+  market          Market   @relation(fields: [marketId], references: [id])
+  
+  // Aggregated amounts per outcome (only confirmed bets)
+  amountOutcomeA  Int      @default(0)
+  amountOutcomeB  Int      @default(0)
+  
+  // Weighted aggregates
+  weightedOutcomeA Float   @default(0)
+  weightedOutcomeB Float   @default(0)
+  
+  lastBetAt       DateTime?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([userId, marketId])
+  @@index([userId])
+  @@index([marketId])
+}
+
+// ============================================================================
+// REFERRAL
+// ============================================================================
+
+model Referral {
+  id                  String    @id @default(cuid())
+  
+  referrerUserId      String
+  referrer            User      @relation("ReferrerUser", fields: [referrerUserId], references: [id])
+  
+  referredUserId      String    @unique
+  referred            User      @relation("ReferredUser", fields: [referredUserId], references: [id])
+  
+  createdAt           DateTime  @default(now())
+  qualifiedAt         DateTime? // When referred user placed first confirmed bet
+  bonusEntriesAwarded Int       @default(0)
+
+  @@index([referrerUserId])
+}
+
+// ============================================================================
+// RAFFLE ENTRY
+// ============================================================================
+
+model RaffleEntry {
+  id        String       @id @default(cuid())
+  userId    String
+  user      User         @relation(fields: [userId], references: [id])
+  
+  marketId  String
+  market    Market       @relation(fields: [marketId], references: [id])
+  
+  entries   Int          @default(1)
+  reason    RaffleReason
+  
+  createdAt DateTime     @default(now())
+
+  @@unique([userId, marketId, reason])
+  @@index([userId])
+  @@index([marketId])
+}
+
+// ============================================================================
+// TWEET PROOF
+// ============================================================================
+
+model TweetProof {
+  id          String           @id @default(cuid())
+  userId      String
+  user        User             @relation(fields: [userId], references: [id])
+  
+  marketId    String
+  market      Market           @relation(fields: [marketId], references: [id])
+  
+  method      TweetProofMethod
+  tweetUrl    String?
+  tweetId     String?
+  verified    Boolean          @default(false)
+  matchedText String?
+  raw         Json?            // Minimal captured response snippet
+  
+  createdAt   DateTime         @default(now())
+  verifiedAt  DateTime?
+
+  // Relations
+  bets        Bet[]
+
+  @@index([userId])
+  @@index([marketId])
+  @@index([verified])
+}
+
+// ============================================================================
+// ADMIN ACTION LOG
+// ============================================================================
+
+model AdminActionLog {
+  id            String      @id @default(cuid())
+  adminUserId   String
+  admin         User        @relation(fields: [adminUserId], references: [id])
+  
+  action        AdminAction
+  targetType    String      // e.g., "Market", "User"
+  targetId      String
+  metadata      Json?
+  
+  createdAt     DateTime    @default(now())
+
+  @@index([adminUserId])
+  @@index([targetType, targetId])
+  @@index([createdAt])
+}
