@@ -8,6 +8,12 @@ export async function GET(
   try {
     const { slug } = await params;
 
+    // Disable caching for real-time data
+    const headers = new Headers();
+    headers.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    headers.set("Pragma", "no-cache");
+    headers.set("Expires", "0");
+
     const market = await prisma.market.findUnique({
       where: { slug },
       include: {
@@ -58,17 +64,20 @@ export async function GET(
     const poolB = market.seedB + market.positions.reduce((sum, p) => sum + p.amountOutcomeB, 0);
     const totalPool = poolA + poolB;
 
-    return NextResponse.json({
-      market,
-      stats: {
-        poolA,
-        poolB,
-        totalPool,
-        percentA: totalPool > 0 ? Math.round((poolA / totalPool) * 100) : 50,
-        percentB: totalPool > 0 ? Math.round((poolB / totalPool) * 100) : 50,
-        totalBets: market.bets.length,
+    return NextResponse.json(
+      {
+        market,
+        stats: {
+          poolA,
+          poolB,
+          totalPool,
+          percentA: totalPool > 0 ? Math.round((poolA / totalPool) * 100) : 50,
+          percentB: totalPool > 0 ? Math.round((poolB / totalPool) * 100) : 50,
+          totalBets: market.bets.length,
+        },
       },
-    });
+      { headers }
+    );
   } catch (error) {
     console.error("Error fetching market:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

@@ -85,14 +85,14 @@ export function BettingPanel({ market, stats }: BettingPanelProps) {
 
   // Initialize pending bet if found
   useEffect(() => {
-    if (pendingBetData?.pendingBet && !betId) {
+    if (pendingBetData?.pendingBet && !betId && step === "select") {
       const pendingBet = pendingBetData.pendingBet;
       setBetId(pendingBet.id);
       setSelectedOutcome(pendingBet.outcome.key as "A" | "B");
       setAmount(String(pendingBet.amount));
       setStep("verify");
     }
-  }, [pendingBetData, betId]);
+  }, [pendingBetData, betId, step]);
 
   // Place bet mutation
   const placeBetMutation = useMutation({
@@ -167,11 +167,23 @@ export function BettingPanel({ market, stats }: BettingPanelProps) {
       }
       return data;
     },
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       if (data.verified) {
-        queryClient.invalidateQueries({ queryKey: ["profile"] });
-        queryClient.invalidateQueries({ queryKey: ["market", market.slug] });
-        queryClient.invalidateQueries({ queryKey: ["pendingBet", market.id] });
+        // Reset state immediately to prevent re-initialization
+        setBetId(null);
+        setStep("select");
+        setSelectedOutcome(null);
+        setAmount("");
+        setTweetUrl("");
+        
+        // Invalidate and refetch queries
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ["profile"] }),
+          queryClient.refetchQueries({ queryKey: ["market", market.slug] }),
+          queryClient.refetchQueries({ queryKey: ["pendingBet", market.id] }),
+        ]);
+        
+        // Show success modal
         handleBetSuccess();
       } else {
         toast.warning(

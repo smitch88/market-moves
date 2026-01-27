@@ -38,7 +38,12 @@ export function MarketDetail({ market }: MarketDetailProps) {
   const { data, isLoading } = useQuery({
     queryKey: ["market", market.slug],
     queryFn: () => fetchMarketData(market.slug),
-    initialData: { market, stats: { percentA: 50, percentB: 50, totalBets: 0, totalPool: 0 } },
+    placeholderData: { market, stats: { percentA: 50, percentB: 50, totalBets: 0, totalPool: 0 } },
+    staleTime: 0, // Always consider data stale
+    refetchInterval: 10000, // Refetch every 10 seconds
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
+    gcTime: 0, // Don't cache
   });
 
   const outcomeA = market.outcomes.find((o) => o.key === "A");

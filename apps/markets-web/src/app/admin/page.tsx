@@ -1,6 +1,7 @@
 import { prisma } from "@vault/database";
 import { GlassCard, GlassCardContent, GlassCardHeader } from "@vault/ui";
 import { BarChart3, Users, DollarSign, TrendingUp } from "lucide-react";
+import { RecentActivity } from "@/components/admin/recent-activity";
 
 export default async function AdminDashboard() {
   const [marketCount, userCount, betCount, totalVolume] = await Promise.all([
@@ -65,15 +66,13 @@ export default async function AdminDashboard() {
         ))}
       </div>
 
-      {/* Recent activity placeholder */}
+      {/* Recent activity */}
       <GlassCard>
         <GlassCardHeader>
           <h2 className="text-lg font-semibold">Recent Activity</h2>
         </GlassCardHeader>
         <GlassCardContent>
-          <p className="text-muted-foreground text-center py-8">
-            Activity feed coming soon...
-          </p>
+          <RecentActivity />
         </GlassCardContent>
       </GlassCard>
     </div>
