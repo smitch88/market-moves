@@ -3,9 +3,10 @@
 import Link from "next/link";
 import Image from "next/image";
 import { format } from "date-fns";
-import { Clock, TrendingUp, Users } from "lucide-react";
+import { Clock, TrendingUp, Users, Sparkles } from "lucide-react";
 import { motion } from "framer-motion";
 import type { Market, Outcome } from "@vault/database";
+import { cn } from "@vault/ui/lib/utils";
 
 interface MarketCardProps {
   market: Market & {
@@ -13,6 +14,13 @@ interface MarketCardProps {
     _count: { bets: number };
   };
   index?: number;
+}
+
+// Check if market was created within last 48 hours
+function isNewMarket(createdAt: Date | string): boolean {
+  const created = typeof createdAt === "string" ? new Date(createdAt) : createdAt;
+  const hoursSinceCreation = (Date.now() - created.getTime()) / (1000 * 60 * 60);
+  return hoursSinceCreation < 48;
 }
 
 export function MarketCard({ market, index = 0 }: MarketCardProps) {
@@ -26,6 +34,7 @@ export function MarketCard({ market, index = 0 }: MarketCardProps) {
 
   const closesAt = market.closesAt ? new Date(market.closesAt) : null;
   const isClosingSoon = closesAt && closesAt.getTime() - Date.now() < 24 * 60 * 60 * 1000;
+  const isNew = isNewMarket(market.createdAt);
 
   // Format volume
   const volume = market.seedA + market.seedB;
@@ -42,12 +51,21 @@ export function MarketCard({ market, index = 0 }: MarketCardProps) {
       transition={{
         duration: 0.4,
         delay: index * 0.05,
-        ease: [0.25, 0.1, 0.25, 1],
+        ease: [0.25, 0.1, 0.25, 1] as const,
       }}
+      className="relative"
     >
-      <Link href={`/markets/${market.slug}`} className="block group">
+      {/* Animated gradient border for new markets */}
+      {isNew && (
+        <div className="absolute -inset-[1px] rounded-xl bg-gradient-to-r from-emerald-500/50 via-cyan-500/50 to-emerald-500/50 opacity-60 blur-[2px] animate-gradient-shift" />
+      )}
+      
+      <Link href={`/markets/${market.slug}`} className="block group relative">
         <motion.div
-          className="glass-card overflow-hidden h-full flex flex-col"
+          className={cn(
+            "glass-card overflow-hidden h-full flex flex-col relative",
+            isNew && "border-emerald-500/30"
+          )}
           whileHover={{ 
             y: -4,
             transition: { duration: 0.2, ease: "easeOut" }
@@ -72,18 +90,42 @@ export function MarketCard({ market, index = 0 }: MarketCardProps) {
               </motion.div>
             ) : (
               <motion.div 
-                className="h-10 w-10 rounded-lg bg-gradient-to-br from-primary/30 to-primary/10 flex items-center justify-center flex-shrink-0"
+                className={cn(
+                  "h-10 w-10 rounded-lg flex items-center justify-center flex-shrink-0",
+                  isNew 
+                    ? "bg-gradient-to-br from-emerald-500/30 to-cyan-500/20" 
+                    : "bg-gradient-to-br from-primary/30 to-primary/10"
+                )}
                 whileHover={{ scale: 1.05 }}
                 transition={{ duration: 0.2 }}
               >
-                <TrendingUp className="h-5 w-5 text-primary" />
+                {isNew ? (
+                  <Sparkles className="h-5 w-5 text-emerald-400" />
+                ) : (
+                  <TrendingUp className="h-5 w-5 text-primary" />
+                )}
               </motion.div>
             )}
             <div className="flex-1 min-w-0">
-              <div className="text-xs text-muted-foreground font-medium mb-1">
-                {market.category}
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-xs text-muted-foreground font-medium">
+                  {market.category}
+                </span>
+                {isNew && (
+                  <motion.span
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-gradient-to-r from-emerald-500/20 to-cyan-500/20 text-emerald-400 border border-emerald-500/30"
+                  >
+                    <Sparkles className="h-2.5 w-2.5" />
+                    New
+                  </motion.span>
+                )}
               </div>
-              <h3 className="font-semibold text-sm leading-tight line-clamp-2 group-hover:text-primary transition-colors">
+              <h3 className={cn(
+                "font-semibold text-sm leading-tight line-clamp-2 transition-colors",
+                isNew ? "group-hover:text-emerald-400" : "group-hover:text-primary"
+              )}>
                 {market.question || market.title}
               </h3>
             </div>
