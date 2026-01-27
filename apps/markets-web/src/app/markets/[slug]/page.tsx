@@ -12,22 +12,31 @@ interface PageProps {
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params;
-  const market = await prisma.market.findUnique({
+  const event = await prisma.event.findUnique({
     where: { slug },
-    select: { title: true, question: true, bannerUrl: true },
+    select: { 
+      title: true, 
+      bannerUrl: true,
+      markets: {
+        select: { question: true },
+        take: 1,
+      },
+    },
   });
 
-  if (!market) {
-    return { title: "Market Not Found | Vault Markets" };
+  if (!event) {
+    return { title: "Event Not Found | Vault Markets" };
   }
 
+  const question = event.markets[0]?.question || event.title;
+
   return {
-    title: `${market.question || market.title} | Vault Markets`,
-    description: market.question || market.title,
+    title: `${question} | Vault Markets`,
+    description: question,
     openGraph: {
-      title: market.question || market.title,
+      title: question,
       description: `Predict the outcome on Vault Markets`,
-      images: market.bannerUrl ? [market.bannerUrl] : undefined,
+      images: event.bannerUrl ? [event.bannerUrl] : undefined,
     },
   };
 }
@@ -35,14 +44,17 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 export default async function MarketPage({ params }: PageProps) {
   const { slug } = await params;
 
-  const market = await prisma.market.findUnique({
+  const event = await prisma.event.findUnique({
     where: { slug },
     include: {
-      outcomes: true,
+      tags: true,
+      markets: {
+        orderBy: { closesAt: "asc" },
+      },
     },
   });
 
-  if (!market) {
+  if (!event) {
     notFound();
   }
 
@@ -51,7 +63,7 @@ export default async function MarketPage({ params }: PageProps) {
       <Header />
       <main className="container mx-auto px-4 py-6">
         <Suspense fallback={<MarketDetailSkeleton />}>
-          <MarketDetail market={market} />
+          <MarketDetail event={event} />
         </Suspense>
       </main>
     </div>

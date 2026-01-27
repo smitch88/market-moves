@@ -14,7 +14,21 @@ export interface ProvisionUserInput {
   referralCode?: string | null; // Code of the referrer
 }
 
-export async function provisionUser(input: ProvisionUserInput) {
+export type ProvisionedUser = {
+  id: string;
+  privyUserId: string;
+  email: string | null;
+  twitterSubject: string | null;
+  handle: string | null;
+  name: string | null;
+  profileImageUrl: string | null;
+  role: "USER" | "ADMIN";
+  balance: number;
+  referralCode: string;
+  _count: { referralsGiven: number };
+};
+
+export async function provisionUser(input: ProvisionUserInput): Promise<ProvisionedUser> {
   const {
     privyUserId,
     email,

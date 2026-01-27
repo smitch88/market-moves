@@ -22,19 +22,18 @@ import {
   Badge,
 } from "@vault/ui";
 import { AlertTriangle, Check, Loader2, Play, Lock, Trophy, Wallet } from "lucide-react";
-import type { Market, Outcome, MarketStatus } from "@vault/database";
+import type { Market } from "@vault/database";
 
 interface MarketActionsProps {
   market: Market;
-  outcomeA?: Outcome;
-  outcomeB?: Outcome;
+  outcomes: string[];
 }
 
-export function MarketActions({ market, outcomeA, outcomeB }: MarketActionsProps) {
+export function MarketActions({ market, outcomes }: MarketActionsProps) {
   const router = useRouter();
   const [resolveDialogOpen, setResolveDialogOpen] = useState(false);
   const [settleDialogOpen, setSettleDialogOpen] = useState(false);
-  const [selectedOutcome, setSelectedOutcome] = useState<string>("");
+  const [selectedOutcomeIndex, setSelectedOutcomeIndex] = useState<string>("");
 
   const publishMutation = useMutation({
     mutationFn: async () => {
@@ -59,11 +58,11 @@ export function MarketActions({ market, outcomeA, outcomeB }: MarketActionsProps
   });
 
   const resolveMutation = useMutation({
-    mutationFn: async (outcomeId: string) => {
+    mutationFn: async (outcomeIndex: number) => {
       const res = await fetch(`/api/admin/markets/${market.id}/resolve`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ outcomeId }),
+        body: JSON.stringify({ outcomeIndex }),
       });
       if (!res.ok) throw new Error("Failed to resolve market");
       return res.json();
@@ -96,6 +95,7 @@ export function MarketActions({ market, outcomeA, outcomeB }: MarketActionsProps
   const canResolve = market.status === "CLOSED";
   const canSettle = market.status === "RESOLVED" && !market.settledAt;
   const isSettled = !!market.settledAt;
+  const resolvedOutcome = market.resolvedOutcome;
 
   return (
     <>
@@ -163,13 +163,11 @@ export function MarketActions({ market, outcomeA, outcomeB }: MarketActionsProps
             </div>
           )}
 
-          {market.resolvedOutcomeId && (
+          {resolvedOutcome !== null && resolvedOutcome !== undefined && (
             <div className="pt-2 border-t border-border">
               <p className="text-sm text-muted-foreground">Resolved Outcome:</p>
               <Badge variant="success" className="mt-1">
-                {market.resolvedOutcomeId === outcomeA?.id
-                  ? outcomeA?.label
-                  : outcomeB?.label}
+                {outcomes[resolvedOutcome]}
               </Badge>
             </div>
           )}
@@ -186,17 +184,16 @@ export function MarketActions({ market, outcomeA, outcomeB }: MarketActionsProps
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">
-            <Select value={selectedOutcome} onValueChange={setSelectedOutcome}>
+            <Select value={selectedOutcomeIndex} onValueChange={setSelectedOutcomeIndex}>
               <SelectTrigger>
                 <SelectValue placeholder="Select winning outcome" />
               </SelectTrigger>
               <SelectContent>
-                {outcomeA && (
-                  <SelectItem value={outcomeA.id}>{outcomeA.label}</SelectItem>
-                )}
-                {outcomeB && (
-                  <SelectItem value={outcomeB.id}>{outcomeB.label}</SelectItem>
-                )}
+                {outcomes.map((outcome, index) => (
+                  <SelectItem key={index} value={String(index)}>
+                    {outcome}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -205,8 +202,8 @@ export function MarketActions({ market, outcomeA, outcomeB }: MarketActionsProps
               Cancel
             </Button>
             <Button
-              onClick={() => resolveMutation.mutate(selectedOutcome)}
-              disabled={!selectedOutcome || resolveMutation.isPending}
+              onClick={() => resolveMutation.mutate(parseInt(selectedOutcomeIndex, 10))}
+              disabled={selectedOutcomeIndex === "" || resolveMutation.isPending}
             >
               {resolveMutation.isPending && (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -231,14 +228,12 @@ export function MarketActions({ market, outcomeA, outcomeB }: MarketActionsProps
             </DialogDescription>
           </DialogHeader>
           <div className="py-4 space-y-2">
-            <p className="text-sm">
-              <span className="text-muted-foreground">Winning outcome:</span>{" "}
-              <span className="font-medium">
-                {market.resolvedOutcomeId === outcomeA?.id
-                  ? outcomeA?.label
-                  : outcomeB?.label}
-              </span>
-            </p>
+            {resolvedOutcome !== null && resolvedOutcome !== undefined && (
+              <p className="text-sm">
+                <span className="text-muted-foreground">Winning outcome:</span>{" "}
+                <span className="font-medium">{outcomes[resolvedOutcome]}</span>
+              </p>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setSettleDialogOpen(false)}>

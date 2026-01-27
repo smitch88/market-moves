@@ -1,29 +1,28 @@
 "use client";
 
 import { Avatar, AvatarFallback, AvatarImage, UserHoverCard } from "@vault/ui";
-import type { Position, User, Outcome } from "@vault/database";
+import type { Position, User } from "@vault/database";
 
 interface TopBettorsProps {
   positions: (Position & {
     user: Pick<User, "id" | "handle" | "name" | "profileImageUrl" | "createdAt">;
   })[];
-  outcomeA?: Outcome;
-  outcomeB?: Outcome;
+  outcomes: string[];
 }
 
-export function TopBettors({ positions, outcomeA, outcomeB }: TopBettorsProps) {
+export function TopBettors({ positions, outcomes }: TopBettorsProps) {
   // Split positions by outcome
-  const outcomeABettors = positions
-    .filter((p) => p.amountOutcomeA > 0)
-    .sort((a, b) => b.amountOutcomeA - a.amountOutcomeA)
+  const outcome0Bettors = positions
+    .filter((p) => p.amount0 > 0)
+    .sort((a, b) => b.amount0 - a.amount0)
     .slice(0, 10);
 
-  const outcomeBBettors = positions
-    .filter((p) => p.amountOutcomeB > 0)
-    .sort((a, b) => b.amountOutcomeB - a.amountOutcomeB)
+  const outcome1Bettors = positions
+    .filter((p) => p.amount1 > 0)
+    .sort((a, b) => b.amount1 - a.amount1)
     .slice(0, 10);
 
-  if (outcomeABettors.length === 0 && outcomeBBettors.length === 0) {
+  if (outcome0Bettors.length === 0 && outcome1Bettors.length === 0) {
     return (
       <div className="text-center py-8 text-muted-foreground">
         <p>No bettors yet</p>
@@ -33,13 +32,13 @@ export function TopBettors({ positions, outcomeA, outcomeB }: TopBettorsProps) {
 
   return (
     <div className="grid grid-cols-2 gap-6">
-      {/* Outcome A bettors */}
+      {/* Outcome 0 bettors */}
       <div>
         <h3 className="text-sm font-semibold text-chart-2 mb-4">
-          {outcomeA?.label || "Team A"} Holders
+          {outcomes[0] || "Team A"} Holders
         </h3>
         <div className="space-y-3">
-          {outcomeABettors.map((position, index) => (
+          {outcome0Bettors.map((position, index) => (
             <UserHoverCard
               key={position.id}
               user={{
@@ -79,7 +78,7 @@ export function TopBettors({ positions, outcomeA, outcomeB }: TopBettorsProps) {
                   </p>
                 </div>
                 <p className="text-sm font-semibold text-chart-2">
-                  ${position.amountOutcomeA.toLocaleString()}
+                  ${position.amount0.toLocaleString()}
                 </p>
               </div>
             </UserHoverCard>
@@ -87,13 +86,13 @@ export function TopBettors({ positions, outcomeA, outcomeB }: TopBettorsProps) {
         </div>
       </div>
 
-      {/* Outcome B bettors */}
+      {/* Outcome 1 bettors */}
       <div>
         <h3 className="text-sm font-semibold text-chart-5 mb-4">
-          {outcomeB?.label || "Team B"} Holders
+          {outcomes[1] || "Team B"} Holders
         </h3>
         <div className="space-y-3">
-          {outcomeBBettors.map((position, index) => (
+          {outcome1Bettors.map((position, index) => (
             <UserHoverCard
               key={position.id}
               user={{
@@ -133,7 +132,7 @@ export function TopBettors({ positions, outcomeA, outcomeB }: TopBettorsProps) {
                   </p>
                 </div>
                 <p className="text-sm font-semibold text-chart-5">
-                  ${position.amountOutcomeB.toLocaleString()}
+                  ${position.amount1.toLocaleString()}
                 </p>
               </div>
             </UserHoverCard>

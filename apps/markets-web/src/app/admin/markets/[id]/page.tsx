@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@vault/database";
+import { getMarketUrl, getAdminMarketEditUrl } from "@/lib/urls";
 import { format } from "date-fns";
 import {
   Button,
@@ -13,6 +14,15 @@ import {
 import type { MarketStatus } from "@vault/database";
 import { MarketActions } from "@/components/admin/market-actions";
 
+// Helper to parse outcomes
+function parseOutcomes(outcomes: string): string[] {
+  try {
+    return JSON.parse(outcomes);
+  } catch {
+    return ["Yes", "No"];
+  }
+}
+
 interface PageProps {
   params: Promise<{ id: string }>;
 }
@@ -23,14 +33,15 @@ export default async function AdminMarketDetailPage({ params }: PageProps) {
   const market = await prisma.market.findUnique({
     where: { id },
     include: {
-      outcomes: true,
+      event: {
+        include: { tags: true },
+      },
       bets: {
         where: { status: "CONFIRMED" },
         include: {
           user: {
             select: { id: true, handle: true, name: true },
           },
-          outcome: true,
         },
         orderBy: { createdAt: "desc" },
         take: 50,
@@ -49,29 +60,27 @@ export default async function AdminMarketDetailPage({ params }: PageProps) {
     notFound();
   }
 
-  // Calculate pool stats
-  const poolA =
-    market.seedA + market.positions.reduce((sum, p) => sum + p.amountOutcomeA, 0);
-  const poolB =
-    market.seedB + market.positions.reduce((sum, p) => sum + p.amountOutcomeB, 0);
-  const totalPool = poolA + poolB;
+  // Parse outcomes
+  const outcomes = parseOutcomes(market.outcomes);
 
-  const outcomeA = market.outcomes.find((o) => o.key === "A");
-  const outcomeB = market.outcomes.find((o) => o.key === "B");
+  // Calculate pool stats
+  const pool0 = market.seed0 + market.pool0;
+  const pool1 = market.seed1 + market.pool1;
+  const totalPool = pool0 + pool1;
 
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">{market.title}</h1>
+          <h1 className="text-3xl font-bold">{market.event.title}</h1>
           <p className="text-muted-foreground">{market.question}</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" asChild>
-            <Link href={`/admin/markets/${market.id}/edit`}>Edit</Link>
+            <Link href={getAdminMarketEditUrl(market.id)}>Edit</Link>
           </Button>
           <Button variant="outline" asChild>
-            <Link href={`/markets/${market.slug}`} target="_blank">
+            <Link href={getMarketUrl(market.event.slug)} target="_blank">
               View Public
             </Link>
           </Button>
@@ -108,18 +117,18 @@ export default async function AdminMarketDetailPage({ params }: PageProps) {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">
-                    {outcomeA?.label || "A"} Pool
+                    {outcomes[0]} Pool
                   </p>
                   <p className="text-xl font-bold text-chart-2">
-                    ${poolA.toLocaleString()}
+                    ${pool0.toLocaleString()}
                   </p>
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">
-                    {outcomeB?.label || "B"} Pool
+                    {outcomes[1]} Pool
                   </p>
                   <p className="text-xl font-bold text-chart-5">
-                    ${poolB.toLocaleString()}
+                    ${pool1.toLocaleString()}
                   </p>
                 </div>
               </div>
@@ -162,12 +171,12 @@ export default async function AdminMarketDetailPage({ params }: PageProps) {
                           <Badge
                             variant="outline"
                             className={
-                              bet.outcome.key === "A"
+                              bet.outcomeIndex === 0
                                 ? "border-chart-2 text-chart-2"
                                 : "border-chart-5 text-chart-5"
                             }
                           >
-                            {bet.outcome.label}
+                            {outcomes[bet.outcomeIndex]}
                           </Badge>
                         </td>
                         <td className="p-4 text-right font-mono">
@@ -195,7 +204,7 @@ export default async function AdminMarketDetailPage({ params }: PageProps) {
         {/* Sidebar */}
         <div className="space-y-6">
           {/* Actions */}
-          <MarketActions market={market} outcomeA={outcomeA} outcomeB={outcomeB} />
+          <MarketActions market={market} outcomes={outcomes} />
 
           {/* Timeline */}
           <GlassCard>
@@ -222,12 +231,12 @@ export default async function AdminMarketDetailPage({ params }: PageProps) {
                 <span>{market.feeBps / 100}%</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Seed A</span>
-                <span>${market.seedA.toLocaleString()}</span>
+                <span className="text-muted-foreground">Seed 0 ({outcomes[0]})</span>
+                <span>${market.seed0.toLocaleString()}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Seed B</span>
-                <span>${market.seedB.toLocaleString()}</span>
+                <span className="text-muted-foreground">Seed 1 ({outcomes[1]})</span>
+                <span>${market.seed1.toLocaleString()}</span>
               </div>
               {market.settlementRunId && (
                 <div className="flex justify-between">

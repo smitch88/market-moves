@@ -8,6 +8,7 @@ import { cn } from "@vault/ui/lib/utils";
 import Link from "next/link";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
+import { getMarketUrl } from "@/lib/urls";
 
 interface SearchResult {
   id: string;
@@ -212,7 +213,7 @@ export function SearchBar() {
                   {results.map((market, index) => (
                     <Link
                       key={market.id}
-                      href={`/markets/${market.slug}`}
+                      href={getMarketUrl(market.slug)}
                       onClick={handleResultClick}
                     >
                       <motion.div

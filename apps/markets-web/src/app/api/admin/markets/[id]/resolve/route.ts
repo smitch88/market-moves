@@ -4,7 +4,7 @@ import { requireAdmin } from "@vault/auth";
 import { z } from "zod";
 
 const resolveSchema = z.object({
-  outcomeId: z.string().min(1),
+  outcomeIndex: z.number().int().min(0).max(1),
 });
 
 export async function POST(
@@ -15,12 +15,11 @@ export async function POST(
     const admin = await requireAdmin();
     const { id } = await params;
     const body = await request.json();
-    const { outcomeId } = resolveSchema.parse(body);
+    const { outcomeIndex } = resolveSchema.parse(body);
 
     const market = await prisma.$transaction(async (tx) => {
       const existing = await tx.market.findUnique({
         where: { id },
-        include: { outcomes: true },
       });
 
       if (!existing) {
@@ -29,21 +28,23 @@ export async function POST(
       if (existing.status !== MarketStatus.CLOSED) {
         throw new Error("Market must be closed before resolving");
       }
-      if (existing.resolvedOutcomeId) {
+      if (existing.resolvedOutcome !== null) {
         throw new Error("Market already resolved");
       }
 
-      // Verify outcome belongs to this market
-      const outcome = existing.outcomes.find((o) => o.id === outcomeId);
-      if (!outcome) {
-        throw new Error("Invalid outcome for this market");
+      // Parse outcomes to get the label for logging
+      const outcomes = JSON.parse(existing.outcomes) as string[];
+      const outcomeLabel = outcomes[outcomeIndex];
+
+      if (!outcomeLabel) {
+        throw new Error("Invalid outcome index");
       }
 
       const updated = await tx.market.update({
         where: { id },
         data: {
           status: MarketStatus.RESOLVED,
-          resolvedOutcomeId: outcomeId,
+          resolvedOutcome: outcomeIndex,
           resolvedAt: new Date(),
         },
       });
@@ -55,8 +56,8 @@ export async function POST(
           targetType: "Market",
           targetId: id,
           metadata: {
-            outcomeId,
-            outcomeLabel: outcome.label,
+            outcomeIndex,
+            outcomeLabel,
             newStatus: MarketStatus.RESOLVED,
           },
         },

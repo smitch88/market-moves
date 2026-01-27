@@ -2,17 +2,16 @@ import { Input } from "@vault/ui";
 import { Loader2 } from "lucide-react";
 import { XIcon } from "../x-icon";
 import { useState } from "react";
-import type { Outcome } from "@vault/database";
 
 interface VerifyStepProps {
   pendingBet?: {
     id: string;
     amount: number;
-    outcome: { key: string; label: string };
+    outcomeIndex: number;
+    outcomeLabel?: string;
   } | null;
-  selectedOutcome: "A" | "B" | null;
-  outcomeA: Outcome | undefined;
-  outcomeB: Outcome | undefined;
+  selectedOutcome: number | null;
+  outcomes: string[];
   tweetUrl: string;
   onTweetUrlChange: (url: string) => void;
   onOpenTweetIntent: () => void;
@@ -23,8 +22,7 @@ interface VerifyStepProps {
 export function VerifyStep({
   pendingBet,
   selectedOutcome,
-  outcomeA,
-  outcomeB,
+  outcomes,
   tweetUrl,
   onTweetUrlChange,
   onOpenTweetIntent,
@@ -32,8 +30,8 @@ export function VerifyStep({
   isLoading,
 }: VerifyStepProps) {
   const [hasOpenedTweet, setHasOpenedTweet] = useState(false);
-  const selectedOutcomeLabel = selectedOutcome === "A" ? outcomeA?.label : outcomeB?.label;
-  const selectedOutcomeColor = selectedOutcome === "A" ? "text-outcome-yes" : "text-outcome-no";
+  const selectedOutcomeLabel = selectedOutcome !== null ? outcomes[selectedOutcome] : "";
+  const selectedOutcomeColor = selectedOutcome === 0 ? "text-outcome-yes" : "text-outcome-no";
 
   const handleOpenTweet = () => {
     onOpenTweetIntent();
@@ -46,7 +44,9 @@ export function VerifyStep({
       {pendingBet && (
         <div className="p-3 rounded-lg bg-muted/30 border border-border">
           <div className="flex items-center justify-between">
-            <div className={`text-sm font-medium ${selectedOutcomeColor}`}>{selectedOutcomeLabel}</div>
+            <div className={`text-sm font-medium ${selectedOutcomeColor}`}>
+              {pendingBet.outcomeLabel || selectedOutcomeLabel}
+            </div>
             <div className="text-sm font-semibold text-foreground">${pendingBet.amount.toLocaleString()}</div>
           </div>
         </div>
@@ -107,4 +107,3 @@ export function VerifyStep({
     </div>
   );
 }
-

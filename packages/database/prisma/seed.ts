@@ -1,4 +1,4 @@
-import { PrismaClient, MarketCategory, MarketStatus, OutcomeKey, UserRole } from "../src/generated/client";
+import { PrismaClient, MarketCategory, MarketStatus, UserRole } from "../src/generated/client";
 
 const prisma = new PrismaClient();
 
@@ -54,391 +54,463 @@ async function main() {
   ]);
   console.log(`✅ Created ${testUsers.length} test users\n`);
 
-  // Define markets
-  const markets = [
-    // ============ NFL / SUPER BOWL ============
+  // Create tags
+  console.log("🏷️  Creating tags...\n");
+  const tagData = [
+    { slug: "nfl", label: "NFL" },
+    { slug: "nba", label: "NBA" },
+    { slug: "ufc", label: "UFC" },
+    { slug: "soccer", label: "Soccer" },
+    { slug: "politics", label: "Politics" },
+    { slug: "crypto", label: "Crypto" },
+    { slug: "entertainment", label: "Entertainment" },
+    { slug: "sports", label: "Sports" },
+    { slug: "super-bowl", label: "Super Bowl" },
+    { slug: "playoffs", label: "Playoffs" },
+    { slug: "championship", label: "Championship" },
+    { slug: "awards", label: "Awards" },
+  ];
+
+  const tags: Record<string, { id: string }> = {};
+  for (const tag of tagData) {
+    const created = await prisma.tag.upsert({
+      where: { slug: tag.slug },
+      update: { label: tag.label },
+      create: tag,
+    });
+    tags[tag.slug] = created;
+  }
+  console.log(`✅ Created ${tagData.length} tags\n`);
+
+  // Define events with their markets (Polymarket-style structure)
+  const events = [
+    // ============ SUPER BOWL LIX ============
     {
-      slug: "super-bowl-lix-winner",
-      title: "Super Bowl LIX Winner",
-      question: "Who will win Super Bowl LIX?",
+      slug: "super-bowl-lix",
+      title: "Super Bowl LIX",
+      description: "The biggest game in American football. Super Bowl LIX takes place on February 9, 2025 at Caesars Superdome, New Orleans.",
       category: MarketCategory.NFL,
-      status: MarketStatus.OPEN,
       bannerUrl: "https://images.unsplash.com/photo-1566577739112-5180d4bf9390?w=1200",
       logoUrl: "https://upload.wikimedia.org/wikipedia/en/a/a2/Super_Bowl_logo.svg",
-      detailsMarkdown: `# Super Bowl LIX\n\nThe biggest game in American football. Who will hoist the Lombardi Trophy?\n\n## Key Info\n- **Date:** February 9, 2025\n- **Location:** Caesars Superdome, New Orleans\n- **Broadcast:** FOX`,
-      closesAt: new Date("2025-02-09T18:00:00Z"),
-      seedA: 15000,
-      seedB: 12000,
-      outcomes: [
-        { key: OutcomeKey.A, label: "Kansas City Chiefs", color: "#E31837" },
-        { key: OutcomeKey.B, label: "Philadelphia Eagles", color: "#004C54" },
-      ],
-    },
-    {
-      slug: "super-bowl-mvp",
-      title: "Super Bowl LIX MVP",
-      question: "Will the Super Bowl MVP be a quarterback?",
-      category: MarketCategory.NFL,
-      status: MarketStatus.OPEN,
-      logoUrl: "https://upload.wikimedia.org/wikipedia/en/a/a2/Super_Bowl_logo.svg",
-      detailsMarkdown: `Quarterbacks have won MVP in 32 of 58 Super Bowls. Will the trend continue?`,
-      closesAt: new Date("2025-02-09T23:00:00Z"),
-      seedA: 8000,
-      seedB: 5000,
-      outcomes: [
-        { key: OutcomeKey.A, label: "Yes (QB)", color: "#22C55E" },
-        { key: OutcomeKey.B, label: "No (Other)", color: "#EF4444" },
-      ],
-    },
-    {
-      slug: "super-bowl-total-points",
-      title: "Super Bowl Total Points Over/Under",
-      question: "Will the total points be over 49.5?",
-      category: MarketCategory.NFL,
-      status: MarketStatus.OPEN,
-      detailsMarkdown: `The over/under for Super Bowl LIX is set at 49.5 points. Which way will it go?`,
-      closesAt: new Date("2025-02-09T23:00:00Z"),
-      seedA: 6000,
-      seedB: 6500,
-      outcomes: [
-        { key: OutcomeKey.A, label: "Over 49.5", color: "#22C55E" },
-        { key: OutcomeKey.B, label: "Under 49.5", color: "#EF4444" },
-      ],
-    },
-    {
-      slug: "mahomes-passing-yards",
-      title: "Mahomes Passing Yards",
-      question: "Will Patrick Mahomes throw for 300+ yards?",
-      category: MarketCategory.NFL,
-      status: MarketStatus.OPEN,
-      detailsMarkdown: `Patrick Mahomes' playoff passing performance. Will he hit 300 yards in the big game?`,
-      closesAt: new Date("2025-02-09T23:00:00Z"),
-      seedA: 4500,
-      seedB: 5500,
-      outcomes: [
-        { key: OutcomeKey.A, label: "Yes (300+)", color: "#22C55E" },
-        { key: OutcomeKey.B, label: "No (Under 300)", color: "#EF4444" },
+      startTime: new Date("2025-02-09T18:30:00Z"),
+      tags: ["nfl", "super-bowl", "sports", "championship"],
+      markets: [
+        {
+          question: "Who will win Super Bowl LIX?",
+          outcomes: ["Kansas City Chiefs", "Philadelphia Eagles"],
+          outcomeColors: ["#E31837", "#004C54"],
+          closesAt: new Date("2025-02-09T18:00:00Z"),
+          seed0: 15000,
+          seed1: 12000,
+          detailsMarkdown: `# Super Bowl LIX Winner\n\nWho will hoist the Lombardi Trophy?\n\n## Key Info\n- **Date:** February 9, 2025\n- **Location:** Caesars Superdome, New Orleans\n- **Broadcast:** FOX`,
+        },
+        {
+          question: "Will the Super Bowl MVP be a quarterback?",
+          outcomes: ["Yes (QB)", "No (Other)"],
+          outcomeColors: ["#22C55E", "#EF4444"],
+          closesAt: new Date("2025-02-09T23:00:00Z"),
+          seed0: 8000,
+          seed1: 5000,
+          detailsMarkdown: `Quarterbacks have won MVP in 32 of 58 Super Bowls. Will the trend continue?`,
+        },
+        {
+          question: "Will the total points be over 49.5?",
+          outcomes: ["Over 49.5", "Under 49.5"],
+          outcomeColors: ["#22C55E", "#EF4444"],
+          closesAt: new Date("2025-02-09T23:00:00Z"),
+          seed0: 6000,
+          seed1: 6500,
+          detailsMarkdown: `The over/under for Super Bowl LIX is set at 49.5 points. Which way will it go?`,
+        },
+        {
+          question: "Will Patrick Mahomes throw for 300+ yards?",
+          outcomes: ["Yes (300+)", "No (Under 300)"],
+          outcomeColors: ["#22C55E", "#EF4444"],
+          closesAt: new Date("2025-02-09T23:00:00Z"),
+          seed0: 4500,
+          seed1: 5500,
+          detailsMarkdown: `Patrick Mahomes' playoff passing performance. Will he hit 300 yards in the big game?`,
+        },
       ],
     },
 
-    // ============ NBA ============
+    // ============ NBA 2024-25 ============
     {
-      slug: "nba-championship-2025",
-      title: "2025 NBA Championship",
-      question: "Who will win the 2025 NBA Finals?",
+      slug: "nba-2024-25-season",
+      title: "NBA 2024-25 Season",
+      description: "The 2024-25 NBA season. Who will claim the Larry O'Brien Trophy and individual awards?",
       category: MarketCategory.NBA,
-      status: MarketStatus.OPEN,
       bannerUrl: "https://images.unsplash.com/photo-1546519638-68e109498ffc?w=1200",
       logoUrl: "https://cdn.nba.com/logos/leagues/logo-nba.svg",
-      detailsMarkdown: `# 2025 NBA Finals\n\nWho will claim the Larry O'Brien Trophy this season?`,
-      closesAt: new Date("2025-06-15T00:00:00Z"),
-      seedA: 20000,
-      seedB: 18000,
-      outcomes: [
-        { key: OutcomeKey.A, label: "Boston Celtics", color: "#007A33" },
-        { key: OutcomeKey.B, label: "Denver Nuggets", color: "#0E2240" },
-      ],
-    },
-    {
-      slug: "nba-mvp-2025",
-      title: "2024-25 NBA MVP",
-      question: "Who will win the 2024-25 NBA MVP award?",
-      category: MarketCategory.NBA,
-      status: MarketStatus.OPEN,
-      detailsMarkdown: `The race for the Most Valuable Player award. Will it be a repeat winner or a new face?`,
-      closesAt: new Date("2025-04-15T00:00:00Z"),
-      seedA: 12000,
-      seedB: 10000,
-      outcomes: [
-        { key: OutcomeKey.A, label: "Luka Dončić", color: "#00538C" },
-        { key: OutcomeKey.B, label: "Nikola Jokić", color: "#0E2240" },
-      ],
-    },
-    {
-      slug: "lebron-scoring-record",
-      title: "LeBron's Scoring Record",
-      question: "Will LeBron score 40,000 career points this season?",
-      category: MarketCategory.NBA,
-      status: MarketStatus.OPEN,
-      detailsMarkdown: `LeBron James is approaching another historic milestone. Will he hit 40K this season?`,
-      closesAt: new Date("2025-04-13T00:00:00Z"),
-      seedA: 9000,
-      seedB: 3000,
-      outcomes: [
-        { key: OutcomeKey.A, label: "Yes", color: "#22C55E" },
-        { key: OutcomeKey.B, label: "No", color: "#EF4444" },
+      tags: ["nba", "sports", "championship"],
+      markets: [
+        {
+          question: "Who will win the 2025 NBA Finals?",
+          outcomes: ["Boston Celtics", "Denver Nuggets"],
+          outcomeColors: ["#007A33", "#0E2240"],
+          closesAt: new Date("2025-06-15T00:00:00Z"),
+          seed0: 20000,
+          seed1: 18000,
+          detailsMarkdown: `# 2025 NBA Finals\n\nWho will claim the Larry O'Brien Trophy this season?`,
+        },
+        {
+          question: "Who will win the 2024-25 NBA MVP award?",
+          outcomes: ["Luka Dončić", "Nikola Jokić"],
+          outcomeColors: ["#00538C", "#0E2240"],
+          closesAt: new Date("2025-04-15T00:00:00Z"),
+          seed0: 12000,
+          seed1: 10000,
+          detailsMarkdown: `The race for the Most Valuable Player award. Will it be a repeat winner or a new face?`,
+        },
+        {
+          question: "Will LeBron score 40,000 career points this season?",
+          outcomes: ["Yes", "No"],
+          outcomeColors: ["#22C55E", "#EF4444"],
+          closesAt: new Date("2025-04-13T00:00:00Z"),
+          seed0: 9000,
+          seed1: 3000,
+          detailsMarkdown: `LeBron James is approaching another historic milestone. Will he hit 40K this season?`,
+        },
       ],
     },
 
-    // ============ UFC / MMA ============
+    // ============ UFC ============
     {
-      slug: "ufc-310-main-event",
-      title: "UFC 310 Main Event",
-      question: "Who wins the UFC 310 main event?",
+      slug: "ufc-310",
+      title: "UFC 310",
+      description: "UFC 310 championship fight card.",
       category: MarketCategory.UFC,
-      status: MarketStatus.OPEN,
       bannerUrl: "https://images.unsplash.com/photo-1549719386-74dfcbf7dbed?w=1200",
-      detailsMarkdown: `# UFC 310\n\nThe championship is on the line. Who walks away with the belt?`,
-      closesAt: new Date("2025-03-15T04:00:00Z"),
-      seedA: 7000,
-      seedB: 8000,
-      outcomes: [
-        { key: OutcomeKey.A, label: "Champion", color: "#FFD700" },
-        { key: OutcomeKey.B, label: "Challenger", color: "#C0C0C0" },
+      startTime: new Date("2025-03-15T04:00:00Z"),
+      tags: ["ufc", "sports"],
+      markets: [
+        {
+          question: "Who wins the UFC 310 main event?",
+          outcomes: ["Champion", "Challenger"],
+          outcomeColors: ["#FFD700", "#C0C0C0"],
+          closesAt: new Date("2025-03-15T04:00:00Z"),
+          seed0: 7000,
+          seed1: 8000,
+          detailsMarkdown: `# UFC 310\n\nThe championship is on the line. Who walks away with the belt?`,
+        },
       ],
     },
     {
-      slug: "jones-retirement",
-      title: "Jon Jones Retirement",
-      question: "Will Jon Jones retire in 2025?",
+      slug: "jon-jones-2025",
+      title: "Jon Jones in 2025",
+      description: "Predictions about Jon Jones for 2025.",
       category: MarketCategory.UFC,
-      status: MarketStatus.OPEN,
-      detailsMarkdown: `The GOAT debate continues. Will Jon Jones hang up the gloves this year?`,
-      closesAt: new Date("2025-12-31T23:59:00Z"),
-      seedA: 4000,
-      seedB: 8000,
-      outcomes: [
-        { key: OutcomeKey.A, label: "Yes", color: "#22C55E" },
-        { key: OutcomeKey.B, label: "No", color: "#EF4444" },
+      tags: ["ufc", "sports"],
+      markets: [
+        {
+          question: "Will Jon Jones retire in 2025?",
+          outcomes: ["Yes", "No"],
+          outcomeColors: ["#22C55E", "#EF4444"],
+          closesAt: new Date("2025-12-31T23:59:00Z"),
+          seed0: 4000,
+          seed1: 8000,
+          detailsMarkdown: `The GOAT debate continues. Will Jon Jones hang up the gloves this year?`,
+        },
       ],
     },
 
     // ============ SOCCER ============
     {
-      slug: "champions-league-2025",
-      title: "UEFA Champions League 2025",
-      question: "Who will win the 2024-25 Champions League?",
+      slug: "champions-league-2024-25",
+      title: "UEFA Champions League 2024-25",
+      description: "Europe's elite club competition. Who lifts the trophy?",
       category: MarketCategory.SOCCER,
-      status: MarketStatus.OPEN,
       bannerUrl: "https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=1200",
-      detailsMarkdown: `# Champions League Final\n\nEurope's elite club competition. Who lifts the trophy in Munich?`,
-      closesAt: new Date("2025-05-31T21:00:00Z"),
-      seedA: 15000,
-      seedB: 14000,
-      outcomes: [
-        { key: OutcomeKey.A, label: "Real Madrid", color: "#FEBE10" },
-        { key: OutcomeKey.B, label: "Manchester City", color: "#6CABDD" },
+      tags: ["soccer", "sports", "championship"],
+      markets: [
+        {
+          question: "Who will win the 2024-25 Champions League?",
+          outcomes: ["Real Madrid", "Manchester City"],
+          outcomeColors: ["#FEBE10", "#6CABDD"],
+          closesAt: new Date("2025-05-31T21:00:00Z"),
+          seed0: 15000,
+          seed1: 14000,
+          detailsMarkdown: `# Champions League Final\n\nEurope's elite club competition. Who lifts the trophy in Munich?`,
+        },
       ],
     },
     {
-      slug: "premier-league-title",
+      slug: "premier-league-2024-25",
       title: "Premier League 2024-25",
-      question: "Who wins the Premier League title?",
+      description: "The race for the English top flight title.",
       category: MarketCategory.SOCCER,
-      status: MarketStatus.OPEN,
-      detailsMarkdown: `The race for the English top flight title. Who finishes on top?`,
-      closesAt: new Date("2025-05-25T16:00:00Z"),
-      seedA: 11000,
-      seedB: 13000,
-      outcomes: [
-        { key: OutcomeKey.A, label: "Arsenal", color: "#EF0107" },
-        { key: OutcomeKey.B, label: "Manchester City", color: "#6CABDD" },
+      tags: ["soccer", "sports", "championship"],
+      markets: [
+        {
+          question: "Who wins the Premier League title?",
+          outcomes: ["Arsenal", "Manchester City"],
+          outcomeColors: ["#EF0107", "#6CABDD"],
+          closesAt: new Date("2025-05-25T16:00:00Z"),
+          seed0: 11000,
+          seed1: 13000,
+          detailsMarkdown: `The race for the English top flight title. Who finishes on top?`,
+        },
       ],
     },
 
     // ============ POLITICS ============
     {
-      slug: "fed-rate-march-2025",
+      slug: "fed-march-2025",
       title: "Fed Rate Decision March 2025",
-      question: "Will the Fed cut rates in March 2025?",
+      description: "Federal Reserve FOMC meeting decisions for March 2025.",
       category: MarketCategory.POLITICS,
-      status: MarketStatus.OPEN,
       bannerUrl: "https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?w=1200",
-      detailsMarkdown: `# Federal Reserve Decision\n\nThe FOMC meeting in March could signal the start of rate cuts. What will they decide?`,
-      closesAt: new Date("2025-03-19T18:00:00Z"),
-      seedA: 6000,
-      seedB: 9000,
-      outcomes: [
-        { key: OutcomeKey.A, label: "Rate Cut", color: "#22C55E" },
-        { key: OutcomeKey.B, label: "No Cut", color: "#EF4444" },
+      startTime: new Date("2025-03-19T18:00:00Z"),
+      tags: ["politics"],
+      markets: [
+        {
+          question: "Will the Fed cut rates in March 2025?",
+          outcomes: ["Rate Cut", "No Cut"],
+          outcomeColors: ["#22C55E", "#EF4444"],
+          closesAt: new Date("2025-03-19T18:00:00Z"),
+          seed0: 6000,
+          seed1: 9000,
+          detailsMarkdown: `# Federal Reserve Decision\n\nThe FOMC meeting in March could signal the start of rate cuts. What will they decide?`,
+        },
       ],
     },
     {
-      slug: "uk-general-election-timing",
-      title: "UK Election Timing",
-      question: "Will there be a UK general election before July 2025?",
+      slug: "uk-election-2025",
+      title: "UK Election 2025",
+      description: "Predictions about UK general election timing.",
       category: MarketCategory.POLITICS,
-      status: MarketStatus.OPEN,
-      detailsMarkdown: `Speculation mounts about the timing of the next UK general election.`,
-      closesAt: new Date("2025-07-01T00:00:00Z"),
-      seedA: 3500,
-      seedB: 5500,
-      outcomes: [
-        { key: OutcomeKey.A, label: "Yes", color: "#22C55E" },
-        { key: OutcomeKey.B, label: "No", color: "#EF4444" },
+      tags: ["politics"],
+      markets: [
+        {
+          question: "Will there be a UK general election before July 2025?",
+          outcomes: ["Yes", "No"],
+          outcomeColors: ["#22C55E", "#EF4444"],
+          closesAt: new Date("2025-07-01T00:00:00Z"),
+          seed0: 3500,
+          seed1: 5500,
+          detailsMarkdown: `Speculation mounts about the timing of the next UK general election.`,
+        },
       ],
     },
 
     // ============ CRYPTO ============
     {
-      slug: "btc-100k-q1-2025",
-      title: "Bitcoin $100K in Q1 2025",
-      question: "Will Bitcoin reach $100,000 by end of Q1 2025?",
+      slug: "bitcoin-2025",
+      title: "Bitcoin in 2025",
+      description: "Bitcoin price predictions for 2025.",
       category: MarketCategory.CRYPTO,
-      status: MarketStatus.OPEN,
       bannerUrl: "https://images.unsplash.com/photo-1518546305927-5a555bb7020d?w=1200",
       logoUrl: "https://cryptologos.cc/logos/bitcoin-btc-logo.svg",
-      detailsMarkdown: `# Bitcoin Price Target\n\nThe king of crypto eyes the $100K milestone. Will Q1 2025 be the breakthrough?`,
-      closesAt: new Date("2025-03-31T23:59:00Z"),
-      seedA: 18000,
-      seedB: 12000,
-      outcomes: [
-        { key: OutcomeKey.A, label: "Yes ($100K+)", color: "#F7931A" },
-        { key: OutcomeKey.B, label: "No", color: "#EF4444" },
+      tags: ["crypto"],
+      markets: [
+        {
+          question: "Will Bitcoin reach $100,000 by end of Q1 2025?",
+          outcomes: ["Yes ($100K+)", "No"],
+          outcomeColors: ["#F7931A", "#EF4444"],
+          closesAt: new Date("2025-03-31T23:59:00Z"),
+          seed0: 18000,
+          seed1: 12000,
+          detailsMarkdown: `# Bitcoin Price Target\n\nThe king of crypto eyes the $100K milestone. Will Q1 2025 be the breakthrough?`,
+        },
       ],
     },
     {
-      slug: "eth-etf-approval",
-      title: "Ethereum ETF Approval",
-      question: "Will spot ETH ETF be approved by SEC in 2025?",
+      slug: "ethereum-2025",
+      title: "Ethereum in 2025",
+      description: "Ethereum predictions for 2025.",
       category: MarketCategory.CRYPTO,
-      status: MarketStatus.OPEN,
       logoUrl: "https://cryptologos.cc/logos/ethereum-eth-logo.svg",
-      detailsMarkdown: `Following Bitcoin ETF approvals, will Ethereum get the same treatment?`,
-      closesAt: new Date("2025-12-31T23:59:00Z"),
-      seedA: 14000,
-      seedB: 8000,
-      outcomes: [
-        { key: OutcomeKey.A, label: "Approved", color: "#627EEA" },
-        { key: OutcomeKey.B, label: "Not Approved", color: "#EF4444" },
+      tags: ["crypto"],
+      markets: [
+        {
+          question: "Will spot ETH ETF be approved by SEC in 2025?",
+          outcomes: ["Approved", "Not Approved"],
+          outcomeColors: ["#627EEA", "#EF4444"],
+          closesAt: new Date("2025-12-31T23:59:00Z"),
+          seed0: 14000,
+          seed1: 8000,
+          detailsMarkdown: `Following Bitcoin ETF approvals, will Ethereum get the same treatment?`,
+        },
       ],
     },
     {
-      slug: "solana-flip-eth",
-      title: "Solana Flips Ethereum",
-      question: "Will Solana's market cap exceed Ethereum's in 2025?",
+      slug: "solana-vs-ethereum",
+      title: "Solana vs Ethereum",
+      description: "The flippening debate: Can Solana overtake Ethereum?",
       category: MarketCategory.CRYPTO,
-      status: MarketStatus.OPEN,
-      detailsMarkdown: `The flippening debate extends beyond Bitcoin. Can Solana overtake Ethereum?`,
-      closesAt: new Date("2025-12-31T23:59:00Z"),
-      seedA: 3000,
-      seedB: 15000,
-      outcomes: [
-        { key: OutcomeKey.A, label: "Yes (SOL > ETH)", color: "#9945FF" },
-        { key: OutcomeKey.B, label: "No", color: "#627EEA" },
+      tags: ["crypto"],
+      markets: [
+        {
+          question: "Will Solana's market cap exceed Ethereum's in 2025?",
+          outcomes: ["Yes (SOL > ETH)", "No"],
+          outcomeColors: ["#9945FF", "#627EEA"],
+          closesAt: new Date("2025-12-31T23:59:00Z"),
+          seed0: 3000,
+          seed1: 15000,
+          detailsMarkdown: `The flippening debate extends beyond Bitcoin. Can Solana overtake Ethereum?`,
+        },
       ],
     },
 
     // ============ ENTERTAINMENT ============
     {
-      slug: "oscars-best-picture-2025",
-      title: "Best Picture Oscar 2025",
-      question: "Will 'Oppenheimer' win Best Picture?",
+      slug: "oscars-2025",
+      title: "97th Academy Awards",
+      description: "The 2025 Oscars ceremony.",
       category: MarketCategory.ENTERTAINMENT,
-      status: MarketStatus.OPEN,
       bannerUrl: "https://images.unsplash.com/photo-1485846234645-a62644f84728?w=1200",
-      detailsMarkdown: `# 97th Academy Awards\n\nThe race for Hollywood's top prize. Will Nolan finally get his due?`,
-      closesAt: new Date("2025-03-02T04:00:00Z"),
-      seedA: 11000,
-      seedB: 5000,
-      outcomes: [
-        { key: OutcomeKey.A, label: "Oppenheimer Wins", color: "#FFD700" },
-        { key: OutcomeKey.B, label: "Other Film Wins", color: "#C0C0C0" },
+      startTime: new Date("2025-03-02T04:00:00Z"),
+      tags: ["entertainment", "awards"],
+      markets: [
+        {
+          question: "Will 'Oppenheimer' win Best Picture?",
+          outcomes: ["Oppenheimer Wins", "Other Film Wins"],
+          outcomeColors: ["#FFD700", "#C0C0C0"],
+          closesAt: new Date("2025-03-02T04:00:00Z"),
+          seed0: 11000,
+          seed1: 5000,
+          detailsMarkdown: `# 97th Academy Awards\n\nThe race for Hollywood's top prize. Will Nolan finally get his due?`,
+        },
       ],
     },
     {
-      slug: "taylor-swift-grammys",
-      title: "Taylor Swift Grammy Count",
-      question: "Will Taylor Swift win Album of the Year again?",
+      slug: "grammys-2025",
+      title: "67th Grammy Awards",
+      description: "The 2025 Grammy Awards ceremony.",
       category: MarketCategory.ENTERTAINMENT,
-      status: MarketStatus.OPEN,
-      detailsMarkdown: `Taylor Swift could make history with another Album of the Year win. Will she do it?`,
-      closesAt: new Date("2025-02-02T04:00:00Z"),
-      seedA: 7000,
-      seedB: 6000,
-      outcomes: [
-        { key: OutcomeKey.A, label: "Yes", color: "#22C55E" },
-        { key: OutcomeKey.B, label: "No", color: "#EF4444" },
+      startTime: new Date("2025-02-02T04:00:00Z"),
+      tags: ["entertainment", "awards"],
+      markets: [
+        {
+          question: "Will Taylor Swift win Album of the Year again?",
+          outcomes: ["Yes", "No"],
+          outcomeColors: ["#22C55E", "#EF4444"],
+          closesAt: new Date("2025-02-02T04:00:00Z"),
+          seed0: 7000,
+          seed1: 6000,
+          detailsMarkdown: `Taylor Swift could make history with another Album of the Year win. Will she do it?`,
+        },
       ],
     },
     {
-      slug: "gta-6-release-2025",
-      title: "GTA 6 Release Date",
-      question: "Will GTA 6 release in 2025?",
+      slug: "gta-6-release",
+      title: "GTA 6 Release",
+      description: "Grand Theft Auto VI release predictions.",
       category: MarketCategory.ENTERTAINMENT,
-      status: MarketStatus.OPEN,
       bannerUrl: "https://images.unsplash.com/photo-1493711662062-fa541f7f1f9a?w=1200",
-      detailsMarkdown: `# Grand Theft Auto VI\n\nThe most anticipated game in history. Will Rockstar hit their 2025 target?`,
-      closesAt: new Date("2025-12-31T23:59:00Z"),
-      seedA: 8000,
-      seedB: 10000,
-      outcomes: [
-        { key: OutcomeKey.A, label: "Releases 2025", color: "#22C55E" },
-        { key: OutcomeKey.B, label: "Delayed", color: "#EF4444" },
+      tags: ["entertainment"],
+      markets: [
+        {
+          question: "Will GTA 6 release in 2025?",
+          outcomes: ["Releases 2025", "Delayed"],
+          outcomeColors: ["#22C55E", "#EF4444"],
+          closesAt: new Date("2025-12-31T23:59:00Z"),
+          seed0: 8000,
+          seed1: 10000,
+          detailsMarkdown: `# Grand Theft Auto VI\n\nThe most anticipated game in history. Will Rockstar hit their 2025 target?`,
+        },
       ],
     },
 
     // ============ OTHER ============
     {
-      slug: "spacex-starship-orbit",
-      title: "SpaceX Starship Orbit",
-      question: "Will Starship complete a full orbital flight in Q1 2025?",
+      slug: "spacex-starship-2025",
+      title: "SpaceX Starship 2025",
+      description: "SpaceX Starship milestones for 2025.",
       category: MarketCategory.OTHER,
-      status: MarketStatus.OPEN,
       bannerUrl: "https://images.unsplash.com/photo-1516849841032-87cbac4d88f7?w=1200",
-      detailsMarkdown: `# SpaceX Starship\n\nThe world's most powerful rocket. Will it achieve full orbit by end of Q1?`,
-      closesAt: new Date("2025-03-31T23:59:00Z"),
-      seedA: 9000,
-      seedB: 7000,
-      outcomes: [
-        { key: OutcomeKey.A, label: "Yes", color: "#22C55E" },
-        { key: OutcomeKey.B, label: "No", color: "#EF4444" },
+      tags: [],
+      markets: [
+        {
+          question: "Will Starship complete a full orbital flight in Q1 2025?",
+          outcomes: ["Yes", "No"],
+          outcomeColors: ["#22C55E", "#EF4444"],
+          closesAt: new Date("2025-03-31T23:59:00Z"),
+          seed0: 9000,
+          seed1: 7000,
+          detailsMarkdown: `# SpaceX Starship\n\nThe world's most powerful rocket. Will it achieve full orbit by end of Q1?`,
+        },
       ],
     },
   ];
 
-  // Create markets
-  console.log("📈 Creating markets...\n");
+  // Create events and markets
+  console.log("📈 Creating events and markets...\n");
   
-  for (const marketData of markets) {
-    const { outcomes, ...data } = marketData;
+  let totalMarkets = 0;
+  
+  for (const eventData of events) {
+    const { markets: marketsData, tags: tagSlugs, ...eventFields } = eventData;
     
-    const market = await prisma.market.upsert({
-      where: { slug: data.slug },
+    // Get tag IDs
+    const tagConnections = tagSlugs
+      .filter((slug) => tags[slug])
+      .map((slug) => ({ id: tags[slug].id }));
+
+    // Create or update event
+    const event = await prisma.event.upsert({
+      where: { slug: eventData.slug },
       update: {
-        ...data,
-        publishedAt: new Date(),
-        opensAt: new Date(),
+        ...eventFields,
+        tags: { set: tagConnections },
       },
       create: {
-        ...data,
-        publishedAt: new Date(),
-        opensAt: new Date(),
+        ...eventFields,
+        tags: { connect: tagConnections },
       },
     });
 
-    // Create outcomes
-    for (const outcome of outcomes) {
-      await prisma.outcome.upsert({
-        where: {
-          marketId_key: {
-            marketId: market.id,
-            key: outcome.key,
-          },
-        },
-        update: outcome,
-        create: {
-          ...outcome,
-          marketId: market.id,
+    // Create markets for this event
+    // First, check if markets already exist for this event
+    const existingMarkets = await prisma.market.findMany({
+      where: { eventId: event.id },
+      select: { question: true },
+    });
+    const existingQuestions = new Set(existingMarkets.map((m) => m.question));
+
+    for (const marketData of marketsData) {
+      const { outcomes, outcomeColors, ...marketFields } = marketData;
+      
+      // Skip if market already exists
+      if (existingQuestions.has(marketData.question)) {
+        totalMarkets++;
+        continue;
+      }
+      
+      await prisma.market.create({
+        data: {
+          eventId: event.id,
+          ...marketFields,
+          outcomes: JSON.stringify(outcomes),
+          outcomePrices: JSON.stringify(["0.50", "0.50"]), // Start at 50/50
+          outcomeColors: outcomeColors ? JSON.stringify(outcomeColors) : null,
+          status: MarketStatus.OPEN,
+          publishedAt: new Date(),
+          opensAt: new Date(),
         },
       });
+      
+      totalMarkets++;
     }
 
-    console.log(`  ✅ ${market.category}: ${market.title}`);
+    console.log(`  ✅ ${event.category}: ${event.title} (${marketsData.length} markets)`);
   }
 
-  console.log(`\n🎉 Seeded ${markets.length} markets successfully!`);
+  console.log(`\n🎉 Seeded ${events.length} events with ${totalMarkets} markets successfully!`);
   
   // Summary
-  const marketCounts = await prisma.market.groupBy({
+  const eventCounts = await prisma.event.groupBy({
     by: ["category"],
     _count: true,
   });
   
-  console.log("\n📊 Markets by category:");
-  for (const { category, _count } of marketCounts) {
+  console.log("\n📊 Events by category:");
+  for (const { category, _count } of eventCounts) {
     console.log(`   ${category}: ${_count}`);
   }
+  
+  const marketCount = await prisma.market.count();
+  console.log(`\n📊 Total markets: ${marketCount}`);
 }
 
 main()

@@ -20,8 +20,9 @@ if (process.env.NODE_ENV !== "production") {
 // Re-export types from Prisma client
 export type {
   User,
+  Event,
+  Tag,
   Market,
-  Outcome,
   Bet,
   Position,
   BalanceLedger,
@@ -35,7 +36,6 @@ export {
   UserRole,
   MarketStatus,
   MarketCategory,
-  OutcomeKey,
   BetStatus,
   BalanceReason,
   RaffleReason,

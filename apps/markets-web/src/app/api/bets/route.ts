@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma, BetStatus, BalanceReason, OutcomeKey } from "@vault/database";
+import { prisma, BetStatus, BalanceReason } from "@vault/database";
 import { requireUser } from "@vault/auth";
 import { z } from "zod";
 
 const placeBetSchema = z.object({
   marketId: z.string(),
-  outcomeKey: z.enum(["A", "B"]),
+  outcomeIndex: z.number().int().min(0).max(1),
   amount: z.number().positive().int(),
 });
 
@@ -14,12 +14,11 @@ export async function POST(request: NextRequest) {
     const user = await requireUser();
     const body = await request.json();
 
-    const { marketId, outcomeKey, amount } = placeBetSchema.parse(body);
+    const { marketId, outcomeIndex, amount } = placeBetSchema.parse(body);
 
     // Validate market exists and is open
     const market = await prisma.market.findUnique({
       where: { id: marketId },
-      include: { outcomes: true },
     });
 
     if (!market) {
@@ -34,10 +33,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Market has closed" }, { status: 400 });
     }
 
-    // Get the outcome
-    const outcome = market.outcomes.find((o) => o.key === outcomeKey);
-    if (!outcome) {
-      return NextResponse.json({ error: "Invalid outcome" }, { status: 400 });
+    // Validate outcome index
+    const outcomes = JSON.parse(market.outcomes) as string[];
+    if (outcomeIndex < 0 || outcomeIndex >= outcomes.length) {
+      return NextResponse.json({ error: "Invalid outcome index" }, { status: 400 });
     }
 
     // Check user has sufficient balance
@@ -61,7 +60,7 @@ export async function POST(request: NextRequest) {
         data: {
           userId: user.id,
           marketId: market.id,
-          outcomeId: outcome.id,
+          outcomeIndex,
           amount,
           status: BetStatus.PENDING_TWEET,
         },
@@ -89,7 +88,10 @@ export async function POST(request: NextRequest) {
       return bet;
     });
 
-    return NextResponse.json({ bet: result });
+    return NextResponse.json({ 
+      bet: result,
+      outcomeLabel: outcomes[outcomeIndex],
+    });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: "Invalid request", details: error.errors }, { status: 400 });

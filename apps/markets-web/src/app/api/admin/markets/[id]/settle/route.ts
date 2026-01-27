@@ -16,7 +16,6 @@ export async function POST(
       const market = await tx.market.findUnique({
         where: { id },
         include: {
-          outcomes: true,
           positions: {
             include: { user: true },
           },
@@ -35,34 +34,24 @@ export async function POST(
         throw new Error("Market already settled");
       }
 
-      if (!market.resolvedOutcomeId) {
+      if (market.resolvedOutcome === null) {
         throw new Error("No resolved outcome set");
       }
 
       // Generate unique settlement run ID for idempotency
       const settlementRunId = randomUUID();
 
-      // Determine winning outcome
-      const winningOutcome = market.outcomes.find(
-        (o) => o.id === market.resolvedOutcomeId
-      );
-      if (!winningOutcome) {
-        throw new Error("Winning outcome not found");
-      }
+      // Get winning outcome info
+      const outcomes = JSON.parse(market.outcomes) as string[];
+      const winningOutcomeLabel = outcomes[market.resolvedOutcome];
+      const isOutcome0 = market.resolvedOutcome === 0;
 
-      const isOutcomeA = winningOutcome.key === "A";
+      // Calculate pools from seed + confirmed positions
+      let pool0 = market.seed0 + market.pool0;
+      let pool1 = market.seed1 + market.pool1;
 
-      // Calculate pools
-      let poolA = market.seedA;
-      let poolB = market.seedB;
-
-      for (const position of market.positions) {
-        poolA += position.amountOutcomeA;
-        poolB += position.amountOutcomeB;
-      }
-
-      const totalPool = poolA + poolB;
-      const winningPool = isOutcomeA ? poolA : poolB;
+      const totalPool = pool0 + pool1;
+      const winningPool = isOutcome0 ? pool0 : pool1;
       const fee = market.feeBps / 10000;
       const netPool = totalPool * (1 - fee);
 
@@ -70,9 +59,9 @@ export async function POST(
       const payouts: { userId: string; amount: number }[] = [];
 
       for (const position of market.positions) {
-        const userStake = isOutcomeA
-          ? position.amountOutcomeA
-          : position.amountOutcomeB;
+        const userStake = isOutcome0
+          ? position.amount0
+          : position.amount1;
 
         if (userStake > 0 && winningPool > 0) {
           // Pro-rata payout
@@ -196,7 +185,8 @@ export async function POST(
             settlementRunId,
             totalPool,
             netPool,
-            winningOutcome: winningOutcome.label,
+            winningOutcome: winningOutcomeLabel,
+            winningIndex: market.resolvedOutcome,
             payoutsCount: payouts.length,
             totalPaidOut: payouts.reduce((sum, p) => sum + p.amount, 0),
           },

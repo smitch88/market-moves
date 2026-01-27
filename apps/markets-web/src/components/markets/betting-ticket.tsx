@@ -1,11 +1,13 @@
 "use client";
 
 import { forwardRef } from "react";
-import type { Market, Outcome } from "@vault/database";
+import type { Market, Event } from "@vault/database";
 
 interface BettingTicketProps {
-  market: Market & { outcomes: Outcome[] };
-  outcome: Outcome;
+  market: Market;
+  event: Event;
+  outcomeLabel: string;
+  outcomeIndex: number;
   amount: number;
   userName?: string | null;
   userHandle?: string | null;
@@ -14,7 +16,7 @@ interface BettingTicketProps {
 }
 
 export const BettingTicket = forwardRef<HTMLDivElement, BettingTicketProps>(
-  ({ market, outcome, amount, userName, userHandle, timestamp = new Date() }, ref) => {
+  ({ market, event, outcomeLabel, outcomeIndex, amount, userName, userHandle, timestamp = new Date() }, ref) => {
     const formattedDate = timestamp.toLocaleDateString("en-US", {
       month: "short",
       day: "numeric",
@@ -58,7 +60,10 @@ export const BettingTicket = forwardRef<HTMLDivElement, BettingTicketProps>(
           {/* Market Title */}
           <div className="text-center">
             <div className="text-xs text-white/50 uppercase tracking-wide mb-1">Market</div>
-            <div className="text-lg font-semibold leading-tight">{market.title}</div>
+            <div className="text-lg font-semibold leading-tight">{event.title}</div>
+            {market.question !== event.title && (
+              <div className="text-sm text-white/70 mt-1">{market.question}</div>
+            )}
           </div>
 
           {/* Divider */}
@@ -74,7 +79,7 @@ export const BettingTicket = forwardRef<HTMLDivElement, BettingTicketProps>(
               <div className="flex-1 text-center">
                 <div className="text-xs text-white/40 uppercase tracking-wider mb-2">Your Pick</div>
                 <div className="text-3xl font-bold text-purple-300 leading-tight">
-                  {outcome.label}
+                  {outcomeLabel}
                 </div>
               </div>
             </div>

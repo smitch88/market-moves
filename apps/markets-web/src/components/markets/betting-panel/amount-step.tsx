@@ -1,11 +1,9 @@
 import { Input, Label } from "@vault/ui";
 import { Loader2 } from "lucide-react";
-import type { Outcome } from "@vault/database";
 
 interface AmountStepProps {
-  selectedOutcome: "A" | "B" | null;
-  outcomeA: Outcome | undefined;
-  outcomeB: Outcome | undefined;
+  selectedOutcome: number | null;
+  outcomes: string[];
   amount: string;
   balance: number;
   onAmountChange: (amount: string) => void;
@@ -16,8 +14,7 @@ interface AmountStepProps {
 
 export function AmountStep({
   selectedOutcome,
-  outcomeA,
-  outcomeB,
+  outcomes,
   amount,
   balance,
   onAmountChange,
@@ -25,8 +22,8 @@ export function AmountStep({
   onContinue,
   isLoading,
 }: AmountStepProps) {
-  const selectedOutcomeLabel = selectedOutcome === "A" ? outcomeA?.label : outcomeB?.label;
-  const selectedOutcomeColor = selectedOutcome === "A" ? "text-outcome-yes" : "text-outcome-no";
+  const selectedOutcomeLabel = selectedOutcome !== null ? outcomes[selectedOutcome] : "";
+  const selectedOutcomeColor = selectedOutcome === 0 ? "text-outcome-yes" : "text-outcome-no";
 
   return (
     <>
@@ -87,4 +84,3 @@ export function AmountStep({
     </>
   );
 }
-

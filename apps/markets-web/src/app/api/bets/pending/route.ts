@@ -20,11 +20,10 @@ export async function GET(request: NextRequest) {
         status: BetStatus.PENDING_TWEET,
       },
       include: {
-        outcome: {
+        market: {
           select: {
-            id: true,
-            key: true,
-            label: true,
+            outcomes: true,
+            outcomeColors: true,
           },
         },
       },
@@ -33,7 +32,23 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    return NextResponse.json({ pendingBet });
+    if (!pendingBet) {
+      return NextResponse.json({ pendingBet: null });
+    }
+
+    // Parse outcomes and add the label to the response
+    const outcomes = JSON.parse(pendingBet.market.outcomes) as string[];
+    const outcomeColors = pendingBet.market.outcomeColors 
+      ? JSON.parse(pendingBet.market.outcomeColors) as string[]
+      : null;
+
+    return NextResponse.json({ 
+      pendingBet: {
+        ...pendingBet,
+        outcomeLabel: outcomes[pendingBet.outcomeIndex],
+        outcomeColor: outcomeColors?.[pendingBet.outcomeIndex] || null,
+      },
+    });
   } catch (error) {
     if (error instanceof Error && error.message === "Unauthorized") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -42,4 +57,3 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
-

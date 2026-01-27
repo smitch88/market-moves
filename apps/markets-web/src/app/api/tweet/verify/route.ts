@@ -24,10 +24,19 @@ export async function POST(request: NextRequest) {
 
     const { marketId, betId, method, tweetUrl } = verifySchema.parse(body);
 
-    // Get market details
+    // Get market details with event
     const market = await prisma.market.findUnique({
       where: { id: marketId },
-      select: { id: true, title: true, slug: true },
+      select: { 
+        id: true, 
+        question: true,
+        event: {
+          select: {
+            slug: true,
+            title: true,
+          },
+        },
+      },
     });
 
     if (!market) {
@@ -48,12 +57,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Bet already verified or rejected" }, { status: 400 });
     }
 
-    // Get required tweet content
+    // Get required tweet content (use event slug for the link)
     const requiredText = buildRequiredTweetText({
-      marketTitle: market.title,
-      marketSlug: market.slug,
+      marketTitle: market.event.title,
+      marketSlug: market.event.slug,
     });
-    const marketLink = buildMarketLink(market.slug);
+    const marketLink = buildMarketLink(market.event.slug);
 
     let verificationResult: { verified: boolean; tweetId?: string; matchedText?: string; error?: string };
 
@@ -118,43 +127,48 @@ export async function POST(request: NextRequest) {
           },
         });
 
-        // Update or create position aggregate
-        const outcomeKey = await tx.outcome.findUnique({
-          where: { id: bet.outcomeId },
-          select: { key: true },
-        });
+        // Update or create position aggregate and market pools
+        const isOutcome0 = bet.outcomeIndex === 0;
 
-        if (outcomeKey) {
-          await tx.position.upsert({
-            where: {
-              userId_marketId: {
-                userId: user.id,
-                marketId: market.id,
-              },
-            },
-            update: {
-              ...(outcomeKey.key === "A"
-                ? {
-                    amountOutcomeA: { increment: bet.amount },
-                    weightedOutcomeA: { increment: bet.amount * bet.weight },
-                  }
-                : {
-                    amountOutcomeB: { increment: bet.amount },
-                    weightedOutcomeB: { increment: bet.amount * bet.weight },
-                  }),
-              lastBetAt: new Date(),
-            },
-            create: {
+        await tx.position.upsert({
+          where: {
+            userId_marketId: {
               userId: user.id,
               marketId: market.id,
-              amountOutcomeA: outcomeKey.key === "A" ? bet.amount : 0,
-              amountOutcomeB: outcomeKey.key === "B" ? bet.amount : 0,
-              weightedOutcomeA: outcomeKey.key === "A" ? bet.amount * bet.weight : 0,
-              weightedOutcomeB: outcomeKey.key === "B" ? bet.amount * bet.weight : 0,
-              lastBetAt: new Date(),
             },
-          });
-        }
+          },
+          update: {
+            ...(isOutcome0
+              ? {
+                  amount0: { increment: bet.amount },
+                  weighted0: { increment: bet.amount * bet.weight },
+                }
+              : {
+                  amount1: { increment: bet.amount },
+                  weighted1: { increment: bet.amount * bet.weight },
+                }),
+            lastBetAt: new Date(),
+          },
+          create: {
+            userId: user.id,
+            marketId: market.id,
+            amount0: isOutcome0 ? bet.amount : 0,
+            amount1: isOutcome0 ? 0 : bet.amount,
+            weighted0: isOutcome0 ? bet.amount * bet.weight : 0,
+            weighted1: isOutcome0 ? 0 : bet.amount * bet.weight,
+            lastBetAt: new Date(),
+          },
+        });
+
+        // Update market pool totals
+        await tx.market.update({
+          where: { id: market.id },
+          data: {
+            ...(isOutcome0
+              ? { pool0: { increment: bet.amount } }
+              : { pool1: { increment: bet.amount } }),
+          },
+        });
 
         // Check if this is user's first confirmed bet and handle referral
         const userBetCount = await tx.bet.count({

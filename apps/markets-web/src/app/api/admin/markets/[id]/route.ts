@@ -4,21 +4,90 @@ import { requireAdmin } from "@vault/auth";
 import { z } from "zod";
 
 const updateMarketSchema = z.object({
-  title: z.string().min(1).optional(),
-  question: z.string().optional(),
-  category: z.string().optional(),
-  bannerUrl: z.string().url().optional().or(z.literal("")),
-  logoUrl: z.string().url().optional().or(z.literal("")),
+  question: z.string().min(1).optional(),
+  outcomes: z.array(z.string()).length(2).optional(),
+  outcomeColors: z.array(z.string()).length(2).optional(),
   detailsMarkdown: z.string().optional(),
   resolutionSourceUrl: z.string().url().optional().or(z.literal("")),
   opensAt: z.string().nullable().optional(),
   closesAt: z.string().nullable().optional(),
   feeBps: z.number().int().min(0).max(10000).optional(),
-  seedA: z.number().int().min(0).optional(),
-  seedB: z.number().int().min(0).optional(),
-  outcomeALabel: z.string().optional(),
-  outcomeBLabel: z.string().optional(),
+  seed0: z.number().int().min(0).optional(),
+  seed1: z.number().int().min(0).optional(),
 });
+
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    await requireAdmin();
+    const { id } = await params;
+
+    const market = await prisma.market.findUnique({
+      where: { id },
+      include: {
+        event: {
+          include: { tags: true },
+        },
+        bets: {
+          where: { status: "CONFIRMED" },
+          include: {
+            user: {
+              select: {
+                id: true,
+                handle: true,
+                name: true,
+              },
+            },
+          },
+          orderBy: { createdAt: "desc" },
+          take: 100,
+        },
+        positions: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                handle: true,
+                name: true,
+              },
+            },
+          },
+        },
+        _count: {
+          select: { bets: true },
+        },
+      },
+    });
+
+    if (!market) {
+      return NextResponse.json({ error: "Market not found" }, { status: 404 });
+    }
+
+    // Calculate stats
+    const pool0 = market.seed0 + market.pool0;
+    const pool1 = market.seed1 + market.pool1;
+    const totalPool = pool0 + pool1;
+
+    return NextResponse.json({ 
+      market,
+      stats: {
+        pool0,
+        pool1,
+        totalPool,
+        percent0: totalPool > 0 ? Math.round((pool0 / totalPool) * 100) : 50,
+        percent1: totalPool > 0 ? Math.round((pool1 / totalPool) * 100) : 50,
+      },
+    });
+  } catch (error) {
+    if (error instanceof Error && (error.message === "Unauthorized" || error.message.includes("Admin"))) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    console.error("Error fetching market:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+}
 
 export async function PATCH(
   request: NextRequest,
@@ -31,40 +100,22 @@ export async function PATCH(
     const data = updateMarketSchema.parse(body);
 
     const market = await prisma.$transaction(async (tx) => {
-      // Update market
       const updatedMarket = await tx.market.update({
         where: { id },
         data: {
-          ...(data.title && { title: data.title }),
-          ...(data.question !== undefined && { question: data.question || null }),
-          ...(data.category && { category: data.category as never }),
-          ...(data.bannerUrl !== undefined && { bannerUrl: data.bannerUrl || null }),
-          ...(data.logoUrl !== undefined && { logoUrl: data.logoUrl || null }),
+          ...(data.question && { question: data.question }),
+          ...(data.outcomes && { outcomes: JSON.stringify(data.outcomes) }),
+          ...(data.outcomeColors && { outcomeColors: JSON.stringify(data.outcomeColors) }),
           ...(data.detailsMarkdown !== undefined && { detailsMarkdown: data.detailsMarkdown || null }),
           ...(data.resolutionSourceUrl !== undefined && { resolutionSourceUrl: data.resolutionSourceUrl || null }),
           ...(data.opensAt !== undefined && { opensAt: data.opensAt ? new Date(data.opensAt) : null }),
           ...(data.closesAt !== undefined && { closesAt: data.closesAt ? new Date(data.closesAt) : null }),
           ...(data.feeBps !== undefined && { feeBps: data.feeBps }),
-          ...(data.seedA !== undefined && { seedA: data.seedA }),
-          ...(data.seedB !== undefined && { seedB: data.seedB }),
+          ...(data.seed0 !== undefined && { seed0: data.seed0 }),
+          ...(data.seed1 !== undefined && { seed1: data.seed1 }),
         },
       });
 
-      // Update outcome labels if provided
-      if (data.outcomeALabel) {
-        await tx.outcome.updateMany({
-          where: { marketId: id, key: "A" },
-          data: { label: data.outcomeALabel },
-        });
-      }
-      if (data.outcomeBLabel) {
-        await tx.outcome.updateMany({
-          where: { marketId: id, key: "B" },
-          data: { label: data.outcomeBLabel },
-        });
-      }
-
-      // Log admin action
       await tx.adminActionLog.create({
         data: {
           adminUserId: admin.id,
@@ -77,7 +128,7 @@ export async function PATCH(
 
       return tx.market.findUnique({
         where: { id },
-        include: { outcomes: true },
+        include: { event: true },
       });
     });
 

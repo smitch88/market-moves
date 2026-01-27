@@ -7,6 +7,7 @@ import { GlassCard, GlassCardContent, GlassCardHeader, Badge, Input, Select, Sel
 import { ExternalLink, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
 import { BetStatus } from "@vault/database";
 import Link from "next/link";
+import { getMarketUrl } from "@/lib/urls";
 
 const statusOptions = [
   { value: "all", label: "All Statuses" },
@@ -169,14 +170,14 @@ export default function AdminBetsPage() {
                       </td>
                       <td className="p-4">
                         <Link
-                          href={`/markets/${bet.market.slug}`}
+                          href={getMarketUrl(bet.market.event?.slug || bet.market.slug)}
                           className="text-sm font-medium hover:underline"
                         >
-                          {bet.market.title}
+                          {bet.market.event?.title || bet.market.question}
                         </Link>
                       </td>
                       <td className="p-4">
-                        <span className="text-sm">{bet.outcome.label}</span>
+                        <span className="text-sm">{bet.outcomeLabel}</span>
                       </td>
                       <td className="p-4">
                         <span className="font-semibold text-sm">${bet.amount.toLocaleString()}</span>

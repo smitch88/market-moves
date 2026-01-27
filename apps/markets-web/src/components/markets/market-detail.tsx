@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
@@ -8,7 +7,6 @@ import { format } from "date-fns";
 import ReactMarkdown from "react-markdown";
 import { ArrowLeft, ExternalLink, Clock, Users } from "lucide-react";
 import {
-  Button,
   GlassCard,
   GlassCardContent,
   GlassCardHeader,
@@ -19,36 +17,70 @@ import {
   TabsContent,
   Badge,
 } from "@vault/ui";
-import type { Market, Outcome, MarketStatus } from "@vault/database";
+import type { Market, Event, MarketStatus } from "@vault/database";
 import { BettingPanel } from "./betting-panel";
 import { ActivityFeed } from "./activity-feed";
 import { TopBettors } from "./top-bettors";
 
-interface MarketDetailProps {
-  market: Market & { outcomes: Outcome[] };
+// Helper functions to parse JSON fields
+function parseOutcomes(outcomes: string): string[] {
+  try {
+    return JSON.parse(outcomes);
+  } catch {
+    return ["Yes", "No"];
+  }
 }
 
-async function fetchMarketData(slug: string) {
+function parseOutcomeColors(outcomeColors: string | null): string[] | null {
+  if (!outcomeColors) return null;
+  try {
+    return JSON.parse(outcomeColors);
+  } catch {
+    return null;
+  }
+}
+
+interface MarketDetailProps {
+  event: Event & { 
+    markets: Market[];
+    tags?: { id: string; slug: string; label: string }[];
+  };
+}
+
+async function fetchEventData(slug: string) {
   const res = await fetch(`/api/markets/${slug}`);
-  if (!res.ok) throw new Error("Failed to fetch market");
+  if (!res.ok) throw new Error("Failed to fetch event");
   return res.json();
 }
 
-export function MarketDetail({ market }: MarketDetailProps) {
+export function MarketDetail({ event }: MarketDetailProps) {
   const { data, isLoading } = useQuery({
-    queryKey: ["market", market.slug],
-    queryFn: () => fetchMarketData(market.slug),
-    placeholderData: { market, stats: { percentA: 50, percentB: 50, totalBets: 0, totalPool: 0 } },
-    staleTime: 0, // Always consider data stale
-    refetchInterval: 10000, // Refetch every 10 seconds
+    queryKey: ["market", event.slug],
+    queryFn: () => fetchEventData(event.slug),
+    placeholderData: { 
+      event, 
+      stats: { percent0: 50, percent1: 50, percentA: 50, percentB: 50, totalBets: 0, totalPool: 0 } 
+    },
+    staleTime: 0,
+    refetchInterval: 10000,
     refetchOnWindowFocus: true,
     refetchOnMount: true,
-    gcTime: 0, // Don't cache
+    gcTime: 0,
   });
 
-  const outcomeA = market.outcomes.find((o) => o.key === "A");
-  const outcomeB = market.outcomes.find((o) => o.key === "B");
-  const stats = data?.stats || { percentA: 50, percentB: 50, totalBets: 0, totalPool: 0 };
+  // Get the first/primary market for display
+  const primaryMarket = event.markets[0];
+  if (!primaryMarket) {
+    return <div>No markets found for this event</div>;
+  }
+
+  const outcomes = parseOutcomes(primaryMarket.outcomes);
+  const outcomeColors = parseOutcomeColors(primaryMarket.outcomeColors);
+  const stats = data?.stats || { percent0: 50, percent1: 50, percentA: 50, percentB: 50, totalBets: 0, totalPool: 0 };
+
+  // Normalize stats (support both old percentA/B and new percent0/1)
+  const percent0 = stats.percent0 ?? stats.percentA ?? 50;
+  const percent1 = stats.percent1 ?? stats.percentB ?? 50;
 
   return (
     <div className="max-w-7xl mx-auto">
@@ -64,14 +96,14 @@ export function MarketDetail({ market }: MarketDetailProps) {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Main content */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Market header */}
+          {/* Event header */}
           <GlassCard>
             {/* Banner */}
-            {market.bannerUrl && (
+            {event.bannerUrl && (
               <div className="relative h-48 w-full">
                 <Image
-                  src={market.bannerUrl}
-                  alt={market.title}
+                  src={event.bannerUrl}
+                  alt={event.title}
                   fill
                   className="object-cover rounded-t-lg"
                 />
@@ -79,12 +111,12 @@ export function MarketDetail({ market }: MarketDetailProps) {
               </div>
             )}
 
-            <GlassCardHeader className={market.bannerUrl ? "-mt-12 relative z-10" : ""}>
+            <GlassCardHeader className={event.bannerUrl ? "-mt-12 relative z-10" : ""}>
               <div className="flex items-start gap-4">
-                {market.logoUrl && (
+                {event.logoUrl && (
                   <div className="h-16 w-16 rounded-lg overflow-hidden bg-muted border border-border shrink-0">
                     <Image
-                      src={market.logoUrl}
+                      src={event.logoUrl}
                       alt=""
                       width={64}
                       height={64}
@@ -94,20 +126,25 @@ export function MarketDetail({ market }: MarketDetailProps) {
                 )}
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-2">
-                    <Badge variant="secondary">{market.category}</Badge>
+                    <Badge variant="secondary">{event.category}</Badge>
                     <Badge
                       variant={
-                        market.status === "OPEN"
+                        primaryMarket.status === "OPEN"
                           ? "success"
-                          : market.status === "CLOSED"
+                          : primaryMarket.status === "CLOSED"
                           ? "warning"
                           : "secondary"
                       }
                     >
-                      {market.status}
+                      {primaryMarket.status}
                     </Badge>
                   </div>
-                  <h1 className="text-2xl font-bold">{market.question || market.title}</h1>
+                  <h1 className="text-2xl font-bold">{primaryMarket.question}</h1>
+                  {event.markets.length > 1 && (
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {event.markets.length} markets in this event
+                    </p>
+                  )}
                 </div>
               </div>
             </GlassCardHeader>
@@ -116,22 +153,22 @@ export function MarketDetail({ market }: MarketDetailProps) {
               {/* Outcome percentages */}
               <div className="flex items-center gap-4 mb-6">
                 <div className="flex-1 text-center">
-                  <p className="text-3xl font-bold text-outcome-yes">{stats.percentA}%</p>
-                  <p className="text-sm text-muted-foreground">{outcomeA?.label}</p>
+                  <p className="text-3xl font-bold text-outcome-yes">{percent0}%</p>
+                  <p className="text-sm text-muted-foreground">{outcomes[0]}</p>
                 </div>
                 <div className="flex-1 h-2.5 bg-muted/30 rounded-full overflow-hidden flex">
                   <div
                     className="h-full bg-outcome-yes/80 transition-all duration-500"
-                    style={{ width: `${stats.percentA}%` }}
+                    style={{ width: `${percent0}%` }}
                   />
                   <div
                     className="h-full bg-outcome-no/80 transition-all duration-500"
-                    style={{ width: `${stats.percentB}%` }}
+                    style={{ width: `${percent1}%` }}
                   />
                 </div>
                 <div className="flex-1 text-center">
-                  <p className="text-3xl font-bold text-outcome-no">{stats.percentB}%</p>
-                  <p className="text-sm text-muted-foreground">{outcomeB?.label}</p>
+                  <p className="text-3xl font-bold text-outcome-no">{percent1}%</p>
+                  <p className="text-sm text-muted-foreground">{outcomes[1]}</p>
                 </div>
               </div>
 
@@ -147,10 +184,10 @@ export function MarketDetail({ market }: MarketDetailProps) {
                   </span>
                   <span>pool</span>
                 </div>
-                {market.closesAt && (
+                {primaryMarket.closesAt && (
                   <div className="flex items-center gap-1">
                     <Clock className="h-4 w-4" />
-                    <span>Closes {format(new Date(market.closesAt), "MMM d, yyyy")}</span>
+                    <span>Closes {format(new Date(primaryMarket.closesAt), "MMM d, yyyy")}</span>
                   </div>
                 )}
               </div>
@@ -158,14 +195,14 @@ export function MarketDetail({ market }: MarketDetailProps) {
           </GlassCard>
 
           {/* Rules / Details */}
-          {market.detailsMarkdown && (
+          {primaryMarket.detailsMarkdown && (
             <GlassCard>
               <GlassCardHeader>
                 <h2 className="text-lg font-semibold">Rules</h2>
               </GlassCardHeader>
               <GlassCardContent>
                 <div className="prose prose-sm prose-invert max-w-none">
-                  <ReactMarkdown>{market.detailsMarkdown}</ReactMarkdown>
+                  <ReactMarkdown>{primaryMarket.detailsMarkdown}</ReactMarkdown>
                 </div>
               </GlassCardContent>
             </GlassCard>
@@ -180,7 +217,11 @@ export function MarketDetail({ market }: MarketDetailProps) {
             <TabsContent value="activity">
               <GlassCard>
                 <GlassCardContent className="pt-6">
-                  <ActivityFeed marketId={market.id} bets={data?.market?.bets || []} />
+                  <ActivityFeed 
+                    marketId={primaryMarket.id} 
+                    bets={data?.market?.bets || data?.event?.markets?.[0]?.bets || []}
+                    outcomes={outcomes}
+                  />
                 </GlassCardContent>
               </GlassCard>
             </TabsContent>
@@ -188,9 +229,8 @@ export function MarketDetail({ market }: MarketDetailProps) {
               <GlassCard>
                 <GlassCardContent className="pt-6">
                   <TopBettors
-                    positions={data?.market?.positions || []}
-                    outcomeA={outcomeA}
-                    outcomeB={outcomeB}
+                    positions={data?.market?.positions || data?.event?.markets?.[0]?.positions || []}
+                    outcomes={outcomes}
                   />
                 </GlassCardContent>
               </GlassCard>
@@ -201,31 +241,35 @@ export function MarketDetail({ market }: MarketDetailProps) {
         {/* Sidebar */}
         <div className="space-y-6">
           {/* Betting panel */}
-          <BettingPanel market={market} stats={stats} />
+          <BettingPanel 
+            market={primaryMarket} 
+            event={event}
+            stats={stats} 
+          />
 
           {/* Timeline */}
           <GlassCard>
             <GlassCardContent className="pt-6">
               <MarketTimeline
-                currentStatus={market.status as MarketStatus}
-                publishedAt={market.publishedAt}
-                opensAt={market.opensAt}
-                closesAt={market.closesAt}
-                resolvedAt={market.resolvedAt}
-                settledAt={market.settledAt}
+                currentStatus={primaryMarket.status as MarketStatus}
+                publishedAt={primaryMarket.publishedAt}
+                opensAt={primaryMarket.opensAt}
+                closesAt={primaryMarket.closesAt}
+                resolvedAt={primaryMarket.resolvedAt}
+                settledAt={primaryMarket.settledAt}
               />
             </GlassCardContent>
           </GlassCard>
 
           {/* Resolution source */}
-          {market.resolutionSourceUrl && (
+          {primaryMarket.resolutionSourceUrl && (
             <GlassCard>
               <GlassCardHeader>
                 <h3 className="text-sm font-semibold">Resolution Source</h3>
               </GlassCardHeader>
               <GlassCardContent>
                 <a
-                  href={market.resolutionSourceUrl}
+                  href={primaryMarket.resolutionSourceUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-2 text-primary hover:underline text-sm"

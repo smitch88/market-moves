@@ -3,13 +3,24 @@
 import { useQuery } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import { ActivityRow, UserHoverCard } from "@vault/ui";
-import { Loader2, TrendingUp, CheckCircle, XCircle, DollarSign, Users, BarChart3 } from "lucide-react";
+import { Loader2, CheckCircle, XCircle, DollarSign, Users, BarChart3 } from "lucide-react";
 import Link from "next/link";
+import { getMarketUrl, getAdminMarketUrl } from "@/lib/urls";
 
 interface Activity {
   type: "bet" | "market_action" | "user_signup";
   timestamp: string;
-  data: any;
+  data: Record<string, unknown>;
+}
+
+// Helper to parse outcomes
+function parseOutcomes(outcomes: string | undefined): string[] {
+  if (!outcomes) return ["Yes", "No"];
+  try {
+    return JSON.parse(outcomes);
+  } catch {
+    return ["Yes", "No"];
+  }
 }
 
 export function RecentActivity() {
@@ -45,7 +56,25 @@ export function RecentActivity() {
     <div className="space-y-0">
       {activities.map((activity, index) => {
         if (activity.type === "bet") {
-          const bet = activity.data;
+          const bet = activity.data as {
+            id: string;
+            amount: number;
+            outcomeIndex: number;
+            outcomeLabel?: string;
+            createdAt: string;
+            user: { handle?: string; name?: string; profileImageUrl?: string };
+            market: { 
+              slug?: string; 
+              question?: string; 
+              outcomes?: string;
+              event?: { slug: string };
+            };
+          };
+          
+          const outcomes = parseOutcomes(bet.market?.outcomes);
+          const outcomeLabel = bet.outcomeLabel || outcomes[bet.outcomeIndex] || "Unknown";
+          const eventSlug = bet.market?.event?.slug || bet.market?.slug;
+          
           return (
             <UserHoverCard
               key={`bet-${bet.id}`}
@@ -56,7 +85,7 @@ export function RecentActivity() {
               }}
             >
               <Link
-                href={`/markets/${bet.market.slug}`}
+                href={getMarketUrl(eventSlug || "")}
                 className="block py-3 border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors -mx-6 px-6"
               >
                 <ActivityRow
@@ -68,9 +97,9 @@ export function RecentActivity() {
                   action="bet"
                   amount={bet.amount}
                   outcome={{
-                    label: bet.outcome.label,
+                    label: outcomeLabel,
                     color:
-                      bet.outcome.key === "A"
+                      bet.outcomeIndex === 0
                         ? "bg-chart-2/20 text-chart-2"
                         : "bg-chart-5/20 text-chart-5",
                   }}
@@ -82,8 +111,26 @@ export function RecentActivity() {
         }
 
         if (activity.type === "market_action") {
-          const action = activity.data;
-          const actionLabels: Record<string, { label: string; icon: any; color: string }> = {
+          const action = activity.data as {
+            id: string;
+            action: string;
+            targetId: string;
+            metadata?: { title?: string };
+            admin: { name?: string; handle?: string };
+            market?: { title?: string; slug?: string };
+          };
+          
+          const actionLabels: Record<string, { label: string; icon: typeof BarChart3; color: string }> = {
+            EVENT_CREATE: {
+              label: "created event",
+              icon: BarChart3,
+              color: "text-blue-500",
+            },
+            EVENT_UPDATE: {
+              label: "updated event",
+              icon: BarChart3,
+              color: "text-yellow-500",
+            },
             MARKET_CREATE: {
               label: "created market",
               icon: BarChart3,
@@ -119,7 +166,6 @@ export function RecentActivity() {
 
           const market = action.market;
           const marketTitle = market?.title || action.metadata?.title || `Market ${action.targetId}`;
-          const marketSlug = market?.slug;
 
           const content = (
             <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -143,13 +189,9 @@ export function RecentActivity() {
               key={`action-${action.id}`}
               className="flex items-center gap-3 py-3 border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors -mx-6 px-6"
             >
-              {marketSlug ? (
-                <Link href={`/admin/markets/${action.targetId}`} className="flex-1">
-                  {content}
-                </Link>
-              ) : (
-                content
-              )}
+              <Link href={getAdminMarketUrl(action.targetId)} className="flex-1">
+                {content}
+              </Link>
               <div className="text-xs text-muted-foreground whitespace-nowrap">
                 {formatDistanceToNow(new Date(activity.timestamp), { addSuffix: true })}
               </div>
@@ -158,7 +200,13 @@ export function RecentActivity() {
         }
 
         if (activity.type === "user_signup") {
-          const user = activity.data;
+          const user = activity.data as {
+            id: string;
+            handle?: string;
+            name?: string;
+            profileImageUrl?: string;
+          };
+          
           return (
             <UserHoverCard
               key={`user-${user.id}`}
@@ -198,4 +246,3 @@ export function RecentActivity() {
     </div>
   );
 }
-

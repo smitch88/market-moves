@@ -12,17 +12,26 @@ export async function MarketGrid({ sort = "trending", category, query }: MarketG
     where: {
       status: { in: ["PUBLISHED", "OPEN"] },
       ...(category && category !== "all" && {
-        category: category as MarketCategory,
+        event: { category: category as MarketCategory },
       }),
       ...(query && {
         OR: [
-          { title: { contains: query, mode: "insensitive" } },
           { question: { contains: query, mode: "insensitive" } },
+          { event: { title: { contains: query, mode: "insensitive" } } },
         ],
       }),
     },
     include: {
-      outcomes: true,
+      event: {
+        select: {
+          id: true,
+          slug: true,
+          title: true,
+          category: true,
+          bannerUrl: true,
+          logoUrl: true,
+        },
+      },
       _count: {
         select: { bets: true },
       },

@@ -5,15 +5,44 @@ import Image from "next/image";
 import { format } from "date-fns";
 import { Clock, TrendingUp, Users, Sparkles } from "lucide-react";
 import { motion } from "framer-motion";
-import type { Market, Outcome } from "@vault/database";
+import type { Market, Event } from "@vault/database";
 import { cn } from "@vault/ui/lib/utils";
+import { getMarketUrl } from "@/lib/urls";
 
 interface MarketCardProps {
   market: Market & {
-    outcomes: Outcome[];
+    event: Pick<Event, "id" | "slug" | "title" | "category" | "bannerUrl" | "logoUrl">;
     _count: { bets: number };
   };
   index?: number;
+}
+
+// Parse outcomes from JSON string
+function parseOutcomes(outcomes: string): string[] {
+  try {
+    return JSON.parse(outcomes);
+  } catch {
+    return ["Yes", "No"];
+  }
+}
+
+// Parse outcome prices from JSON string
+function parseOutcomePrices(outcomePrices: string): string[] {
+  try {
+    return JSON.parse(outcomePrices);
+  } catch {
+    return ["0.50", "0.50"];
+  }
+}
+
+// Parse outcome colors from JSON string
+function parseOutcomeColors(outcomeColors: string | null): string[] | null {
+  if (!outcomeColors) return null;
+  try {
+    return JSON.parse(outcomeColors);
+  } catch {
+    return null;
+  }
 }
 
 // Check if market was created within last 48 hours
@@ -24,20 +53,19 @@ function isNewMarket(createdAt: Date | string): boolean {
 }
 
 export function MarketCard({ market, index = 0 }: MarketCardProps) {
-  const outcomeA = market.outcomes.find((o) => o.key === "A");
-  const outcomeB = market.outcomes.find((o) => o.key === "B");
-
-  // Calculate implied probability
-  const totalPool = market.seedA + market.seedB;
-  const percentA = totalPool > 0 ? Math.round((market.seedA / totalPool) * 100) : 50;
-  const percentB = 100 - percentA;
+  const outcomes = parseOutcomes(market.outcomes);
+  const outcomePrices = parseOutcomePrices(market.outcomePrices);
+  
+  // Calculate percentages from prices
+  const percent0 = Math.round(parseFloat(outcomePrices[0] || "0.50") * 100);
+  const percent1 = Math.round(parseFloat(outcomePrices[1] || "0.50") * 100);
 
   const closesAt = market.closesAt ? new Date(market.closesAt) : null;
   const isClosingSoon = closesAt && closesAt.getTime() - Date.now() < 24 * 60 * 60 * 1000;
   const isNew = isNewMarket(market.createdAt);
 
-  // Format volume
-  const volume = market.seedA + market.seedB;
+  // Calculate volume from pools
+  const volume = (market.seed0 || 0) + (market.seed1 || 0) + (market.pool0 || 0) + (market.pool1 || 0);
   const formatVolume = (v: number) => {
     if (v >= 1000000) return `$${(v / 1000000).toFixed(1)}M`;
     if (v >= 1000) return `$${(v / 1000).toFixed(0)}K`;
@@ -60,7 +88,7 @@ export function MarketCard({ market, index = 0 }: MarketCardProps) {
         <div className="absolute -inset-[1px] rounded-xl bg-gradient-to-r from-emerald-500/50 via-cyan-500/50 to-emerald-500/50 opacity-60 blur-[2px] animate-gradient-shift" />
       )}
       
-      <Link href={`/markets/${market.slug}`} className="block group relative">
+      <Link href={getMarketUrl(market.event.slug)} className="block group relative">
         <motion.div
           className={cn(
             "glass-card overflow-hidden h-full flex flex-col relative",
@@ -74,14 +102,14 @@ export function MarketCard({ market, index = 0 }: MarketCardProps) {
         >
           {/* Header with logo and category */}
           <div className="p-4 pb-3 flex items-start gap-3">
-            {market.logoUrl ? (
+            {market.event.logoUrl ? (
               <motion.div 
                 className="h-10 w-10 rounded-lg overflow-hidden bg-muted flex-shrink-0"
                 whileHover={{ scale: 1.05 }}
                 transition={{ duration: 0.2 }}
               >
                 <Image
-                  src={market.logoUrl}
+                  src={market.event.logoUrl}
                   alt=""
                   width={40}
                   height={40}
@@ -109,7 +137,7 @@ export function MarketCard({ market, index = 0 }: MarketCardProps) {
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
                 <span className="text-xs text-muted-foreground font-medium">
-                  {market.category}
+                  {market.event.category}
                 </span>
                 {isNew && (
                   <motion.span
@@ -126,7 +154,7 @@ export function MarketCard({ market, index = 0 }: MarketCardProps) {
                 "font-semibold text-sm leading-tight line-clamp-2 transition-colors",
                 isNew ? "group-hover:text-emerald-400" : "group-hover:text-primary"
               )}>
-                {market.question || market.title}
+                {market.question}
               </h3>
             </div>
           </div>
@@ -134,29 +162,29 @@ export function MarketCard({ market, index = 0 }: MarketCardProps) {
           {/* Outcomes */}
           <div className="px-4 pb-4 flex-1 flex flex-col justify-end">
             <div className="space-y-2">
-              {/* Outcome A */}
+              {/* Outcome 0 */}
               <motion.div 
                 className="flex items-center justify-between p-2.5 rounded-lg bg-outcome-yes/[0.08] border border-outcome-yes/20 transition-colors"
                 whileHover={{ backgroundColor: "hsl(var(--outcome-yes) / 0.12)" }}
               >
                 <span className="text-sm font-medium truncate pr-2">
-                  {outcomeA?.label || "Yes"}
+                  {outcomes[0] || "Yes"}
                 </span>
                 <span className="text-sm font-bold text-outcome-yes tabular-nums">
-                  {percentA}¢
+                  {percent0}¢
                 </span>
               </motion.div>
               
-              {/* Outcome B */}
+              {/* Outcome 1 */}
               <motion.div 
                 className="flex items-center justify-between p-2.5 rounded-lg bg-outcome-no/[0.08] border border-outcome-no/20 transition-colors"
                 whileHover={{ backgroundColor: "hsl(var(--outcome-no) / 0.12)" }}
               >
                 <span className="text-sm font-medium truncate pr-2">
-                  {outcomeB?.label || "No"}
+                  {outcomes[1] || "No"}
                 </span>
                 <span className="text-sm font-bold text-outcome-no tabular-nums">
-                  {percentB}¢
+                  {percent1}¢
                 </span>
               </motion.div>
             </div>

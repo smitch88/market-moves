@@ -20,10 +20,16 @@ export async function GET(
         where: { userId: id },
         include: {
           market: {
-            select: { slug: true, title: true },
-          },
-          outcome: {
-            select: { label: true, key: true },
+            select: { 
+              question: true,
+              outcomes: true,
+              event: {
+                select: {
+                  slug: true,
+                  title: true,
+                },
+              },
+            },
           },
         },
         orderBy: { createdAt: "desc" },
@@ -33,14 +39,33 @@ export async function GET(
         where: { userId: id },
         include: {
           market: {
-            select: { slug: true, title: true, status: true },
+            select: { 
+              question: true, 
+              status: true,
+              outcomes: true,
+              event: {
+                select: {
+                  slug: true,
+                  title: true,
+                },
+              },
+            },
           },
         },
         orderBy: { lastBetAt: "desc" },
       }),
     ]);
 
-    return NextResponse.json({ bets, positions });
+    // Transform bets to include outcome labels
+    const transformedBets = bets.map((bet) => {
+      const outcomes = JSON.parse(bet.market.outcomes) as string[];
+      return {
+        ...bet,
+        outcomeLabel: outcomes[bet.outcomeIndex],
+      };
+    });
+
+    return NextResponse.json({ bets: transformedBets, positions });
   } catch (error) {
     if (error instanceof Error && error.message === "Unauthorized") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

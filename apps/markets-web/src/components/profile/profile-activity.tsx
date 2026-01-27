@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { format } from "date-fns";
 import { GlassCard, GlassCardContent, Badge, Skeleton } from "@vault/ui";
+import { getMarketUrl } from "@/lib/urls";
 
 interface ProfileActivityProps {
   bets: Array<{
@@ -10,16 +11,29 @@ interface ProfileActivityProps {
     amount: number;
     status: string;
     createdAt: string;
+    outcomeIndex: number;
+    outcomeLabel?: string;
     market: {
-      slug: string;
-      title: string;
-    };
-    outcome: {
-      label: string;
-      key: string;
+      slug?: string;
+      question?: string;
+      outcomes?: string;
+      event?: {
+        slug: string;
+        title: string;
+      };
     };
   }>;
   isLoading: boolean;
+}
+
+// Helper to parse outcomes
+function parseOutcomes(outcomes: string | undefined): string[] {
+  if (!outcomes) return ["Yes", "No"];
+  try {
+    return JSON.parse(outcomes);
+  } catch {
+    return ["Yes", "No"];
+  }
 }
 
 export function ProfileActivity({ bets, isLoading }: ProfileActivityProps) {
@@ -61,43 +75,50 @@ export function ProfileActivity({ bets, isLoading }: ProfileActivityProps) {
     <GlassCard>
       <GlassCardContent className="pt-6">
         <div className="space-y-0">
-          {bets.map((bet) => (
-            <Link
-              key={bet.id}
-              href={`/markets/${bet.market.slug}`}
-              className="flex items-center gap-4 py-4 border-b border-border/50 last:border-0 hover:bg-muted/50 -mx-6 px-6 transition-colors"
-            >
-              <div className="flex-1 min-w-0">
-                <p className="font-medium truncate">{bet.market.title}</p>
-                <p className="text-sm text-muted-foreground">
-                  Bet ${bet.amount.toLocaleString()} on{" "}
-                  <span
-                    className={
-                      bet.outcome.key === "A" ? "text-chart-2" : "text-chart-5"
+          {bets.map((bet) => {
+            const outcomes = parseOutcomes(bet.market.outcomes);
+            const outcomeLabel = bet.outcomeLabel || outcomes[bet.outcomeIndex] || "Unknown";
+            const eventSlug = bet.market.event?.slug || bet.market.slug || "";
+            const title = bet.market.event?.title || bet.market.question || "Market";
+
+            return (
+              <Link
+                key={bet.id}
+                href={getMarketUrl(eventSlug)}
+                className="flex items-center gap-4 py-4 border-b border-border/50 last:border-0 hover:bg-muted/50 -mx-6 px-6 transition-colors"
+              >
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium truncate">{title}</p>
+                  <p className="text-sm text-muted-foreground">
+                    Bet ${bet.amount.toLocaleString()} on{" "}
+                    <span
+                      className={
+                        bet.outcomeIndex === 0 ? "text-chart-2" : "text-chart-5"
+                      }
+                    >
+                      {outcomeLabel}
+                    </span>
+                  </p>
+                </div>
+                <div className="text-right">
+                  <Badge
+                    variant={
+                      bet.status === "CONFIRMED"
+                        ? "success"
+                        : bet.status === "PENDING_TWEET"
+                        ? "warning"
+                        : "secondary"
                     }
                   >
-                    {bet.outcome.label}
-                  </span>
-                </p>
-              </div>
-              <div className="text-right">
-                <Badge
-                  variant={
-                    bet.status === "CONFIRMED"
-                      ? "success"
-                      : bet.status === "PENDING_TWEET"
-                      ? "warning"
-                      : "secondary"
-                  }
-                >
-                  {bet.status.replace("_", " ")}
-                </Badge>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {format(new Date(bet.createdAt), "MMM d, yyyy")}
-                </p>
-              </div>
-            </Link>
-          ))}
+                    {bet.status.replace("_", " ")}
+                  </Badge>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {format(new Date(bet.createdAt), "MMM d, yyyy")}
+                  </p>
+                </div>
+              </Link>
+            );
+          })}
         </div>
       </GlassCardContent>
     </GlassCard>

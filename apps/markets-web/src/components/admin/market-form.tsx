@@ -16,14 +16,22 @@ import {
   GlassCard,
   GlassCardContent,
   GlassCardHeader,
-  Separator,
 } from "@vault/ui";
 import { Loader2 } from "lucide-react";
-import type { Market, Outcome, MarketCategory } from "@vault/database";
+import type { Market, Event, MarketCategory } from "@vault/database";
 import { TipTapEditor } from "./tiptap-editor";
 
+// Helper to parse outcomes
+function parseOutcomes(outcomes: string): string[] {
+  try {
+    return JSON.parse(outcomes);
+  } catch {
+    return ["Yes", "No"];
+  }
+}
+
 interface MarketFormProps {
-  market?: Market & { outcomes: Outcome[] };
+  market?: Market & { event: Event };
 }
 
 const categories: { value: MarketCategory; label: string }[] = [
@@ -47,50 +55,100 @@ export function MarketForm({ market }: MarketFormProps) {
   const router = useRouter();
   const isEditing = !!market;
 
-  const outcomeA = market?.outcomes.find((o) => o.key === "A");
-  const outcomeB = market?.outcomes.find((o) => o.key === "B");
+  // Parse outcomes if editing
+  const existingOutcomes = market ? parseOutcomes(market.outcomes) : ["", ""];
 
   const [formData, setFormData] = useState({
-    title: market?.title || "",
+    // Event fields
+    title: market?.event?.title || "",
+    slug: market?.event?.slug || "",
+    description: market?.event?.description || "",
+    category: market?.event?.category || "OTHER",
+    bannerUrl: market?.event?.bannerUrl || "",
+    logoUrl: market?.event?.logoUrl || "",
+    startTime: market?.event?.startTime ? formatDateForInput(market.event.startTime) : "",
+    // Market fields
     question: market?.question || "",
-    slug: market?.slug || "",
-    category: market?.category || "OTHER",
-    bannerUrl: market?.bannerUrl || "",
-    logoUrl: market?.logoUrl || "",
     detailsMarkdown: market?.detailsMarkdown || "",
     resolutionSourceUrl: market?.resolutionSourceUrl || "",
     opensAt: market?.opensAt ? formatDateForInput(market.opensAt) : "",
     closesAt: market?.closesAt ? formatDateForInput(market.closesAt) : "",
-    feeBps: market?.feeBps?.toString() || "400",
-    seedA: market?.seedA?.toString() || "0",
-    seedB: market?.seedB?.toString() || "0",
-    outcomeALabel: outcomeA?.label || "",
-    outcomeBLabel: outcomeB?.label || "",
+    feeBps: market?.feeBps?.toString() || "100",
+    seed0: market?.seed0?.toString() || "1000",
+    seed1: market?.seed1?.toString() || "1000",
+    outcome0Label: existingOutcomes[0] || "",
+    outcome1Label: existingOutcomes[1] || "",
   });
 
-  const mutation = useMutation({
+  const createMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
-      const url = isEditing
-        ? `/api/admin/markets/${market.id}`
-        : "/api/admin/markets";
-      const method = isEditing ? "PATCH" : "POST";
-
-      const res = await fetch(url, {
-        method,
+      // Create event with market
+      const res = await fetch("/api/admin/events", {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ...data,
-          feeBps: parseInt(data.feeBps, 10),
-          seedA: parseInt(data.seedA, 10),
-          seedB: parseInt(data.seedB, 10),
-          opensAt: data.opensAt ? new Date(data.opensAt).toISOString() : null,
-          closesAt: data.closesAt ? new Date(data.closesAt).toISOString() : null,
+          title: data.title,
+          slug: data.slug,
+          description: data.description || undefined,
+          category: data.category,
+          bannerUrl: data.bannerUrl || undefined,
+          logoUrl: data.logoUrl || undefined,
+          startTime: data.startTime ? new Date(data.startTime).toISOString() : undefined,
+          markets: [
+            {
+              question: data.question || data.title,
+              outcomes: [data.outcome0Label, data.outcome1Label],
+              detailsMarkdown: data.detailsMarkdown || undefined,
+              resolutionSourceUrl: data.resolutionSourceUrl || undefined,
+              opensAt: data.opensAt ? new Date(data.opensAt).toISOString() : undefined,
+              closesAt: data.closesAt ? new Date(data.closesAt).toISOString() : undefined,
+              feeBps: parseInt(data.feeBps, 10),
+              seed0: parseInt(data.seed0, 10),
+              seed1: parseInt(data.seed1, 10),
+            },
+          ],
         }),
       });
 
       if (!res.ok) {
         const error = await res.json();
-        throw new Error(error.error || "Failed to save market");
+        throw new Error(error.error || "Failed to create event");
+      }
+
+      return res.json();
+    },
+    onSuccess: (data) => {
+      const marketId = data.event?.markets?.[0]?.id;
+      if (marketId) {
+        router.push(`/admin/markets/${marketId}`);
+      } else {
+        router.push("/admin/markets");
+      }
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async (data: typeof formData) => {
+      // Update market
+      const res = await fetch(`/api/admin/markets/${market!.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          question: data.question,
+          outcomes: [data.outcome0Label, data.outcome1Label],
+          detailsMarkdown: data.detailsMarkdown || undefined,
+          resolutionSourceUrl: data.resolutionSourceUrl || undefined,
+          opensAt: data.opensAt ? new Date(data.opensAt).toISOString() : undefined,
+          closesAt: data.closesAt ? new Date(data.closesAt).toISOString() : undefined,
+          feeBps: parseInt(data.feeBps, 10),
+          seed0: parseInt(data.seed0, 10),
+          seed1: parseInt(data.seed1, 10),
+        }),
+      });
+
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || "Failed to update market");
       }
 
       return res.json();
@@ -99,6 +157,8 @@ export function MarketForm({ market }: MarketFormProps) {
       router.push(`/admin/markets/${data.market.id}`);
     },
   });
+
+  const mutation = isEditing ? updateMutation : createMutation;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -123,38 +183,120 @@ export function MarketForm({ market }: MarketFormProps) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-8">
-      {/* Basic info */}
+      {/* Event info (only for new) */}
+      {!isEditing && (
+        <GlassCard>
+          <GlassCardHeader>
+            <h2 className="text-lg font-semibold">Event Information</h2>
+            <p className="text-sm text-muted-foreground">
+              Events group related markets together
+            </p>
+          </GlassCardHeader>
+          <GlassCardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="title">Event Title</Label>
+                <Input
+                  id="title"
+                  name="title"
+                  value={formData.title}
+                  onChange={handleChange}
+                  placeholder="Super Bowl LIX"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="slug">Slug</Label>
+                <Input
+                  id="slug"
+                  name="slug"
+                  value={formData.slug}
+                  onChange={handleChange}
+                  placeholder="super-bowl-lix"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="description">Description</Label>
+              <Textarea
+                id="description"
+                name="description"
+                value={formData.description}
+                onChange={handleChange}
+                placeholder="Brief description of the event..."
+                rows={2}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="category">Category</Label>
+                <Select
+                  value={formData.category}
+                  onValueChange={(value) =>
+                    setFormData((prev) => ({ ...prev, category: value as MarketCategory }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categories.map((cat) => (
+                      <SelectItem key={cat.value} value={cat.value}>
+                        {cat.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="startTime">Event Start Time</Label>
+                <Input
+                  id="startTime"
+                  name="startTime"
+                  type="datetime-local"
+                  value={formData.startTime}
+                  onChange={handleChange}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="bannerUrl">Banner URL</Label>
+                <Input
+                  id="bannerUrl"
+                  name="bannerUrl"
+                  value={formData.bannerUrl}
+                  onChange={handleChange}
+                  placeholder="https://..."
+                  type="url"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="logoUrl">Logo URL</Label>
+                <Input
+                  id="logoUrl"
+                  name="logoUrl"
+                  value={formData.logoUrl}
+                  onChange={handleChange}
+                  placeholder="https://..."
+                  type="url"
+                />
+              </div>
+            </div>
+          </GlassCardContent>
+        </GlassCard>
+      )}
+
+      {/* Market info */}
       <GlassCard>
         <GlassCardHeader>
-          <h2 className="text-lg font-semibold">Basic Information</h2>
+          <h2 className="text-lg font-semibold">Market Question</h2>
         </GlassCardHeader>
         <GlassCardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="title">Title</Label>
-              <Input
-                id="title"
-                name="title"
-                value={formData.title}
-                onChange={handleChange}
-                placeholder="Super Bowl 2026"
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="slug">Slug</Label>
-              <Input
-                id="slug"
-                name="slug"
-                value={formData.slug}
-                onChange={handleChange}
-                placeholder="super-bowl-2026"
-                required
-                disabled={isEditing}
-              />
-            </div>
-          </div>
-
           <div className="space-y-2">
             <Label htmlFor="question">Question</Label>
             <Input
@@ -163,28 +305,8 @@ export function MarketForm({ market }: MarketFormProps) {
               value={formData.question}
               onChange={handleChange}
               placeholder="Who will win the Super Bowl?"
+              required
             />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="category">Category</Label>
-            <Select
-              value={formData.category}
-              onValueChange={(value) =>
-                setFormData((prev) => ({ ...prev, category: value as MarketCategory }))
-              }
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {categories.map((cat) => (
-                  <SelectItem key={cat.value} value={cat.value}>
-                    {cat.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
           </div>
         </GlassCardContent>
       </GlassCard>
@@ -200,58 +322,27 @@ export function MarketForm({ market }: MarketFormProps) {
         <GlassCardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="outcomeALabel">Outcome A Label</Label>
+              <Label htmlFor="outcome0Label">Outcome 1 Label</Label>
               <Input
-                id="outcomeALabel"
-                name="outcomeALabel"
-                value={formData.outcomeALabel}
+                id="outcome0Label"
+                name="outcome0Label"
+                value={formData.outcome0Label}
                 onChange={handleChange}
                 placeholder="Team A / Yes"
                 required
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="outcomeBLabel">Outcome B Label</Label>
+              <Label htmlFor="outcome1Label">Outcome 2 Label</Label>
               <Input
-                id="outcomeBLabel"
-                name="outcomeBLabel"
-                value={formData.outcomeBLabel}
+                id="outcome1Label"
+                name="outcome1Label"
+                value={formData.outcome1Label}
                 onChange={handleChange}
                 placeholder="Team B / No"
                 required
               />
             </div>
-          </div>
-        </GlassCardContent>
-      </GlassCard>
-
-      {/* Media */}
-      <GlassCard>
-        <GlassCardHeader>
-          <h2 className="text-lg font-semibold">Media</h2>
-        </GlassCardHeader>
-        <GlassCardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="bannerUrl">Banner URL</Label>
-            <Input
-              id="bannerUrl"
-              name="bannerUrl"
-              value={formData.bannerUrl}
-              onChange={handleChange}
-              placeholder="https://..."
-              type="url"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="logoUrl">Logo URL</Label>
-            <Input
-              id="logoUrl"
-              name="logoUrl"
-              value={formData.logoUrl}
-              onChange={handleChange}
-              placeholder="https://..."
-              type="url"
-            />
           </div>
         </GlassCardContent>
       </GlassCard>
@@ -331,32 +422,32 @@ export function MarketForm({ market }: MarketFormProps) {
                 type="number"
                 value={formData.feeBps}
                 onChange={handleChange}
-                placeholder="400"
+                placeholder="100"
               />
               <p className="text-xs text-muted-foreground">
-                400 = 4% fee
+                100 = 1% fee
               </p>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="seedA">Seed Liquidity A</Label>
+              <Label htmlFor="seed0">Seed Liquidity 1</Label>
               <Input
-                id="seedA"
-                name="seedA"
+                id="seed0"
+                name="seed0"
                 type="number"
-                value={formData.seedA}
+                value={formData.seed0}
                 onChange={handleChange}
-                placeholder="0"
+                placeholder="1000"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="seedB">Seed Liquidity B</Label>
+              <Label htmlFor="seed1">Seed Liquidity 2</Label>
               <Input
-                id="seedB"
-                name="seedB"
+                id="seed1"
+                name="seed1"
                 type="number"
-                value={formData.seedB}
+                value={formData.seed1}
                 onChange={handleChange}
-                placeholder="0"
+                placeholder="1000"
               />
             </div>
           </div>
@@ -374,7 +465,7 @@ export function MarketForm({ market }: MarketFormProps) {
         </Button>
         <Button type="submit" disabled={mutation.isPending}>
           {mutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-          {isEditing ? "Save Changes" : "Create Market"}
+          {isEditing ? "Save Changes" : "Create Event & Market"}
         </Button>
       </div>
 

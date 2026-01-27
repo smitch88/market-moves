@@ -12,6 +12,12 @@
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
     "db:migrate:deploy": "prisma migrate deploy",
+    "db:migrate:status": "prisma migrate status",
+    "db:migrate:resolve-baseline": "prisma migrate resolve --applied 20260128000000_baseline",
+    "db:migrate:verify": "tsx scripts/migrate-verify.ts",
+    "db:migrate:recalculate-pools": "tsx scripts/migrate-verify.ts recalculate-pools",
+    "db:clean-and-reseed": "tsx scripts/clean-and-reseed.ts",
+    "db:clean-and-reseed:dry": "tsx scripts/clean-and-reseed.ts --dry-run",
     "db:studio": "prisma studio",
     "db:seed": "prisma db seed",
     "db:reset": "prisma db push --force-reset && prisma db seed",
@@ -19,6 +25,7 @@
     "postinstall": "prisma generate"
   },
   "devDependencies": {
+    "dotenv": "^17.2.3",
     "prisma": "^6.2.0",
     "tsx": "^4.7.0",
     "typescript": "^5.7.2"

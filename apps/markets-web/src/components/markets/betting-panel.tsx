@@ -4,44 +4,52 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  Button,
   GlassCard,
   GlassCardContent,
   GlassCardHeader,
-  Input,
-  Label,
-  Dialog,
-  DialogContent,
   toast,
 } from "@vault/ui";
-import { Check, Loader2, Sparkles, Copy, Download } from "lucide-react";
 import { toPng } from "html-to-image";
-import type { Market, Outcome } from "@vault/database";
+import type { Market, Event } from "@vault/database";
 import { BettingTicket } from "./betting-ticket";
-import { XIcon } from "./x-icon";
 import { SelectOutcomeStep } from "./betting-panel/select-outcome-step";
 import { AmountStep } from "./betting-panel/amount-step";
 import { VerifyStep } from "./betting-panel/verify-step";
 import { SuccessModal } from "./betting-panel/success-modal";
 
+// Helper to parse outcomes from JSON
+function parseOutcomes(outcomes: string): string[] {
+  try {
+    return JSON.parse(outcomes);
+  } catch {
+    return ["Yes", "No"];
+  }
+}
+
 interface BettingPanelProps {
-  market: Market & { outcomes: Outcome[] };
+  market: Market;
+  event: Event;
   stats: {
-    percentA: number;
-    percentB: number;
+    percent0?: number;
+    percent1?: number;
+    percentA?: number;
+    percentB?: number;
     totalPool: number;
   };
 }
 
 type BettingStep = "select" | "amount" | "verify";
 
-export function BettingPanel({ market, stats }: BettingPanelProps) {
+export function BettingPanel({ market, event, stats }: BettingPanelProps) {
   const { login, authenticated } = usePrivy();
   const queryClient = useQueryClient();
 
-  // Betting flow state
+  // Parse outcomes from market
+  const outcomes = parseOutcomes(market.outcomes);
+
+  // Betting flow state - using index (0 or 1) instead of key (A or B)
   const [step, setStep] = useState<BettingStep>("select");
-  const [selectedOutcome, setSelectedOutcome] = useState<"A" | "B" | null>(null);
+  const [selectedOutcome, setSelectedOutcome] = useState<number | null>(null);
   const [amount, setAmount] = useState("");
   const [betId, setBetId] = useState<string | null>(null);
   const [tweetUrl, setTweetUrl] = useState("");
@@ -49,7 +57,7 @@ export function BettingPanel({ market, stats }: BettingPanelProps) {
   // Success modal state
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [confirmedBetAmount, setConfirmedBetAmount] = useState(0);
-  const [confirmedOutcome, setConfirmedOutcome] = useState<"A" | "B" | null>(null);
+  const [confirmedOutcome, setConfirmedOutcome] = useState<number | null>(null);
   const [copied, setCopied] = useState(false);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const ticketRef = useRef<HTMLDivElement>(null);
@@ -77,8 +85,6 @@ export function BettingPanel({ market, stats }: BettingPanelProps) {
   });
 
   const balance = profile?.balance ?? 10000;
-  const outcomeA = market.outcomes.find((o) => o.key === "A");
-  const outcomeB = market.outcomes.find((o) => o.key === "B");
   const canBet =
     market.status === "OPEN" ||
     (market.status === "PUBLISHED" && (!market.closesAt || new Date(market.closesAt) > new Date()));
@@ -88,7 +94,7 @@ export function BettingPanel({ market, stats }: BettingPanelProps) {
     if (pendingBetData?.pendingBet && !betId && step === "select") {
       const pendingBet = pendingBetData.pendingBet;
       setBetId(pendingBet.id);
-      setSelectedOutcome(pendingBet.outcome.key as "A" | "B");
+      setSelectedOutcome(pendingBet.outcomeIndex);
       setAmount(String(pendingBet.amount));
       setStep("verify");
     }
@@ -102,7 +108,7 @@ export function BettingPanel({ market, stats }: BettingPanelProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           marketId: market.id,
-          outcomeKey: selectedOutcome,
+          outcomeIndex: selectedOutcome,
           amount: parseInt(amount, 10),
         }),
       });
@@ -179,7 +185,7 @@ export function BettingPanel({ market, stats }: BettingPanelProps) {
         // Invalidate and refetch queries
         await Promise.all([
           queryClient.invalidateQueries({ queryKey: ["profile"] }),
-          queryClient.refetchQueries({ queryKey: ["market", market.slug] }),
+          queryClient.refetchQueries({ queryKey: ["market", event.slug] }),
           queryClient.refetchQueries({ queryKey: ["pendingBet", market.id] }),
         ]);
         
@@ -197,12 +203,12 @@ export function BettingPanel({ market, stats }: BettingPanelProps) {
   });
 
   // Handlers
-  const handleSelectOutcome = (key: "A" | "B") => {
+  const handleSelectOutcome = (index: number) => {
     if (!authenticated) {
       login();
       return;
     }
-    setSelectedOutcome(key);
+    setSelectedOutcome(index);
     setStep("amount");
   };
 
@@ -253,7 +259,7 @@ export function BettingPanel({ market, stats }: BettingPanelProps) {
       const dataUrl = await generateTicketImage();
       if (dataUrl) {
         const link = document.createElement("a");
-        link.download = `vault-bet-${market.slug}-${Date.now()}.png`;
+        link.download = `vault-bet-${event.slug}-${Date.now()}.png`;
         link.href = dataUrl;
         link.click();
         toast.success("Ticket downloaded!");
@@ -265,11 +271,11 @@ export function BettingPanel({ market, stats }: BettingPanelProps) {
     } finally {
       setIsGeneratingImage(false);
     }
-  }, [generateTicketImage, market.slug]);
+  }, [generateTicketImage, event.slug]);
 
   const handleShareTicketOnX = useCallback(async () => {
-    const outcome = confirmedOutcome === "A" ? outcomeA : outcomeB;
-    if (!outcome) return;
+    const outcomeLabel = confirmedOutcome !== null ? outcomes[confirmedOutcome] : "";
+    if (!outcomeLabel) return;
 
     setIsGeneratingImage(true);
     try {
@@ -281,7 +287,7 @@ export function BettingPanel({ market, stats }: BettingPanelProps) {
 
         setTimeout(() => {
           const tweetText = encodeURIComponent(
-            `🎯 I just bet $${confirmedBetAmount.toLocaleString()} on "${outcome.label}" for "${market.title}" on @VaultMarkets!\n\nMake your prediction 👇\n${window.location.href}`
+            `🎯 I just bet $${confirmedBetAmount.toLocaleString()} on "${outcomeLabel}" for "${event.title}" on @VaultMarkets!\n\nMake your prediction 👇\n${window.location.href}`
           );
           window.open(`https://x.com/intent/tweet?text=${tweetText}`, "_blank");
         }, 500);
@@ -294,7 +300,7 @@ export function BettingPanel({ market, stats }: BettingPanelProps) {
     } finally {
       setIsGeneratingImage(false);
     }
-  }, [generateTicketImage, market.slug, market.title, confirmedBetAmount, confirmedOutcome, outcomeA, outcomeB]);
+  }, [generateTicketImage, event.slug, event.title, confirmedBetAmount, confirmedOutcome, outcomes]);
 
   const handleCopyBetLink = async () => {
     try {
@@ -325,8 +331,7 @@ export function BettingPanel({ market, stats }: BettingPanelProps) {
             </p>
           ) : step === "select" ? (
             <SelectOutcomeStep
-              outcomeA={outcomeA}
-              outcomeB={outcomeB}
+              outcomes={outcomes}
               stats={stats}
               authenticated={authenticated}
               onSelect={handleSelectOutcome}
@@ -335,8 +340,7 @@ export function BettingPanel({ market, stats }: BettingPanelProps) {
           ) : step === "amount" ? (
             <AmountStep
               selectedOutcome={selectedOutcome}
-              outcomeA={outcomeA}
-              outcomeB={outcomeB}
+              outcomes={outcomes}
               amount={amount}
               balance={balance}
               onAmountChange={setAmount}
@@ -348,8 +352,7 @@ export function BettingPanel({ market, stats }: BettingPanelProps) {
             <VerifyStep
               pendingBet={pendingBetData?.pendingBet}
               selectedOutcome={selectedOutcome}
-              outcomeA={outcomeA}
-              outcomeB={outcomeB}
+              outcomes={outcomes}
               tweetUrl={tweetUrl}
               onTweetUrlChange={setTweetUrl}
               onOpenTweetIntent={handleOpenTweetIntent}
@@ -364,8 +367,8 @@ export function BettingPanel({ market, stats }: BettingPanelProps) {
         open={showSuccessModal}
         onOpenChange={setShowSuccessModal}
         market={market}
-        outcomeA={outcomeA}
-        outcomeB={outcomeB}
+        event={event}
+        outcomes={outcomes}
         confirmedOutcome={confirmedOutcome}
         confirmedBetAmount={confirmedBetAmount}
         profile={profile}

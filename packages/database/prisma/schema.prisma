@@ -44,11 +44,6 @@ enum MarketCategory {
   OTHER
 }
 
-enum OutcomeKey {
-  A
-  B
-}
-
 enum BetStatus {
   PENDING_TWEET  // Awaiting tweet verification
   CONFIRMED      // Tweet verified, bet active
@@ -79,6 +74,8 @@ enum TweetProofMethod {
 }
 
 enum AdminAction {
+  EVENT_CREATE
+  EVENT_UPDATE
   MARKET_CREATE
   MARKET_UPDATE
   MARKET_CLOSE
@@ -169,29 +166,89 @@ model BalanceLedger {
 }
 
 // ============================================================================
-// MARKET
+// TAG (Polymarket-style categorization)
 // ============================================================================
 
-model Market {
-  id              String        @id @default(cuid())
-  slug            String        @unique
+model Tag {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  label     String
   
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  events    Event[]
+}
+
+// ============================================================================
+// EVENT (Polymarket-style: groups related markets)
+// ============================================================================
+
+model Event {
+  id              String         @id @default(cuid())
+  slug            String         @unique
   title           String
-  question        String?
+  description     String?        @db.Text
   
+  // Categorization
   category        MarketCategory @default(OTHER)
-  status          MarketStatus   @default(DRAFT)
   
   // Media
   bannerUrl       String?
   logoUrl         String?
+  
+  // Timestamps
+  startTime       DateTime?      // When the event starts (e.g., game kickoff)
+  endTime         DateTime?      // When the event ends
+  
+  // State flags (Polymarket-style)
+  active          Boolean        @default(true)
+  closed          Boolean        @default(false)
+  
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  // Relations
+  markets         Market[]
+  tags            Tag[]
+
+  @@index([category])
+  @@index([active])
+  @@index([closed])
+  @@index([startTime])
+}
+
+// ============================================================================
+// MARKET (Binary outcome market within an Event)
+// ============================================================================
+
+model Market {
+  id              String        @id @default(cuid())
+  
+  // Parent event
+  eventId         String
+  event           Event         @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  
+  // Question (the specific binary question)
+  question        String
+  
+  // Outcomes as JSON arrays (Polymarket style)
+  // e.g., ["Yes", "No"] or ["Chiefs", "Eagles"]
+  outcomes        String        @default("[\"Yes\", \"No\"]")
+  // e.g., ["0.50", "0.50"] - calculated from pool ratios
+  outcomePrices   String        @default("[\"0.50\", \"0.50\"]")
+  // Optional colors for each outcome, e.g., ["#FF0000", "#0000FF"]
+  outcomeColors   String?
+  
+  status          MarketStatus  @default(DRAFT)
   
   // Details (Markdown)
   detailsMarkdown String?       @db.Text
   
   // Resolution
   resolutionSourceUrl String?
-  resolvedOutcomeId   String?
+  resolvedOutcome     Int?      // Index into outcomes array (0 or 1), null until resolved
   
   // Timestamps
   publishedAt     DateTime?
@@ -205,46 +262,26 @@ model Market {
   
   // Pari-mutuel params
   feeBps          Int           @default(100)    // 1% = 100 basis points
-  seedA           Int           @default(1000)   // Bootstrap liquidity for outcome A
-  seedB           Int           @default(1000)   // Bootstrap liquidity for outcome B
+  seed0           Int           @default(1000)   // Bootstrap liquidity for outcome[0]
+  seed1           Int           @default(1000)   // Bootstrap liquidity for outcome[1]
+  
+  // Pool tracking (denormalized for performance)
+  pool0           Int           @default(0)      // Total confirmed bets on outcome[0]
+  pool1           Int           @default(0)      // Total confirmed bets on outcome[1]
   
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
   // Relations
-  outcomes        Outcome[]
   bets            Bet[]
   positions       Position[]
   tweetProofs     TweetProof[]
   raffleEntries   RaffleEntry[]
 
+  @@index([eventId])
   @@index([status])
-  @@index([category])
   @@index([closesAt])
   @@index([publishedAt])
-}
-
-// ============================================================================
-// OUTCOME
-// ============================================================================
-
-model Outcome {
-  id        String     @id @default(cuid())
-  marketId  String
-  market    Market     @relation(fields: [marketId], references: [id], onDelete: Cascade)
-  
-  key       OutcomeKey // A or B
-  label     String     // e.g., "Seahawks", "Patriots", "Yes", "No"
-  color     String?    // Optional hex color
-  
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
-
-  // Relations
-  bets      Bet[]
-
-  @@unique([marketId, key])
-  @@index([marketId])
 }
 
 // ============================================================================
@@ -259,8 +296,8 @@ model Bet {
   marketId      String
   market        Market    @relation(fields: [marketId], references: [id])
   
-  outcomeId     String
-  outcome       Outcome   @relation(fields: [outcomeId], references: [id])
+  // Outcome index (0 or 1) - index into market.outcomes array
+  outcomeIndex  Int
   
   amount        Int
   weight        Float     @default(1)
@@ -277,13 +314,13 @@ model Bet {
 
   @@index([userId])
   @@index([marketId])
-  @@index([outcomeId])
+  @@index([outcomeIndex])
   @@index([status])
   @@index([createdAt])
 }
 
 // ============================================================================
-// POSITION (Aggregate)
+// POSITION (Aggregate per user per market)
 // ============================================================================
 
 model Position {
@@ -295,12 +332,12 @@ model Position {
   market          Market   @relation(fields: [marketId], references: [id])
   
   // Aggregated amounts per outcome (only confirmed bets)
-  amountOutcomeA  Int      @default(0)
-  amountOutcomeB  Int      @default(0)
+  amount0         Int      @default(0)  // Bet amount on outcomes[0]
+  amount1         Int      @default(0)  // Bet amount on outcomes[1]
   
   // Weighted aggregates
-  weightedOutcomeA Float   @default(0)
-  weightedOutcomeB Float   @default(0)
+  weighted0       Float    @default(0)
+  weighted1       Float    @default(0)
   
   lastBetAt       DateTime?
   
@@ -394,7 +431,7 @@ model AdminActionLog {
   admin         User        @relation(fields: [adminUserId], references: [id])
   
   action        AdminAction
-  targetType    String      // e.g., "Market", "User"
+  targetType    String      // e.g., "Event", "Market", "User"
   targetId      String
   metadata      Json?
   

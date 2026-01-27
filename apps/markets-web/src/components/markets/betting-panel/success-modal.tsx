@@ -1,16 +1,16 @@
 import { Button, Dialog, DialogContent } from "@vault/ui";
-import { Check, Loader2, Sparkles, Copy, Download } from "lucide-react";
+import { Loader2, Sparkles, Copy, Download, Check } from "lucide-react";
 import { XIcon } from "../x-icon";
 import { BettingTicket } from "../betting-ticket";
-import type { Market, Outcome } from "@vault/database";
+import type { Market, Event } from "@vault/database";
 
 interface SuccessModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  market: Market & { outcomes: Outcome[] };
-  outcomeA: Outcome | undefined;
-  outcomeB: Outcome | undefined;
-  confirmedOutcome: "A" | "B" | null;
+  market: Market;
+  event: Event;
+  outcomes: string[];
+  confirmedOutcome: number | null;
   confirmedBetAmount: number;
   profile?: {
     name?: string | null;
@@ -29,8 +29,8 @@ export function SuccessModal({
   open,
   onOpenChange,
   market,
-  outcomeA,
-  outcomeB,
+  event,
+  outcomes,
   confirmedOutcome,
   confirmedBetAmount,
   profile,
@@ -41,9 +41,9 @@ export function SuccessModal({
   onDownload,
   onCopyLink,
 }: SuccessModalProps) {
-  if (!confirmedOutcome) return null;
+  if (confirmedOutcome === null) return null;
 
-  const confirmedOutcomeData = confirmedOutcome === "A" ? outcomeA : outcomeB;
+  const confirmedOutcomeLabel = outcomes[confirmedOutcome];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -59,12 +59,14 @@ export function SuccessModal({
           </div>
 
           {/* Ticket Preview */}
-          {confirmedOutcomeData && (
+          {confirmedOutcomeLabel && (
             <div className="flex justify-center">
               <BettingTicket
                 ref={ticketRef}
                 market={market}
-                outcome={confirmedOutcomeData}
+                event={event}
+                outcomeLabel={confirmedOutcomeLabel}
+                outcomeIndex={confirmedOutcome}
                 amount={confirmedBetAmount}
                 userName={profile?.name}
                 userHandle={profile?.handle}
@@ -107,4 +109,3 @@ export function SuccessModal({
     </Dialog>
   );
 }
-

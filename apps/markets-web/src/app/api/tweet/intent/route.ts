@@ -20,20 +20,29 @@ export async function POST(request: NextRequest) {
 
     const { marketId, betId } = intentSchema.parse(body);
 
-    // Get market details
+    // Get market details with event
     const market = await prisma.market.findUnique({
       where: { id: marketId },
-      select: { id: true, title: true, slug: true },
+      select: { 
+        id: true, 
+        question: true,
+        event: {
+          select: {
+            slug: true,
+            title: true,
+          },
+        },
+      },
     });
 
     if (!market) {
       return NextResponse.json({ error: "Market not found" }, { status: 404 });
     }
 
-    // Build the intent URL
+    // Build the intent URL using event slug
     const intentUrl = buildTweetIntentUrl({
-      marketTitle: market.title,
-      marketSlug: market.slug,
+      marketTitle: market.event.title,
+      marketSlug: market.event.slug,
     });
 
     // Create a pending tweet proof record
@@ -58,10 +67,10 @@ export async function POST(request: NextRequest) {
       intentUrl,
       proofId: tweetProof.id,
       requiredText: buildRequiredTweetText({
-        marketTitle: market.title,
-        marketSlug: market.slug,
+        marketTitle: market.event.title,
+        marketSlug: market.event.slug,
       }),
-      marketLink: buildMarketLink(market.slug),
+      marketLink: buildMarketLink(market.event.slug),
     });
   } catch (error) {
     if (error instanceof z.ZodError) {

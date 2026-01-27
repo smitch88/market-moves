@@ -11,18 +11,21 @@ export default async function EditMarketPage({ params }: PageProps) {
 
   const market = await prisma.market.findUnique({
     where: { id },
-    include: { outcomes: true },
+    include: { event: true },
   });
 
   if (!market) {
     notFound();
   }
 
+  // Parse the question for display
+  const displayTitle = market.event?.title || market.question;
+
   return (
     <div className="max-w-4xl space-y-8">
       <div>
         <h1 className="text-3xl font-bold">Edit Market</h1>
-        <p className="text-muted-foreground">{market.title}</p>
+        <p className="text-muted-foreground">{displayTitle}</p>
       </div>
 
       <MarketForm market={market} />

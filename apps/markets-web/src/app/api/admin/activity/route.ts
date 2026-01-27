@@ -26,15 +26,14 @@ export async function GET(request: NextRequest) {
         market: {
           select: {
             id: true,
-            title: true,
-            slug: true,
-          },
-        },
-        outcome: {
-          select: {
-            id: true,
-            key: true,
-            label: true,
+            question: true,
+            outcomes: true,
+            event: {
+              select: {
+                slug: true,
+                title: true,
+              },
+            },
           },
         },
       },
@@ -42,13 +41,22 @@ export async function GET(request: NextRequest) {
       take: limit,
     });
 
+    // Transform bets to include outcome labels
+    const transformedBets = recentBets.map((bet) => {
+      const outcomes = JSON.parse(bet.market.outcomes) as string[];
+      return {
+        ...bet,
+        outcomeLabel: outcomes[bet.outcomeIndex],
+      };
+    });
+
     // Fetch recent market status changes from admin logs
     const recentMarketActions = await prisma.adminActionLog.findMany({
       where: {
         action: {
-          in: ["MARKET_CREATE", "MARKET_UPDATE", "MARKET_CLOSE", "MARKET_RESOLVE", "MARKET_SETTLE"],
+          in: ["EVENT_CREATE", "EVENT_UPDATE", "MARKET_CREATE", "MARKET_UPDATE", "MARKET_CLOSE", "MARKET_RESOLVE", "MARKET_SETTLE"],
         },
-        targetType: "Market",
+        targetType: { in: ["Market", "Event"] },
       },
       include: {
         admin: {
@@ -64,19 +72,50 @@ export async function GET(request: NextRequest) {
       take: limit,
     });
 
-    // Fetch market titles for actions
-    const marketIds = recentMarketActions.map((action) => action.targetId);
-    const markets = await prisma.market.findMany({
-      where: { id: { in: marketIds } },
-      select: { id: true, title: true, slug: true },
-    });
-    const marketMap = new Map(markets.map((m) => [m.id, m]));
+    // Fetch market/event titles for actions
+    const marketIds = recentMarketActions
+      .filter((action) => action.targetType === "Market")
+      .map((action) => action.targetId);
+    const eventIds = recentMarketActions
+      .filter((action) => action.targetType === "Event")
+      .map((action) => action.targetId);
 
-    // Enrich actions with market data
-    const enrichedActions = recentMarketActions.map((action) => ({
-      ...action,
-      market: marketMap.get(action.targetId),
-    }));
+    const [markets, events] = await Promise.all([
+      prisma.market.findMany({
+        where: { id: { in: marketIds } },
+        select: { 
+          id: true, 
+          question: true,
+          event: {
+            select: {
+              slug: true,
+              title: true,
+            },
+          },
+        },
+      }),
+      prisma.event.findMany({
+        where: { id: { in: eventIds } },
+        select: { id: true, title: true, slug: true },
+      }),
+    ]);
+    
+    const marketMap = new Map(markets.map((m) => [m.id, m]));
+    const eventMap = new Map(events.map((e) => [e.id, e]));
+
+    // Enrich actions with market/event data
+    const enrichedActions = recentMarketActions.map((action) => {
+      const market = action.targetType === "Market" ? marketMap.get(action.targetId) : null;
+      const event = action.targetType === "Event" ? eventMap.get(action.targetId) : null;
+      return {
+        ...action,
+        market: market ? { 
+          title: market.event?.title || market.question,
+          slug: market.event?.slug,
+        } : null,
+        event,
+      };
+    });
 
     // Fetch recent user signups
     const recentUsers = await prisma.user.findMany({
@@ -95,22 +134,22 @@ export async function GET(request: NextRequest) {
     const activities: Array<{
       type: "bet" | "market_action" | "user_signup";
       timestamp: Date;
-      data: any;
+      data: Record<string, unknown>;
     }> = [
-      ...recentBets.map((bet) => ({
+      ...transformedBets.map((bet) => ({
         type: "bet" as const,
         timestamp: bet.createdAt,
-        data: bet,
+        data: bet as Record<string, unknown>,
       })),
       ...enrichedActions.map((action) => ({
         type: "market_action" as const,
         timestamp: action.createdAt,
-        data: action,
+        data: action as Record<string, unknown>,
       })),
       ...recentUsers.map((user) => ({
         type: "user_signup" as const,
         timestamp: user.createdAt,
-        data: user,
+        data: user as Record<string, unknown>,
       })),
     ];
 
@@ -129,4 +168,3 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
-
