@@ -1,6 +1,5 @@
 import { Suspense } from "react";
-import { MarketGrid } from "@/components/markets/market-grid";
-import { MarketGridSkeleton } from "@/components/markets/market-grid-skeleton";
+import { EventGrid, EventGridSkeleton } from "@/components/events";
 import { Header } from "@/components/layout/header";
 import { MarketFilters } from "@/components/markets/market-filters";
 
@@ -38,10 +37,10 @@ export default async function HomePage({ searchParams }: HomePageProps) {
             </div>
           </aside>
 
-          {/* Markets Grid */}
+          {/* Events Grid */}
           <div className="flex-1 min-w-0">
-            <Suspense fallback={<MarketGridSkeleton />}>
-              <MarketGrid sort={sort} category={category} query={q} />
+            <Suspense fallback={<EventGridSkeleton />}>
+              <EventGrid sort={sort} category={category} query={q} />
             </Suspense>
           </div>
         </div>
