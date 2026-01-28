@@ -7,7 +7,7 @@ interface BettingTicketProps {
   market: Market;
   event: Event;
   outcomeLabel: string;
-  outcomeIndex: number;
+  outcomeIndex: number; 
   amount: number;
   userName?: string | null;
   userHandle?: string | null;
@@ -16,7 +16,7 @@ interface BettingTicketProps {
 }
 
 export const BettingTicket = forwardRef<HTMLDivElement, BettingTicketProps>(
-  ({ market, event, outcomeLabel, outcomeIndex, amount, userName, userHandle, timestamp = new Date() }, ref) => {
+  ({ market, event, outcomeLabel, outcomeIndex, amount, userName, userHandle, userAvatar, timestamp = new Date() }, ref) => {
     const formattedDate = timestamp.toLocaleDateString("en-US", {
       month: "short",
       day: "numeric",
@@ -30,13 +30,13 @@ export const BettingTicket = forwardRef<HTMLDivElement, BettingTicketProps>(
     return (
       <div
         ref={ref}
-        className="w-[400px] bg-[#0a0a0f] text-white font-sans overflow-hidden"
+        className="w-[400px] bg-[#0a0a0f] text-white font-sans overflow-hidden border border-white/10 rounded-sm"
         style={{
           fontFamily: "'Inter', system-ui, sans-serif",
         }}
       >
         {/* Top decorative edge */}
-        <div className="h-4 bg-gradient-to-r from-purple-600 via-purple-500 to-purple-600 relative">
+        <div className="h-4 bg-[#df2421] relative">
           <div className="absolute bottom-0 left-0 right-0 h-2 flex justify-between px-1">
             {[...Array(20)].map((_, i) => (
               <div key={i} className="w-3 h-3 bg-[#0a0a0f] rounded-full -mb-1.5" />
@@ -45,14 +45,12 @@ export const BettingTicket = forwardRef<HTMLDivElement, BettingTicketProps>(
         </div>
 
         {/* Header */}
-        <div className="px-6 pt-6 pb-4 text-center border-b border-dashed border-white/20">
+        <div className="px-6 pt-6 pb-4 text-center border-b border-dashed border-white/15">
           <div className="flex items-center justify-center gap-2 mb-2">
-            <svg viewBox="0 0 24 24" className="w-6 h-6 text-purple-400" fill="currentColor">
-              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-            <span className="text-lg font-bold tracking-wider text-purple-400">VAULT MARKETS</span>
+            <img src="/logo.svg" alt="Vault Markets" className="w-6 h-6" />
+            <span className="text-lg font-bold tracking-wider text-white">VAULT777</span>
           </div>
-          <div className="text-xs text-white/50 uppercase tracking-widest">Prediction Receipt</div>
+          <div className="text-xs text-white/40 uppercase tracking-widest">Prediction Receipt</div>
         </div>
 
         {/* Market Info */}
@@ -96,9 +94,13 @@ export const BettingTicket = forwardRef<HTMLDivElement, BettingTicketProps>(
           {/* User & Time Info */}
           <div className="flex items-center justify-between text-sm">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white font-bold text-xs">
-                {userName?.[0]?.toUpperCase() || userHandle?.[0]?.toUpperCase() || "?"}
-              </div>
+              {userAvatar ? (
+                <img src={userAvatar} alt={userName || userHandle || "User"} className="w-8 h-8 rounded-full" />
+              ) : (
+                <div className="w-8 h-8 rounded-full bg-[#df2421] flex items-center justify-center text-white font-bold text-xs">
+                  {userName?.[0]?.toUpperCase() || userHandle?.[0]?.toUpperCase() || "?"}
+                </div>
+              )}
               <div>
                 <div className="font-medium text-white/90">
                   {userName || userHandle || "Anonymous"}
@@ -116,19 +118,19 @@ export const BettingTicket = forwardRef<HTMLDivElement, BettingTicketProps>(
         </div>
 
         {/* Bottom CTA */}
-        <div className="px-6 py-4 bg-gradient-to-r from-purple-900/50 to-pink-900/50 border-t border-white/10">
+        <div className="px-6 py-4 bg-[#df2421]/10 border-t border-white/10">
           <div className="flex items-center justify-between">
-            <div className="text-xs text-white/70">
+            <div className="text-xs text-white/60">
               Make your prediction at
             </div>
-            <div className="text-sm font-semibold text-purple-300">
-              vault777.com
+            <div className="text-sm font-semibold text-[#df2421]">
+              predictions.vault777.com
             </div>
           </div>
         </div>
 
         {/* Bottom decorative edge */}
-        <div className="h-4 bg-gradient-to-r from-purple-600 via-purple-500 to-purple-600 relative">
+        <div className="h-4 bg-[#df2421] relative">
           <div className="absolute top-0 left-0 right-0 h-2 flex justify-between px-1">
             {[...Array(20)].map((_, i) => (
               <div key={i} className="w-3 h-3 bg-[#0a0a0f] rounded-full -mt-1.5" />

@@ -52,9 +52,7 @@ export function SuccessModal({
           {/* Success header */}
           <div className="text-center">
             <div className="flex items-center justify-center gap-2 mb-2">
-              <Sparkles className="h-5 w-5 text-purple-400" />
               <h2 className="text-xl font-bold">Bet Confirmed!</h2>
-              <Sparkles className="h-5 w-5 text-purple-400" />
             </div>
           </div>
 
