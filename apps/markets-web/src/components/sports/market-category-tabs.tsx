@@ -4,62 +4,10 @@ import { useRef, useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@vault/ui/lib/utils";
-import type { Market } from "@vault/database";
-
-// Market category definition
-export interface MarketCategory {
-  id: string;
-  label: string;
-  filter: (market: Market) => boolean;
-}
-
-// Default categories for NFL/sports
-export const NFL_MARKET_CATEGORIES: MarketCategory[] = [
-  {
-    id: "game-lines",
-    label: "Game Lines",
-    filter: (m) => {
-      const q = m.question;
-      // Exclude 1H markets
-      if (q.includes("1H")) return false;
-      // Include moneyline (vs.)
-      if (q.includes("vs.") && !q.includes("O/U")) return true;
-      // Include spreads (not 1H)
-      if (q.includes("Spread:")) return true;
-      // Include main O/U (not team totals, not 1H, not player props)
-      if (q.includes("O/U") && !q.includes("Team Total") && !q.includes(":")) return true;
-      return false;
-    },
-  },
-  {
-    id: "1st-half",
-    label: "1st Half",
-    filter: (m) => m.question.includes("1H"),
-  },
-  {
-    id: "team-totals",
-    label: "Team Totals",
-    filter: (m) => m.question.includes("Team Total"),
-  },
-  {
-    id: "touchdowns",
-    label: "Touchdowns",
-    filter: (m) => m.question.includes("Touchdown"),
-  },
-  {
-    id: "rushing",
-    label: "Rushing",
-    filter: (m) => m.question.includes("Rushing"),
-  },
-  {
-    id: "receiving",
-    label: "Receiving",
-    filter: (m) => m.question.includes("Receiving"),
-  },
-];
+import type { MarketCategoryConfig } from "./sport-configs";
 
 interface MarketCategoryTabsProps {
-  categories: MarketCategory[];
+  categories: MarketCategoryConfig[];
   activeCategory: string;
   onCategoryChange: (categoryId: string) => void;
   marketCounts?: Record<string, number>;
@@ -176,32 +124,4 @@ export function MarketCategoryTabs({
       )}
     </div>
   );
-}
-
-// Helper to categorize markets
-export function categorizeMarkets(
-  markets: Market[],
-  categories: MarketCategory[]
-): Record<string, Market[]> {
-  const result: Record<string, Market[]> = {};
-
-  for (const category of categories) {
-    result[category.id] = markets.filter(category.filter);
-  }
-
-  return result;
-}
-
-// Get category counts
-export function getCategoryCounts(
-  markets: Market[],
-  categories: MarketCategory[]
-): Record<string, number> {
-  const counts: Record<string, number> = {};
-
-  for (const category of categories) {
-    counts[category.id] = markets.filter(category.filter).length;
-  }
-
-  return counts;
 }

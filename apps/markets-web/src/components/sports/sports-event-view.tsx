@@ -7,11 +7,7 @@ import { motion } from "framer-motion";
 import { ArrowLeft, TrendingUp, Users } from "lucide-react";
 import type { Market, Event } from "@vault/database";
 import { SportsEventHeader } from "./sports-event-header";
-import {
-  MarketCategoryTabs,
-  NFL_MARKET_CATEGORIES,
-  getCategoryCounts,
-} from "./market-category-tabs";
+import { MarketCategoryTabs } from "./market-category-tabs";
 import {
   SectionHeader,
   MoneylineRow,
@@ -22,12 +18,20 @@ import {
 } from "./sports-market-row";
 import { SportsBettingSidebar } from "./sports-betting-sidebar";
 import { groupByTeam } from "./market-utils";
+import {
+  getSportConfig,
+  getCategoryCountsForSport,
+  type SportConfig,
+  type MarketCategoryConfig,
+} from "./sport-configs";
 
 interface SportsEventViewProps {
   event: Event & {
     markets: Market[];
     tags?: { id: string; slug: string; label: string }[];
   };
+  /** Optional sport override (defaults to event.category) */
+  sport?: string;
 }
 
 async function fetchEventData(slug: string) {
@@ -37,33 +41,34 @@ async function fetchEventData(slug: string) {
 }
 
 // =============================================================================
-// GAME LINES SECTION
+// GENERIC SECTION RENDERERS
+// These render markets based on category patterns
 // =============================================================================
 
-function GameLinesSection({
-  markets,
-  selectedMarketId,
-  selectedOutcome,
-  onSelectOutcome,
-}: {
+interface SectionProps {
   markets: Market[];
   selectedMarketId: string | null;
   selectedOutcome: number | null;
   onSelectOutcome: (marketId: string, outcomeIndex: number) => void;
-}) {
+  config: SportConfig;
+  expandedMarketId: string | null;
+  onToggleExpand: (marketId: string) => void;
+}
+
+/**
+ * Game Lines Section - Moneyline, Spreads, Totals
+ */
+function GameLinesSection({ markets, selectedMarketId, selectedOutcome, onSelectOutcome, expandedMarketId, onToggleExpand }: SectionProps) {
   const moneylineMarket = markets.find(
     (m) => m.question.includes("vs.") && !m.question.includes("O/U")
   );
 
   const spreadMarkets = markets.filter((m) =>
-    m.question.includes("Spread") && !m.question.includes("1H")
+    m.question.includes("Spread") || m.question.includes("Line")
   );
 
   const totalMarkets = markets.filter((m) =>
-    m.question.includes("O/U") &&
-    !m.question.includes("Team Total") &&
-    !m.question.includes("1H") &&
-    !m.question.includes(":")
+    m.question.includes("O/U") && !m.question.includes("Team Total")
   );
 
   return (
@@ -74,6 +79,8 @@ function GameLinesSection({
           selectedMarketId={selectedMarketId || undefined}
           selectedOutcome={selectedOutcome}
           onSelectOutcome={onSelectOutcome}
+          expandedMarketId={expandedMarketId || undefined}
+          onToggleExpand={onToggleExpand}
         />
       )}
 
@@ -84,6 +91,8 @@ function GameLinesSection({
           selectedMarketId={selectedMarketId || undefined}
           selectedOutcome={selectedOutcome}
           onSelectOutcome={onSelectOutcome}
+          expandedMarketId={expandedMarketId || undefined}
+          onToggleExpand={onToggleExpand}
         />
       )}
 
@@ -94,38 +103,24 @@ function GameLinesSection({
           selectedMarketId={selectedMarketId || undefined}
           selectedOutcome={selectedOutcome}
           onSelectOutcome={onSelectOutcome}
+          expandedMarketId={expandedMarketId || undefined}
+          onToggleExpand={onToggleExpand}
         />
       )}
     </div>
   );
 }
 
-// =============================================================================
-// FIRST HALF SECTION
-// =============================================================================
-
-function FirstHalfSection({
-  markets,
-  selectedMarketId,
-  selectedOutcome,
-  onSelectOutcome,
-}: {
-  markets: Market[];
-  selectedMarketId: string | null;
-  selectedOutcome: number | null;
-  onSelectOutcome: (marketId: string, outcomeIndex: number) => void;
-}) {
+/**
+ * Half/Period Section - For 1H, 1Q, 1P markets
+ */
+function HalfSection({ markets, selectedMarketId, selectedOutcome, onSelectOutcome, expandedMarketId, onToggleExpand }: SectionProps) {
   const moneylineMarket = markets.find((m) =>
-    m.question.includes("1H Moneyline") || (m.question.includes("1H") && m.question.includes("Moneyline"))
+    m.question.includes("Moneyline") || (m.question.includes("vs.") && !m.question.includes("O/U"))
   );
 
-  const spreadMarkets = markets.filter((m) =>
-    m.question.includes("1H") && m.question.includes("Spread")
-  );
-
-  const totalMarkets = markets.filter((m) =>
-    m.question.includes("1H") && m.question.includes("O/U")
-  );
+  const spreadMarkets = markets.filter((m) => m.question.includes("Spread"));
+  const totalMarkets = markets.filter((m) => m.question.includes("O/U"));
 
   return (
     <div className="space-y-3">
@@ -135,47 +130,42 @@ function FirstHalfSection({
           selectedMarketId={selectedMarketId || undefined}
           selectedOutcome={selectedOutcome}
           onSelectOutcome={onSelectOutcome}
+          expandedMarketId={expandedMarketId || undefined}
+          onToggleExpand={onToggleExpand}
         />
       )}
 
       {spreadMarkets.length > 0 && (
         <SpreadRow
           markets={spreadMarkets}
-          title="1H Spreads"
+          title="Spreads"
           selectedMarketId={selectedMarketId || undefined}
           selectedOutcome={selectedOutcome}
           onSelectOutcome={onSelectOutcome}
+          expandedMarketId={expandedMarketId || undefined}
+          onToggleExpand={onToggleExpand}
         />
       )}
 
       {totalMarkets.length > 0 && (
         <TotalsRow
           markets={totalMarkets}
-          title="1H Total"
+          title="Total"
           selectedMarketId={selectedMarketId || undefined}
           selectedOutcome={selectedOutcome}
           onSelectOutcome={onSelectOutcome}
+          expandedMarketId={expandedMarketId || undefined}
+          onToggleExpand={onToggleExpand}
         />
       )}
     </div>
   );
 }
 
-// =============================================================================
-// TEAM TOTALS SECTION
-// =============================================================================
-
-function TeamTotalsSection({
-  markets,
-  selectedMarketId,
-  selectedOutcome,
-  onSelectOutcome,
-}: {
-  markets: Market[];
-  selectedMarketId: string | null;
-  selectedOutcome: number | null;
-  onSelectOutcome: (marketId: string, outcomeIndex: number) => void;
-}) {
+/**
+ * Team Totals Section
+ */
+function TeamTotalsSection({ markets, selectedMarketId, selectedOutcome, onSelectOutcome, expandedMarketId, onToggleExpand }: SectionProps) {
   const teamGroups = groupByTeam(markets);
 
   return (
@@ -188,33 +178,29 @@ function TeamTotalsSection({
           selectedMarketId={selectedMarketId || undefined}
           selectedOutcome={selectedOutcome}
           onSelectOutcome={onSelectOutcome}
+          expandedMarketId={expandedMarketId || undefined}
+          onToggleExpand={onToggleExpand}
         />
       ))}
     </div>
   );
 }
 
-// =============================================================================
-// TOUCHDOWNS SECTION
-// =============================================================================
-
-function TouchdownsSection({
-  markets,
-  selectedMarketId,
-  selectedOutcome,
-  onSelectOutcome,
-}: {
-  markets: Market[];
-  selectedMarketId: string | null;
-  selectedOutcome: number | null;
-  onSelectOutcome: (marketId: string, outcomeIndex: number) => void;
-}) {
+/**
+ * Touchdowns Section (NFL specific, but works for any Yes/No props)
+ */
+function TouchdownsSection({ markets, selectedMarketId, selectedOutcome, onSelectOutcome, expandedMarketId, onToggleExpand }: SectionProps) {
   const anytimeTDs = markets.filter((m) =>
-    m.question.toLowerCase().includes("anytime touchdown")
+    m.question.toLowerCase().includes("anytime")
   );
 
   const firstTDs = markets.filter((m) =>
-    m.question.toLowerCase().includes("first touchdown")
+    m.question.toLowerCase().includes("first")
+  );
+
+  const otherTDs = markets.filter((m) =>
+    !m.question.toLowerCase().includes("anytime") &&
+    !m.question.toLowerCase().includes("first")
   );
 
   return (
@@ -239,6 +225,8 @@ function TouchdownsSection({
                   selectedOutcome={selectedOutcome}
                   onSelectOutcome={onSelectOutcome}
                   showLine={false}
+                  expandedMarketId={expandedMarketId || undefined}
+                  onToggleExpand={onToggleExpand}
                 />
               </motion.div>
             ))}
@@ -266,6 +254,34 @@ function TouchdownsSection({
                   selectedOutcome={selectedOutcome}
                   onSelectOutcome={onSelectOutcome}
                   showLine={false}
+                  expandedMarketId={expandedMarketId || undefined}
+                  onToggleExpand={onToggleExpand}
+                />
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {otherTDs.length > 0 && (
+        <div>
+          <SectionHeader title="Other" subtitle={`${otherTDs.length} props`} />
+          <div className="space-y-2">
+            {otherTDs.map((market, index) => (
+              <motion.div
+                key={market.id}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.03 }}
+              >
+                <PlayerPropRow
+                  market={market}
+                  selectedMarketId={selectedMarketId || undefined}
+                  selectedOutcome={selectedOutcome}
+                  onSelectOutcome={onSelectOutcome}
+                  showLine={false}
+                  expandedMarketId={expandedMarketId || undefined}
+                  onToggleExpand={onToggleExpand}
                 />
               </motion.div>
             ))}
@@ -276,29 +292,21 @@ function TouchdownsSection({
   );
 }
 
-// =============================================================================
-// PLAYER PROPS SECTION (Rushing, Receiving)
-// =============================================================================
-
+/**
+ * Generic Player Props Section
+ */
 function PlayerPropsSection({
   markets,
-  title,
   selectedMarketId,
   selectedOutcome,
   onSelectOutcome,
-}: {
-  markets: Market[];
-  title: string;
-  selectedMarketId: string | null;
-  selectedOutcome: number | null;
-  onSelectOutcome: (marketId: string, outcomeIndex: number) => void;
-}) {
+  expandedMarketId,
+  onToggleExpand,
+  title = "Player Props",
+}: SectionProps & { title?: string }) {
   return (
     <div>
-      <SectionHeader
-        title={title}
-        subtitle={`${markets.length} props`}
-      />
+      <SectionHeader title={title} subtitle={`${markets.length} props`} />
       <div className="space-y-2">
         {markets.map((market, index) => (
           <motion.div
@@ -313,6 +321,8 @@ function PlayerPropsSection({
               selectedOutcome={selectedOutcome}
               onSelectOutcome={onSelectOutcome}
               showLine={true}
+              expandedMarketId={expandedMarketId || undefined}
+              onToggleExpand={onToggleExpand}
             />
           </motion.div>
         ))}
@@ -321,14 +331,108 @@ function PlayerPropsSection({
   );
 }
 
+/**
+ * Generic Markets Section (fallback)
+ */
+function GenericSection({ markets, selectedMarketId, selectedOutcome, onSelectOutcome, expandedMarketId, onToggleExpand }: SectionProps) {
+  return (
+    <div className="space-y-2">
+      {markets.map((market, index) => (
+        <motion.div
+          key={market.id}
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: index * 0.03 }}
+        >
+          <PlayerPropRow
+            market={market}
+            selectedMarketId={selectedMarketId || undefined}
+            selectedOutcome={selectedOutcome}
+            onSelectOutcome={onSelectOutcome}
+            showLine={true}
+            expandedMarketId={expandedMarketId || undefined}
+            onToggleExpand={onToggleExpand}
+          />
+        </motion.div>
+      ))}
+    </div>
+  );
+}
+
+// =============================================================================
+// SECTION RENDERER MAPPER
+// Maps category IDs to appropriate renderers
+// =============================================================================
+
+function getSectionRenderer(categoryId: string): React.ComponentType<SectionProps & { title?: string }> {
+  const renderers: Record<string, React.ComponentType<SectionProps & { title?: string }>> = {
+    // Game lines categories
+    "game-lines": GameLinesSection,
+    "match-result": GameLinesSection,
+    "match-winner": GameLinesSection,
+    winner: GameLinesSection,
+    "tournament-winner": GenericSection,
+    
+    // Half/period categories
+    "1st-half": HalfSection,
+    "1st-quarter": HalfSection,
+    "first-5": HalfSection,
+    period: HalfSection,
+    "first-set": HalfSection,
+    
+    // Team totals
+    "team-totals": TeamTotalsSection,
+    
+    // Touchdowns/scoring props
+    touchdowns: TouchdownsSection,
+    goals: TouchdownsSection,
+    scorer: TouchdownsSection,
+    
+    // Player props (with O/U lines)
+    rushing: PlayerPropsSection,
+    receiving: PlayerPropsSection,
+    points: PlayerPropsSection,
+    rebounds: PlayerPropsSection,
+    assists: PlayerPropsSection,
+    threes: PlayerPropsSection,
+    hits: PlayerPropsSection,
+    strikeouts: PlayerPropsSection,
+    "home-runs": PlayerPropsSection,
+    shots: PlayerPropsSection,
+    corners: PlayerPropsSection,
+    
+    // UFC specific
+    method: GenericSection,
+    round: GenericSection,
+    props: PlayerPropsSection,
+    
+    // Tennis/Golf
+    sets: PlayerPropsSection,
+    games: PlayerPropsSection,
+    "top-finish": GenericSection,
+    matchups: GameLinesSection,
+    
+    // Both teams (soccer)
+    "both-teams": GenericSection,
+  };
+
+  return renderers[categoryId] || GenericSection;
+}
+
 // =============================================================================
 // MAIN COMPONENT
 // =============================================================================
 
-export function SportsEventView({ event }: SportsEventViewProps) {
-  const [activeCategory, setActiveCategory] = useState("game-lines");
+export function SportsEventView({ event, sport }: SportsEventViewProps) {
+  // Get sport config
+  const sportType = sport || event.category;
+  const config = useMemo(() => getSportConfig(sportType), [sportType]);
+
+  // State
+  const [activeCategory, setActiveCategory] = useState(config.categories[0]?.id || "all");
   const [selectedMarketId, setSelectedMarketId] = useState<string | null>(null);
   const [selectedOutcome, setSelectedOutcome] = useState<number | null>(null);
+  const [expandedMarketId, setExpandedMarketId] = useState<string | null>(null);
 
   // Fetch live data
   const { data } = useQuery({
@@ -344,15 +448,20 @@ export function SportsEventView({ event }: SportsEventViewProps) {
 
   // Get category counts
   const categoryCounts = useMemo(
-    () => getCategoryCounts(markets, NFL_MARKET_CATEGORIES),
-    [markets]
+    () => getCategoryCountsForSport(markets, sportType),
+    [markets, sportType]
   );
 
   // Get markets for active category
+  const activeCategory_obj = useMemo(
+    () => config.categories.find((c) => c.id === activeCategory),
+    [config.categories, activeCategory]
+  );
+
   const activeMarkets = useMemo(() => {
-    const category = NFL_MARKET_CATEGORIES.find((c) => c.id === activeCategory);
-    return category ? markets.filter(category.filter) : [];
-  }, [markets, activeCategory]);
+    if (!activeCategory_obj) return [];
+    return markets.filter(activeCategory_obj.filter);
+  }, [markets, activeCategory_obj]);
 
   // Find selected market
   const selectedMarket = selectedMarketId
@@ -375,15 +484,16 @@ export function SportsEventView({ event }: SportsEventViewProps) {
     setSelectedOutcome(null);
   };
 
+  const handleToggleExpand = (marketId: string) => {
+    setExpandedMarketId(expandedMarketId === marketId ? null : marketId);
+  };
+
   // Calculate stats
   const totalBets = markets.reduce((sum: number, m: Market & { _count?: { bets?: number } }) => {
     return sum + (m._count?.bets || 0);
   }, 0);
-  const totalVolume = markets.reduce((sum: number, m: Market) => {
-    return sum + (m.seed0 || 0) + (m.seed1 || 0) + (m.pool0 || 0) + (m.pool1 || 0);
-  }, 0);
 
-  // Render the appropriate section based on active category
+  // Render markets based on active category
   const renderMarkets = () => {
     if (activeMarkets.length === 0) {
       return (
@@ -399,80 +509,30 @@ export function SportsEventView({ event }: SportsEventViewProps) {
       );
     }
 
-    switch (activeCategory) {
-      case "game-lines":
-        return (
-          <GameLinesSection
-            markets={activeMarkets}
-            selectedMarketId={selectedMarketId}
-            selectedOutcome={selectedOutcome}
-            onSelectOutcome={handleSelectOutcome}
-          />
-        );
+    // Get the appropriate renderer for this category
+    const SectionRenderer = getSectionRenderer(activeCategory);
+    const categoryLabel = activeCategory_obj?.label || "Markets";
 
-      case "1st-half":
-        return (
-          <FirstHalfSection
-            markets={activeMarkets}
-            selectedMarketId={selectedMarketId}
-            selectedOutcome={selectedOutcome}
-            onSelectOutcome={handleSelectOutcome}
-          />
-        );
+    // Determine title based on category
+    let title = categoryLabel;
+    if (activeCategory === "rushing") title = "Rushing Yards";
+    if (activeCategory === "receiving") title = "Receiving Yards";
+    if (activeCategory === "points") title = "Points";
+    if (activeCategory === "rebounds") title = "Rebounds";
+    if (activeCategory === "assists") title = "Assists";
 
-      case "team-totals":
-        return (
-          <TeamTotalsSection
-            markets={activeMarkets}
-            selectedMarketId={selectedMarketId}
-            selectedOutcome={selectedOutcome}
-            onSelectOutcome={handleSelectOutcome}
-          />
-        );
-
-      case "touchdowns":
-        return (
-          <TouchdownsSection
-            markets={activeMarkets}
-            selectedMarketId={selectedMarketId}
-            selectedOutcome={selectedOutcome}
-            onSelectOutcome={handleSelectOutcome}
-          />
-        );
-
-      case "rushing":
-        return (
-          <PlayerPropsSection
-            markets={activeMarkets}
-            title="Rushing Yards"
-            selectedMarketId={selectedMarketId}
-            selectedOutcome={selectedOutcome}
-            onSelectOutcome={handleSelectOutcome}
-          />
-        );
-
-      case "receiving":
-        return (
-          <PlayerPropsSection
-            markets={activeMarkets}
-            title="Receiving Yards"
-            selectedMarketId={selectedMarketId}
-            selectedOutcome={selectedOutcome}
-            onSelectOutcome={handleSelectOutcome}
-          />
-        );
-
-      default:
-        return (
-          <PlayerPropsSection
-            markets={activeMarkets}
-            title="Markets"
-            selectedMarketId={selectedMarketId}
-            selectedOutcome={selectedOutcome}
-            onSelectOutcome={handleSelectOutcome}
-          />
-        );
-    }
+    return (
+      <SectionRenderer
+        markets={activeMarkets}
+        selectedMarketId={selectedMarketId}
+        selectedOutcome={selectedOutcome}
+        onSelectOutcome={handleSelectOutcome}
+        config={config}
+        expandedMarketId={expandedMarketId}
+        onToggleExpand={handleToggleExpand}
+        title={title}
+      />
+    );
   };
 
   return (
@@ -522,7 +582,7 @@ export function SportsEventView({ event }: SportsEventViewProps) {
             transition={{ delay: 0.15 }}
           >
             <MarketCategoryTabs
-              categories={NFL_MARKET_CATEGORIES}
+              categories={config.categories}
               activeCategory={activeCategory}
               onCategoryChange={setActiveCategory}
               marketCounts={categoryCounts}

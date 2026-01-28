@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import type { Market } from "@vault/database";
 import { cn } from "@vault/ui/lib/utils";
 import { LineSelector } from "./line-selector";
+import { MarketChart } from "./market-chart";
 import {
   parseOutcomes,
   parseOutcomePrices,
@@ -23,6 +24,8 @@ interface BaseMarketRowProps {
   selectedMarketId?: string;
   selectedOutcome?: number | null;
   onSelectOutcome: (marketId: string, outcomeIndex: number) => void;
+  expandedMarketId?: string;
+  onToggleExpand?: (marketId: string) => void;
 }
 
 // =============================================================================
@@ -44,7 +47,10 @@ function OutcomeButton({
 }: OutcomeButtonProps) {
   return (
     <motion.button
-      onClick={onClick}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
       className={cn(
         "w-[120px] px-3 py-2.5 rounded-lg font-medium text-sm transition-all",
         "flex items-center justify-between gap-2",
@@ -83,6 +89,51 @@ export function SectionHeader({ title, subtitle, className }: SectionHeaderProps
 }
 
 // =============================================================================
+// EXPANDABLE MARKET CARD WRAPPER
+// =============================================================================
+
+interface ExpandableMarketCardProps {
+  market: Market;
+  children: React.ReactNode;
+  expandedMarketId?: string;
+  onToggleExpand?: (marketId: string) => void;
+  selectedOutcome?: number | null;
+}
+
+function ExpandableMarketCard({
+  market,
+  children,
+  expandedMarketId,
+  onToggleExpand,
+  selectedOutcome,
+}: ExpandableMarketCardProps) {
+  const isExpanded = expandedMarketId === market.id;
+
+  return (
+    <MarketCard>
+      <div
+        className={cn(
+          "p-4 hover:bg-muted/20 transition-colors",
+          onToggleExpand && "cursor-pointer",
+          isExpanded && "bg-muted/10"
+        )}
+        onClick={() => onToggleExpand?.(market.id)}
+      >
+        {children}
+      </div>
+
+      <AnimatePresence>
+        {isExpanded && onToggleExpand && (
+          <div className="px-4 pb-4">
+            <MarketChart market={market} selectedOutcome={selectedOutcome} />
+          </div>
+        )}
+      </AnimatePresence>
+    </MarketCard>
+  );
+}
+
+// =============================================================================
 // MARKET CARD WRAPPER
 // =============================================================================
 
@@ -97,7 +148,7 @@ function MarketCard({ children, delay = 0 }: MarketCardProps) {
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay, duration: 0.3 }}
-      className="bg-card/60 backdrop-blur-sm border border-border/40 rounded-xl p-4 hover:border-border/60 transition-colors"
+      className="bg-card/60 backdrop-blur-sm border border-border/40 rounded-xl overflow-hidden"
     >
       {children}
     </motion.div>
@@ -117,6 +168,8 @@ export function MoneylineRow({
   selectedMarketId,
   selectedOutcome,
   onSelectOutcome,
+  expandedMarketId,
+  onToggleExpand,
 }: MoneylineRowProps) {
   const outcomes = parseOutcomes(market.outcomes);
   const outcomePrices = parseOutcomePrices(market.outcomePrices);
@@ -129,7 +182,12 @@ export function MoneylineRow({
   const team1 = getTeamAbbreviation(outcomes[1] || "B");
 
   return (
-    <MarketCard>
+    <ExpandableMarketCard
+      market={market}
+      expandedMarketId={expandedMarketId}
+      onToggleExpand={onToggleExpand}
+      selectedOutcome={selectedOutcome}
+    >
       <div className="flex items-center justify-between gap-4">
         <div className="flex-1 min-w-0">
           <h4 className="font-semibold text-foreground">Moneyline</h4>
@@ -153,7 +211,7 @@ export function MoneylineRow({
           />
         </div>
       </div>
-    </MarketCard>
+    </ExpandableMarketCard>
   );
 }
 
@@ -172,6 +230,8 @@ export function SpreadRow({
   selectedMarketId,
   selectedOutcome,
   onSelectOutcome,
+  expandedMarketId,
+  onToggleExpand,
 }: SpreadRowProps) {
   const lines = getLineValues(markets);
   const marketsByLine = groupMarketsByLine(markets);
@@ -191,39 +251,46 @@ export function SpreadRow({
   const label1 = shortenOutcomeLabel(outcomes[1] || "");
 
   return (
-    <MarketCard>
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex-1 min-w-0">
-          <h4 className="font-semibold text-foreground">{title}</h4>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            {formatVolume(totalVolume)} volume
-          </p>
+    <ExpandableMarketCard
+      market={activeMarket}
+      expandedMarketId={expandedMarketId}
+      onToggleExpand={onToggleExpand}
+      selectedOutcome={selectedOutcome}
+    >
+      <div className="space-y-3">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex-1 min-w-0">
+            <h4 className="font-semibold text-foreground">{title}</h4>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {formatVolume(totalVolume)} volume
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <OutcomeButton
+              label={label0}
+              price={price0}
+              isSelected={isSelected && selectedOutcome === 0}
+              onClick={() => onSelectOutcome(activeMarket.id, 0)}
+            />
+            <OutcomeButton
+              label={label1}
+              price={price1}
+              isSelected={isSelected && selectedOutcome === 1}
+              onClick={() => onSelectOutcome(activeMarket.id, 1)}
+            />
+          </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <OutcomeButton
-            label={label0}
-            price={price0}
-            isSelected={isSelected && selectedOutcome === 0}
-            onClick={() => onSelectOutcome(activeMarket.id, 0)}
+        {lines.length > 1 && (
+          <LineSelector
+            lines={lines}
+            activeLine={activeLine}
+            onLineChange={setActiveLine}
           />
-          <OutcomeButton
-            label={label1}
-            price={price1}
-            isSelected={isSelected && selectedOutcome === 1}
-            onClick={() => onSelectOutcome(activeMarket.id, 1)}
-          />
-        </div>
+        )}
       </div>
-
-      {lines.length > 1 && (
-        <LineSelector
-          lines={lines}
-          activeLine={activeLine}
-          onLineChange={setActiveLine}
-        />
-      )}
-    </MarketCard>
+    </ExpandableMarketCard>
   );
 }
 
@@ -242,6 +309,8 @@ export function TotalsRow({
   selectedMarketId,
   selectedOutcome,
   onSelectOutcome,
+  expandedMarketId,
+  onToggleExpand,
 }: TotalsRowProps) {
   const lines = getLineValues(markets);
   const marketsByLine = groupMarketsByLine(markets);
@@ -259,39 +328,46 @@ export function TotalsRow({
   const line = extractLine(activeMarket.question) || activeLine;
 
   return (
-    <MarketCard>
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex-1 min-w-0">
-          <h4 className="font-semibold text-foreground">{title}</h4>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            {formatVolume(totalVolume)} volume
-          </p>
+    <ExpandableMarketCard
+      market={activeMarket}
+      expandedMarketId={expandedMarketId}
+      onToggleExpand={onToggleExpand}
+      selectedOutcome={selectedOutcome}
+    >
+      <div className="space-y-3">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex-1 min-w-0">
+            <h4 className="font-semibold text-foreground">{title}</h4>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {formatVolume(totalVolume)} volume
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <OutcomeButton
+              label={`O ${line}`}
+              price={price0}
+              isSelected={isSelected && selectedOutcome === 0}
+              onClick={() => onSelectOutcome(activeMarket.id, 0)}
+            />
+            <OutcomeButton
+              label={`U ${line}`}
+              price={price1}
+              isSelected={isSelected && selectedOutcome === 1}
+              onClick={() => onSelectOutcome(activeMarket.id, 1)}
+            />
+          </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <OutcomeButton
-            label={`O ${line}`}
-            price={price0}
-            isSelected={isSelected && selectedOutcome === 0}
-            onClick={() => onSelectOutcome(activeMarket.id, 0)}
+        {lines.length > 1 && (
+          <LineSelector
+            lines={lines}
+            activeLine={activeLine}
+            onLineChange={setActiveLine}
           />
-          <OutcomeButton
-            label={`U ${line}`}
-            price={price1}
-            isSelected={isSelected && selectedOutcome === 1}
-            onClick={() => onSelectOutcome(activeMarket.id, 1)}
-          />
-        </div>
+        )}
       </div>
-
-      {lines.length > 1 && (
-        <LineSelector
-          lines={lines}
-          activeLine={activeLine}
-          onLineChange={setActiveLine}
-        />
-      )}
-    </MarketCard>
+    </ExpandableMarketCard>
   );
 }
 
@@ -310,6 +386,8 @@ export function TeamTotalRow({
   selectedMarketId,
   selectedOutcome,
   onSelectOutcome,
+  expandedMarketId,
+  onToggleExpand,
 }: TeamTotalRowProps) {
   const lines = getLineValues(markets);
   const marketsByLine = groupMarketsByLine(markets);
@@ -327,39 +405,46 @@ export function TeamTotalRow({
   const line = extractLine(activeMarket.question) || activeLine;
 
   return (
-    <MarketCard>
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex-1 min-w-0">
-          <h4 className="font-semibold text-foreground">{teamName}</h4>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            {formatVolume(totalVolume)} volume
-          </p>
+    <ExpandableMarketCard
+      market={activeMarket}
+      expandedMarketId={expandedMarketId}
+      onToggleExpand={onToggleExpand}
+      selectedOutcome={selectedOutcome}
+    >
+      <div className="space-y-3">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex-1 min-w-0">
+            <h4 className="font-semibold text-foreground">{teamName}</h4>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {formatVolume(totalVolume)} volume
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <OutcomeButton
+              label={`O ${line}`}
+              price={price0}
+              isSelected={isSelected && selectedOutcome === 0}
+              onClick={() => onSelectOutcome(activeMarket.id, 0)}
+            />
+            <OutcomeButton
+              label={`U ${line}`}
+              price={price1}
+              isSelected={isSelected && selectedOutcome === 1}
+              onClick={() => onSelectOutcome(activeMarket.id, 1)}
+            />
+          </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <OutcomeButton
-            label={`O ${line}`}
-            price={price0}
-            isSelected={isSelected && selectedOutcome === 0}
-            onClick={() => onSelectOutcome(activeMarket.id, 0)}
+        {lines.length > 1 && (
+          <LineSelector
+            lines={lines}
+            activeLine={activeLine}
+            onLineChange={setActiveLine}
           />
-          <OutcomeButton
-            label={`U ${line}`}
-            price={price1}
-            isSelected={isSelected && selectedOutcome === 1}
-            onClick={() => onSelectOutcome(activeMarket.id, 1)}
-          />
-        </div>
+        )}
       </div>
-
-      {lines.length > 1 && (
-        <LineSelector
-          lines={lines}
-          activeLine={activeLine}
-          onLineChange={setActiveLine}
-        />
-      )}
-    </MarketCard>
+    </ExpandableMarketCard>
   );
 }
 
@@ -378,6 +463,8 @@ export function PlayerPropRow({
   selectedOutcome,
   onSelectOutcome,
   showLine = true,
+  expandedMarketId,
+  onToggleExpand,
 }: PlayerPropRowProps) {
   const outcomes = parseOutcomes(market.outcomes);
   const outcomePrices = parseOutcomePrices(market.outcomePrices);
@@ -406,7 +493,12 @@ export function PlayerPropRow({
   }
 
   return (
-    <MarketCard>
+    <ExpandableMarketCard
+      market={market}
+      expandedMarketId={expandedMarketId}
+      onToggleExpand={onToggleExpand}
+      selectedOutcome={selectedOutcome}
+    >
       <div className="flex items-center justify-between gap-4">
         <div className="flex-1 min-w-0">
           <h4 className="font-medium text-foreground">{playerName}</h4>
@@ -430,7 +522,7 @@ export function PlayerPropRow({
           />
         </div>
       </div>
-    </MarketCard>
+    </ExpandableMarketCard>
   );
 }
 
