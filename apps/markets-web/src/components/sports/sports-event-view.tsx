@@ -53,12 +53,13 @@ interface SectionProps {
   config: SportConfig;
   expandedMarketId: string | null;
   onToggleExpand: (marketId: string) => void;
+  eventSlug?: string;
 }
 
 /**
  * Game Lines Section - Moneyline, Spreads, Totals
  */
-function GameLinesSection({ markets, selectedMarketId, selectedOutcome, onSelectOutcome, expandedMarketId, onToggleExpand }: SectionProps) {
+function GameLinesSection({ markets, selectedMarketId, selectedOutcome, onSelectOutcome, expandedMarketId, onToggleExpand, eventSlug }: SectionProps) {
   const moneylineMarket = markets.find(
     (m) => m.question.includes("vs.") && !m.question.includes("O/U")
   );
@@ -78,6 +79,7 @@ function GameLinesSection({ markets, selectedMarketId, selectedOutcome, onSelect
           market={moneylineMarket}
           selectedMarketId={selectedMarketId || undefined}
           selectedOutcome={selectedOutcome}
+          eventSlug={eventSlug}
           onSelectOutcome={onSelectOutcome}
           expandedMarketId={expandedMarketId || undefined}
           onToggleExpand={onToggleExpand}
@@ -93,6 +95,7 @@ function GameLinesSection({ markets, selectedMarketId, selectedOutcome, onSelect
           onSelectOutcome={onSelectOutcome}
           expandedMarketId={expandedMarketId || undefined}
           onToggleExpand={onToggleExpand}
+          eventSlug={eventSlug}
         />
       )}
 
@@ -105,6 +108,7 @@ function GameLinesSection({ markets, selectedMarketId, selectedOutcome, onSelect
           onSelectOutcome={onSelectOutcome}
           expandedMarketId={expandedMarketId || undefined}
           onToggleExpand={onToggleExpand}
+          eventSlug={eventSlug}
         />
       )}
     </div>
@@ -114,7 +118,7 @@ function GameLinesSection({ markets, selectedMarketId, selectedOutcome, onSelect
 /**
  * Half/Period Section - For 1H, 1Q, 1P markets
  */
-function HalfSection({ markets, selectedMarketId, selectedOutcome, onSelectOutcome, expandedMarketId, onToggleExpand }: SectionProps) {
+function HalfSection({ markets, selectedMarketId, selectedOutcome, onSelectOutcome, expandedMarketId, onToggleExpand, eventSlug }: SectionProps) {
   const moneylineMarket = markets.find((m) =>
     m.question.includes("Moneyline") || (m.question.includes("vs.") && !m.question.includes("O/U"))
   );
@@ -132,6 +136,7 @@ function HalfSection({ markets, selectedMarketId, selectedOutcome, onSelectOutco
           onSelectOutcome={onSelectOutcome}
           expandedMarketId={expandedMarketId || undefined}
           onToggleExpand={onToggleExpand}
+          eventSlug={eventSlug}
         />
       )}
 
@@ -144,6 +149,7 @@ function HalfSection({ markets, selectedMarketId, selectedOutcome, onSelectOutco
           onSelectOutcome={onSelectOutcome}
           expandedMarketId={expandedMarketId || undefined}
           onToggleExpand={onToggleExpand}
+          eventSlug={eventSlug}
         />
       )}
 
@@ -156,6 +162,7 @@ function HalfSection({ markets, selectedMarketId, selectedOutcome, onSelectOutco
           onSelectOutcome={onSelectOutcome}
           expandedMarketId={expandedMarketId || undefined}
           onToggleExpand={onToggleExpand}
+          eventSlug={eventSlug}
         />
       )}
     </div>
@@ -165,7 +172,7 @@ function HalfSection({ markets, selectedMarketId, selectedOutcome, onSelectOutco
 /**
  * Team Totals Section
  */
-function TeamTotalsSection({ markets, selectedMarketId, selectedOutcome, onSelectOutcome, expandedMarketId, onToggleExpand }: SectionProps) {
+function TeamTotalsSection({ markets, selectedMarketId, selectedOutcome, onSelectOutcome, expandedMarketId, onToggleExpand, eventSlug }: SectionProps) {
   const teamGroups = groupByTeam(markets);
 
   return (
@@ -180,6 +187,7 @@ function TeamTotalsSection({ markets, selectedMarketId, selectedOutcome, onSelec
           onSelectOutcome={onSelectOutcome}
           expandedMarketId={expandedMarketId || undefined}
           onToggleExpand={onToggleExpand}
+          eventSlug={eventSlug}
         />
       ))}
     </div>
@@ -189,7 +197,7 @@ function TeamTotalsSection({ markets, selectedMarketId, selectedOutcome, onSelec
 /**
  * Touchdowns Section (NFL specific, but works for any Yes/No props)
  */
-function TouchdownsSection({ markets, selectedMarketId, selectedOutcome, onSelectOutcome, expandedMarketId, onToggleExpand }: SectionProps) {
+function TouchdownsSection({ markets, selectedMarketId, selectedOutcome, onSelectOutcome, expandedMarketId, onToggleExpand, eventSlug }: SectionProps) {
   const anytimeTDs = markets.filter((m) =>
     m.question.toLowerCase().includes("anytime")
   );
@@ -227,6 +235,7 @@ function TouchdownsSection({ markets, selectedMarketId, selectedOutcome, onSelec
                   showLine={false}
                   expandedMarketId={expandedMarketId || undefined}
                   onToggleExpand={onToggleExpand}
+                  eventSlug={eventSlug}
                 />
               </motion.div>
             ))}
@@ -256,6 +265,7 @@ function TouchdownsSection({ markets, selectedMarketId, selectedOutcome, onSelec
                   showLine={false}
                   expandedMarketId={expandedMarketId || undefined}
                   onToggleExpand={onToggleExpand}
+                  eventSlug={eventSlug}
                 />
               </motion.div>
             ))}
@@ -282,6 +292,7 @@ function TouchdownsSection({ markets, selectedMarketId, selectedOutcome, onSelec
                   showLine={false}
                   expandedMarketId={expandedMarketId || undefined}
                   onToggleExpand={onToggleExpand}
+                  eventSlug={eventSlug}
                 />
               </motion.div>
             ))}
@@ -302,6 +313,7 @@ function PlayerPropsSection({
   onSelectOutcome,
   expandedMarketId,
   onToggleExpand,
+  eventSlug,
   title = "Player Props",
 }: SectionProps & { title?: string }) {
   return (
@@ -323,6 +335,7 @@ function PlayerPropsSection({
               showLine={true}
               expandedMarketId={expandedMarketId || undefined}
               onToggleExpand={onToggleExpand}
+              eventSlug={eventSlug}
             />
           </motion.div>
         ))}
@@ -334,7 +347,7 @@ function PlayerPropsSection({
 /**
  * Generic Markets Section (fallback)
  */
-function GenericSection({ markets, selectedMarketId, selectedOutcome, onSelectOutcome, expandedMarketId, onToggleExpand }: SectionProps) {
+function GenericSection({ markets, selectedMarketId, selectedOutcome, onSelectOutcome, expandedMarketId, onToggleExpand, eventSlug }: SectionProps) {
   return (
     <div className="space-y-2">
       {markets.map((market, index) => (
@@ -352,6 +365,7 @@ function GenericSection({ markets, selectedMarketId, selectedOutcome, onSelectOu
             showLine={true}
             expandedMarketId={expandedMarketId || undefined}
             onToggleExpand={onToggleExpand}
+            eventSlug={eventSlug}
           />
         </motion.div>
       ))}
@@ -531,6 +545,7 @@ export function SportsEventView({ event, sport }: SportsEventViewProps) {
         expandedMarketId={expandedMarketId}
         onToggleExpand={handleToggleExpand}
         title={title}
+        eventSlug={event.slug}
       />
     );
   };

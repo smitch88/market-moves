@@ -8,6 +8,7 @@ import {
   verifyTweetByTimeline,
   verifyTweetByUrl,
 } from "@/lib/services/tweet-verification";
+import { createPriceSnapshot } from "@/lib/services/price-snapshot-service";
 import { z } from "zod";
 
 const verifySchema = z.object({
@@ -30,6 +31,10 @@ export async function POST(request: NextRequest) {
       select: { 
         id: true, 
         question: true,
+        seed0: true,
+        seed1: true,
+        pool0: true,
+        pool1: true,
         event: {
           select: {
             slug: true,
@@ -161,7 +166,7 @@ export async function POST(request: NextRequest) {
         });
 
         // Update market pool totals
-        await tx.market.update({
+        const updatedMarket = await tx.market.update({
           where: { id: market.id },
           data: {
             ...(isOutcome0
@@ -169,6 +174,16 @@ export async function POST(request: NextRequest) {
               : { pool1: { increment: bet.amount } }),
           },
         });
+
+        // Create price snapshot for chart history
+        await createPriceSnapshot(
+          tx,
+          market.id,
+          updatedMarket.pool0,
+          updatedMarket.pool1,
+          updatedMarket.seed0,
+          updatedMarket.seed1
+        );
 
         // Check if this is user's first confirmed bet and handle referral
         const userBetCount = await tx.bet.count({

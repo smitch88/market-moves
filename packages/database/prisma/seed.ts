@@ -477,7 +477,7 @@ async function main() {
         continue;
       }
       
-      await prisma.market.create({
+      const market = await prisma.market.create({
         data: {
           eventId: event.id,
           ...marketFields,
@@ -487,6 +487,22 @@ async function main() {
           status: MarketStatus.OPEN,
           publishedAt: new Date(),
           opensAt: new Date(),
+        },
+      });
+
+      // Create initial price snapshot for chart history
+      // Calculate initial prices from seed values
+      const totalSeeds = market.seed0 + market.seed1;
+      const initialPrice0 = totalSeeds > 0 ? market.seed0 / totalSeeds : 0.5;
+      const initialPrice1 = totalSeeds > 0 ? market.seed1 / totalSeeds : 0.5;
+      
+      await prisma.priceSnapshot.create({
+        data: {
+          marketId: market.id,
+          price0: initialPrice0,
+          price1: initialPrice1,
+          pool0: market.seed0,
+          pool1: market.seed1,
         },
       });
       
