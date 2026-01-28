@@ -13,6 +13,7 @@ import {
 } from "@vault/ui";
 import type { MarketStatus } from "@vault/database";
 import { MarketActions } from "@/components/admin/market-actions";
+import { AdminPriceChart } from "@/components/admin/admin-price-chart";
 
 // Helper to parse outcomes
 function parseOutcomes(outcomes: string): string[] {
@@ -132,6 +133,16 @@ export default async function AdminMarketDetailPage({ params }: PageProps) {
                   </p>
                 </div>
               </div>
+            </GlassCardContent>
+          </GlassCard>
+
+          {/* Price History Chart */}
+          <GlassCard>
+            <GlassCardHeader>
+              <h2 className="text-lg font-semibold">Price History</h2>
+            </GlassCardHeader>
+            <GlassCardContent>
+              <AdminPriceChart market={market} />
             </GlassCardContent>
           </GlassCard>
 

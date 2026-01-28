@@ -28,6 +28,27 @@ export function getAdminMarketEditUrl(id: string): string {
 }
 
 /**
+ * Generate the URL for an event in admin
+ */
+export function getAdminEventUrl(id: string): string {
+  return `/admin/events/${id}`;
+}
+
+/**
+ * Generate the URL for editing an event in admin
+ */
+export function getAdminEventEditUrl(id: string): string {
+  return `/admin/events/${id}/edit`;
+}
+
+/**
+ * Generate the URL for adding a new market to an event in admin
+ */
+export function getAdminEventNewMarketUrl(eventId: string): string {
+  return `/admin/events/${eventId}/markets/new`;
+}
+
+/**
  * Generate a share URL for a market
  */
 export function getMarketShareUrl(slug: string, baseUrl?: string): string {

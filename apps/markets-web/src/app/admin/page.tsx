@@ -1,10 +1,11 @@
 import { prisma } from "@vault/database";
 import { GlassCard, GlassCardContent, GlassCardHeader } from "@vault/ui";
-import { BarChart3, Users, DollarSign, TrendingUp } from "lucide-react";
+import { BarChart3, Users, DollarSign, TrendingUp, Calendar } from "lucide-react";
 import { RecentActivity } from "@/components/admin/recent-activity";
 
 export default async function AdminDashboard() {
-  const [marketCount, userCount, betCount, totalVolume] = await Promise.all([
+  const [eventCount, marketCount, userCount, betCount, totalVolume] = await Promise.all([
+    prisma.event.count(),
     prisma.market.count(),
     prisma.user.count(),
     prisma.bet.count({ where: { status: "CONFIRMED" } }),
@@ -16,28 +17,34 @@ export default async function AdminDashboard() {
 
   const stats = [
     {
+      label: "Total Events",
+      value: eventCount,
+      icon: Calendar,
+      color: "text-chart-1",
+    },
+    {
       label: "Total Markets",
       value: marketCount,
       icon: BarChart3,
-      color: "text-chart-1",
+      color: "text-chart-2",
     },
     {
       label: "Total Users",
       value: userCount,
       icon: Users,
-      color: "text-chart-2",
+      color: "text-chart-3",
     },
     {
       label: "Total Bets",
       value: betCount,
       icon: TrendingUp,
-      color: "text-chart-3",
+      color: "text-chart-4",
     },
     {
       label: "Total Volume",
       value: `$${(totalVolume._sum.amount || 0).toLocaleString()}`,
       icon: DollarSign,
-      color: "text-chart-4",
+      color: "text-chart-5",
     },
   ];
 
@@ -48,7 +55,7 @@ export default async function AdminDashboard() {
         <p className="text-muted-foreground">Overview of your prediction markets</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
         {stats.map((stat) => (
           <GlassCard key={stat.label}>
             <GlassCardContent className="pt-6">

@@ -10,6 +10,8 @@ import {
   Settings,
   ChevronLeft,
   Receipt,
+  Calendar,
+  Tag,
 } from "lucide-react";
 
 interface AdminSidebarProps {
@@ -21,9 +23,11 @@ interface AdminSidebarProps {
 
 const navItems = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/admin/events", label: "Events", icon: Calendar },
   { href: "/admin/markets", label: "Markets", icon: BarChart3 },
   { href: "/admin/bets", label: "Bets", icon: Receipt },
   { href: "/admin/users", label: "Users", icon: Users },
+  { href: "/admin/tags", label: "Tags", icon: Tag },
   { href: "/admin/settings", label: "Settings", icon: Settings },
 ];
 
