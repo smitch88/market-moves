@@ -76,12 +76,17 @@ export async function POST(request: NextRequest) {
     }
 
     const market = await prisma.$transaction(async (tx) => {
+      // Calculate initial prices from seed values
+      const totalSeeds = data.seed0 + data.seed1;
+      const initialPrice0 = totalSeeds > 0 ? (data.seed0 / totalSeeds).toFixed(4) : "0.5000";
+      const initialPrice1 = totalSeeds > 0 ? (data.seed1 / totalSeeds).toFixed(4) : "0.5000";
+
       const newMarket = await tx.market.create({
         data: {
           eventId: data.eventId,
           question: data.question,
           outcomes: JSON.stringify(data.outcomes),
-          outcomePrices: JSON.stringify(["0.50", "0.50"]),
+          outcomePrices: JSON.stringify([initialPrice0, initialPrice1]),
           outcomeColors: data.outcomeColors 
             ? JSON.stringify(data.outcomeColors) 
             : null,
@@ -97,16 +102,14 @@ export async function POST(request: NextRequest) {
       });
 
       // Create initial price snapshot for chart history
-      // Calculate initial prices from seed values
-      const totalSeeds = newMarket.seed0 + newMarket.seed1;
-      const initialPrice0 = totalSeeds > 0 ? newMarket.seed0 / totalSeeds : 0.5;
-      const initialPrice1 = totalSeeds > 0 ? newMarket.seed1 / totalSeeds : 0.5;
+      const snapshotPrice0 = totalSeeds > 0 ? newMarket.seed0 / totalSeeds : 0.5;
+      const snapshotPrice1 = totalSeeds > 0 ? newMarket.seed1 / totalSeeds : 0.5;
       
       await tx.priceSnapshot.create({
         data: {
           marketId: newMarket.id,
-          price0: initialPrice0,
-          price1: initialPrice1,
+          price0: snapshotPrice0,
+          price1: snapshotPrice1,
           pool0: newMarket.seed0,
           pool1: newMarket.seed1,
         },

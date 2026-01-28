@@ -19,8 +19,8 @@ const faqCategories: { title: string; items: FAQItem[] }[] = [
       {
         question: "What is a prediction market?",
         answer: [
-          "A prediction market is a platform where you can trade on the outcome of future events. Instead of traditional betting against a house, you're trading shares in outcomes with other participants.",
-          "Each market poses a question with two or more possible outcomes. The price of each outcome reflects the crowd's collective belief about its probability. If you think an outcome is more likely than the current price suggests, you can buy shares in it.",
+          "A prediction market is a platform where you can bet on the outcome of future events. Vault Markets uses a pari-mutuel system where all bets are pooled together and winners share the pool proportionally.",
+          "Each market poses a question with two possible outcomes. The percentage shown for each outcome reflects how much has been bet on that side—a higher percentage means more people are betting on it.",
         ],
         icon: TrendingUp,
       },
@@ -51,10 +51,10 @@ const faqCategories: { title: string; items: FAQItem[] }[] = [
         icon: TrendingUp,
       },
       {
-        question: "What do the prices mean?",
+        question: "What do the percentages mean?",
         answer: [
-          "Prices are displayed in cents (¢) and represent the implied probability of each outcome. A price of 65¢ means the market believes that outcome has approximately a 65% chance of occurring.",
-          "If you buy at 65¢ and the outcome wins, you receive $1.00 per share—a profit of 35¢. If it loses, you lose your 65¢ stake. The lower the price, the higher the potential return (but also the lower the implied probability).",
+          "Percentages represent the current implied probability of each outcome based on how much has been bet on each side. If an outcome shows 65%, the market collectively believes it has approximately a 65% chance of occurring.",
+          "Vault Markets uses a pari-mutuel system: all bets are pooled together, and winners share the total pool proportionally. Your payout depends on how much you bet relative to the total winning pool at settlement, not the percentage shown when you placed your bet.",
         ],
         icon: Scale,
       },

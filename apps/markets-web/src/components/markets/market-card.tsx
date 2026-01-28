@@ -171,7 +171,7 @@ export function MarketCard({ market, index = 0 }: MarketCardProps) {
                   {outcomes[0] || "Yes"}
                 </span>
                 <span className="text-sm font-bold text-outcome-yes tabular-nums">
-                  {percent0}¢
+                  {percent0}%
                 </span>
               </motion.div>
               
@@ -184,7 +184,7 @@ export function MarketCard({ market, index = 0 }: MarketCardProps) {
                   {outcomes[1] || "No"}
                 </span>
                 <span className="text-sm font-bold text-outcome-no tabular-nums">
-                  {percent1}¢
+                  {percent1}%
                 </span>
               </motion.div>
             </div>

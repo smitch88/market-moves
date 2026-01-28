@@ -63,7 +63,7 @@ function OutcomeButton({
       whileTap={{ scale: 0.99 }}
     >
       <span className="font-medium truncate text-left flex-1">{label}</span>
-      <span className="font-bold tabular-nums flex-shrink-0">{price}¢</span>
+      <span className="font-bold tabular-nums flex-shrink-0">{price}%</span>
     </motion.button>
   );
 }

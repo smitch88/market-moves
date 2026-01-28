@@ -9,6 +9,7 @@ import {
   verifyTweetByUrl,
 } from "@/lib/services/tweet-verification";
 import { createPriceSnapshot } from "@/lib/services/price-snapshot-service";
+import { broadcastPriceChange } from "@/lib/services/price-broadcaster";
 import { z } from "zod";
 
 const verifySchema = z.object({
@@ -35,6 +36,7 @@ export async function POST(request: NextRequest) {
         seed1: true,
         pool0: true,
         pool1: true,
+        eventId: true,
         event: {
           select: {
             slug: true,
@@ -166,12 +168,25 @@ export async function POST(request: NextRequest) {
         });
 
         // Update market pool totals
-        const updatedMarket = await tx.market.update({
+        let updatedMarket = await tx.market.update({
           where: { id: market.id },
           data: {
             ...(isOutcome0
               ? { pool0: { increment: bet.amount } }
               : { pool1: { increment: bet.amount } }),
+          },
+        });
+
+        // Calculate new prices
+        const totalPool = updatedMarket.seed0 + updatedMarket.seed1 + updatedMarket.pool0 + updatedMarket.pool1;
+        const price0 = totalPool > 0 ? (updatedMarket.seed0 + updatedMarket.pool0) / totalPool : 0.5;
+        const price1 = totalPool > 0 ? (updatedMarket.seed1 + updatedMarket.pool1) / totalPool : 0.5;
+
+        // Persist new prices to database
+        updatedMarket = await tx.market.update({
+          where: { id: market.id },
+          data: {
+            outcomePrices: JSON.stringify([price0.toFixed(4), price1.toFixed(4)]),
           },
         });
 
@@ -183,6 +198,14 @@ export async function POST(request: NextRequest) {
           updatedMarket.pool1,
           updatedMarket.seed0,
           updatedMarket.seed1
+        );
+
+        // Broadcast to connected clients for real-time updates
+        broadcastPriceChange(
+          market.id,
+          market.eventId,
+          [price0, price1],
+          [updatedMarket.seed0 + updatedMarket.pool0, updatedMarket.seed1 + updatedMarket.pool1]
         );
 
         // Check if this is user's first confirmed bet and handle referral

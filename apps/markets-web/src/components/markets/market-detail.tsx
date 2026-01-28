@@ -92,9 +92,9 @@ function MarketRow({
         <div className="flex-1 min-w-0">
           <h3 className="font-medium text-sm truncate">{market.question}</h3>
           <div className="flex items-center gap-2 mt-1.5">
-            <span className="text-xs font-medium text-outcome-yes">{outcomes[0]}: {percent0}¢</span>
+            <span className="text-xs font-medium text-outcome-yes">{outcomes[0]}: {percent0}%</span>
             <span className="text-muted-foreground">•</span>
-            <span className="text-xs font-medium text-outcome-no">{outcomes[1]}: {percent1}¢</span>
+            <span className="text-xs font-medium text-outcome-no">{outcomes[1]}: {percent1}%</span>
           </div>
         </div>
         <ChevronRight className={cn(
@@ -266,7 +266,7 @@ export function MarketDetail({ event }: MarketDetailProps) {
               {/* Outcome percentages */}
               <div className="flex items-center gap-4 mb-6">
                 <div className="flex-1 text-center">
-                  <p className="text-3xl font-bold text-outcome-yes">{percent0}¢</p>
+                  <p className="text-3xl font-bold text-outcome-yes">{percent0}%</p>
                   <p className="text-sm text-muted-foreground">{outcomes[0]}</p>
                 </div>
                 <div className="flex-1 h-2.5 bg-muted/30 rounded-full overflow-hidden flex">
@@ -280,7 +280,7 @@ export function MarketDetail({ event }: MarketDetailProps) {
                   />
                 </div>
                 <div className="flex-1 text-center">
-                  <p className="text-3xl font-bold text-outcome-no">{percent1}¢</p>
+                  <p className="text-3xl font-bold text-outcome-no">{percent1}%</p>
                   <p className="text-sm text-muted-foreground">{outcomes[1]}</p>
                 </div>
               </div>

@@ -176,6 +176,7 @@ export function MarketChart({ market, selectedOutcome }: MarketChartProps) {
   const [snapshots, setSnapshots] = useState<PriceSnapshot[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [lastUpdateTime, setLastUpdateTime] = useState<Date | null>(null);
 
   const outcomes = parseOutcomes(market.outcomes);
   const outcomePrices = parseOutcomePrices(market.outcomePrices);
@@ -216,6 +217,32 @@ export function MarketChart({ market, selectedOutcome }: MarketChartProps) {
 
     fetchPriceHistory();
   }, [market.id, market.event?.slug, activePeriod]);
+
+  // Append real-time price updates to chart data
+  useEffect(() => {
+    // When prices change, add a new data point to show real-time updates
+    const now = new Date();
+    if (snapshots.length > 0 && !isLoading) {
+      const lastSnapshot = snapshots[snapshots.length - 1];
+      const lastPrice0 = lastSnapshot?.price0 || 0.5;
+      const lastPrice1 = lastSnapshot?.price1 || 0.5;
+      
+      // Only add if prices have actually changed
+      if (Math.abs(lastPrice0 - price0) > 0.001 || Math.abs(lastPrice1 - price1) > 0.001) {
+        setSnapshots(prev => [
+          ...prev,
+          {
+            price0,
+            price1,
+            pool0: 0, // We don't have pool data from props
+            pool1: 0,
+            timestamp: now.toISOString(),
+          }
+        ]);
+        setLastUpdateTime(now);
+      }
+    }
+  }, [price0, price1, isLoading]); // Only depend on prices, not snapshots
 
   // Transform snapshots to chart data, or use mock data as fallback
   const chartData = useMemo((): ChartDataPoint[] => {
@@ -277,9 +304,17 @@ export function MarketChart({ market, selectedOutcome }: MarketChartProps) {
               );
             })}
           </div>
-          {snapshots.length === 0 && !isLoading && (
-            <span className="text-xs text-muted-foreground">Simulated data</span>
-          )}
+          <div className="flex items-center gap-2">
+            {lastUpdateTime && (
+              <span className="text-xs text-green-500 flex items-center gap-1">
+                <span className="h-1.5 w-1.5 bg-green-500 rounded-full animate-pulse" />
+                Live
+              </span>
+            )}
+            {snapshots.length === 0 && !isLoading && (
+              <span className="text-xs text-muted-foreground">Simulated data</span>
+            )}
+          </div>
         </div>
 
         {/* Chart */}

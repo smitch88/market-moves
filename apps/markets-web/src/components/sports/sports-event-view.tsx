@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
-import { ArrowLeft, TrendingUp, Users } from "lucide-react";
+import { ArrowLeft, TrendingUp, Users, Wifi, WifiOff } from "lucide-react";
 import type { Market, Event } from "@vault/database";
 import { SportsEventHeader } from "./sports-event-header";
 import { MarketCategoryTabs } from "./market-category-tabs";
@@ -24,6 +24,7 @@ import {
   type SportConfig,
   type MarketCategoryConfig,
 } from "./sport-configs";
+import { useMarketUpdates, type PriceUpdate } from "@/hooks/use-market-updates";
 
 interface SportsEventViewProps {
   event: Event & {
@@ -441,6 +442,7 @@ export function SportsEventView({ event, sport }: SportsEventViewProps) {
   // Get sport config
   const sportType = sport || event.category;
   const config = useMemo(() => getSportConfig(sportType), [sportType]);
+  const queryClient = useQueryClient();
 
   // State
   const [activeCategory, setActiveCategory] = useState(config.categories[0]?.id || "all");
@@ -448,14 +450,46 @@ export function SportsEventView({ event, sport }: SportsEventViewProps) {
   const [selectedOutcome, setSelectedOutcome] = useState<number | null>(null);
   const [expandedMarketId, setExpandedMarketId] = useState<string | null>(null);
 
-  // Fetch live data
+  // Fetch live data (polling as fallback)
   const { data } = useQuery({
     queryKey: ["market", event.slug],
     queryFn: () => fetchEventData(event.slug),
     placeholderData: { event },
     staleTime: 0,
-    refetchInterval: 10000,
+    refetchInterval: 30000, // Reduced to 30s since we have real-time now
     refetchOnWindowFocus: true,
+  });
+
+  // Real-time price updates via SSE
+  const handlePriceUpdate = useCallback((update: PriceUpdate) => {
+    // Update the React Query cache with new prices
+    queryClient.setQueryData(["market", event.slug], (oldData: { event: Event & { markets: Market[] } } | undefined) => {
+      if (!oldData?.event?.markets) return oldData;
+      
+      return {
+        ...oldData,
+        event: {
+          ...oldData.event,
+          markets: oldData.event.markets.map((market: Market) => {
+            if (market.id === update.marketId) {
+              return {
+                ...market,
+                outcomePrices: JSON.stringify(update.prices.map(p => p.toFixed(4))),
+                // Update pool values for display
+                pool0: update.pools[0] - (market.seed0 || 1000),
+                pool1: update.pools[1] - (market.seed1 || 1000),
+              };
+            }
+            return market;
+          }),
+        },
+      };
+    });
+  }, [queryClient, event.slug]);
+
+  const { status: sseStatus, isConnected } = useMarketUpdates({
+    eventId: event.id,
+    onPriceUpdate: handlePriceUpdate,
   });
 
   const markets = data?.event?.markets || event.markets;
@@ -587,6 +621,20 @@ export function SportsEventView({ event, sport }: SportsEventViewProps) {
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Users className="h-4 w-4" />
               <span>{totalBets} predictions</span>
+            </div>
+            {/* Real-time connection indicator */}
+            <div className="flex items-center gap-1.5 text-xs">
+              {isConnected ? (
+                <>
+                  <Wifi className="h-3 w-3 text-green-500" />
+                  <span className="text-green-500">Live</span>
+                </>
+              ) : (
+                <>
+                  <WifiOff className="h-3 w-3 text-muted-foreground" />
+                  <span className="text-muted-foreground">Offline</span>
+                </>
+              )}
             </div>
           </motion.div>
 

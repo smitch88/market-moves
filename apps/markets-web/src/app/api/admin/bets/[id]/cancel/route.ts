@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma, BetStatus, BalanceReason, AdminAction } from "@vault/database";
 import { requireAdmin } from "@vault/auth";
 import { createPriceSnapshot } from "@/lib/services/price-snapshot-service";
+import { broadcastPriceChange } from "@/lib/services/price-broadcaster";
 import { z } from "zod";
 
 const cancelBetSchema = z.object({
@@ -27,7 +28,7 @@ export async function POST(
             select: { id: true, balance: true },
           },
           market: {
-            select: { id: true, question: true, status: true },
+            select: { id: true, question: true, status: true, eventId: true, seed0: true, seed1: true },
           },
         },
       });
@@ -74,10 +75,23 @@ export async function POST(
       // If bet was confirmed, decrement the pool
       if (bet.status === BetStatus.CONFIRMED) {
         const poolField = bet.outcomeIndex === 0 ? "pool0" : "pool1";
-        const updatedMarket = await tx.market.update({
+        let updatedMarket = await tx.market.update({
           where: { id: bet.marketId },
           data: {
             [poolField]: { decrement: bet.amount },
+          },
+        });
+
+        // Calculate new prices
+        const totalPool = updatedMarket.seed0 + updatedMarket.seed1 + updatedMarket.pool0 + updatedMarket.pool1;
+        const price0 = totalPool > 0 ? (updatedMarket.seed0 + updatedMarket.pool0) / totalPool : 0.5;
+        const price1 = totalPool > 0 ? (updatedMarket.seed1 + updatedMarket.pool1) / totalPool : 0.5;
+
+        // Persist new prices to database
+        updatedMarket = await tx.market.update({
+          where: { id: bet.marketId },
+          data: {
+            outcomePrices: JSON.stringify([price0.toFixed(4), price1.toFixed(4)]),
           },
         });
 
@@ -89,6 +103,14 @@ export async function POST(
           updatedMarket.pool1,
           updatedMarket.seed0,
           updatedMarket.seed1
+        );
+
+        // Broadcast to connected clients for real-time updates
+        broadcastPriceChange(
+          bet.marketId,
+          bet.market.eventId,
+          [price0, price1],
+          [updatedMarket.seed0 + updatedMarket.pool0, updatedMarket.seed1 + updatedMarket.pool1]
         );
 
         // Also update the position

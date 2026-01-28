@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { usePrivy } from "@privy-io/react-auth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import { toPng } from "html-to-image";
-import { ChevronRight, Wallet, Sparkles, X } from "lucide-react";
+import { ChevronRight, Wallet, Sparkles, X, TrendingUp, TrendingDown } from "lucide-react";
 import {
   Button,
   Input,
@@ -62,12 +62,36 @@ export function SportsBettingSidebar({
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const ticketRef = useRef<HTMLDivElement>(null);
 
+  // Price change tracking
+  const [previousPrice, setPreviousPrice] = useState<number | null>(null);
+  const [priceChangeDirection, setPriceChangeDirection] = useState<"up" | "down" | null>(null);
+
+  // Track price changes for flash animation
+  const currentPrice = useMemo(() => {
+    if (!selectedMarket || selectedOutcome === null) return null;
+    const outcomePrices = parseOutcomePrices(selectedMarket.outcomePrices);
+    return Math.round(parseFloat(outcomePrices[selectedOutcome] || "0.50") * 100);
+  }, [selectedMarket?.outcomePrices, selectedOutcome]);
+
+  // Detect price changes
+  useEffect(() => {
+    if (currentPrice !== null && previousPrice !== null && currentPrice !== previousPrice) {
+      setPriceChangeDirection(currentPrice > previousPrice ? "up" : "down");
+      // Reset after animation
+      const timeout = setTimeout(() => setPriceChangeDirection(null), 2000);
+      return () => clearTimeout(timeout);
+    }
+    setPreviousPrice(currentPrice);
+  }, [currentPrice, previousPrice]);
+
   // Reset state when selection changes
   useEffect(() => {
     setAmount("");
     setBetId(null);
     setTweetUrl("");
     setStep("bet");
+    setPreviousPrice(null);
+    setPriceChangeDirection(null);
   }, [selectedMarket?.id, selectedOutcome]);
 
   // Fetch user profile
@@ -349,8 +373,21 @@ export function SportsBettingSidebar({
                   <span className="font-bold text-lg">
                     {outcomes[selectedOutcome]}
                   </span>
-                  <span className="text-sm text-muted-foreground">
-                    {selectedPrice}¢
+                  <span 
+                    className={cn(
+                      "text-sm transition-colors duration-300",
+                      priceChangeDirection === "up" && "text-green-500",
+                      priceChangeDirection === "down" && "text-red-500",
+                      !priceChangeDirection && "text-muted-foreground"
+                    )}
+                  >
+                    {selectedPrice}%
+                    {priceChangeDirection === "up" && (
+                      <TrendingUp className="inline-block h-3 w-3 ml-1" />
+                    )}
+                    {priceChangeDirection === "down" && (
+                      <TrendingDown className="inline-block h-3 w-3 ml-1" />
+                    )}
                   </span>
                 </div>
               )}
@@ -412,15 +449,20 @@ export function SportsBettingSidebar({
                   ))}
                 </div>
 
-                {/* Potential return */}
+                {/* Estimated return */}
                 {amountNum > 0 && (
                   <motion.div
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: "auto" }}
-                    className="flex items-center justify-between py-3 px-4 bg-outcome-yes/10 rounded-xl border border-outcome-yes/20"
+                    className="py-3 px-4 bg-outcome-yes/10 rounded-xl border border-outcome-yes/20"
                   >
-                    <span className="text-sm text-muted-foreground">Potential return</span>
-                    <span className="font-bold text-outcome-yes">${potentialWin.toLocaleString()}</span>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">Est. return</span>
+                      <span className="font-bold text-outcome-yes">~${potentialWin.toLocaleString()}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Final payout based on pool at settlement
+                    </p>
                   </motion.div>
                 )}
 
@@ -435,7 +477,7 @@ export function SportsBettingSidebar({
                     "Placing..."
                   ) : (
                     <span className="flex items-center gap-2">
-                      Buy {selectedOutcome !== null && outcomes[selectedOutcome]}
+                      Bet on {selectedOutcome !== null && outcomes[selectedOutcome]}
                       <ChevronRight className="h-4 w-4" />
                     </span>
                   )}

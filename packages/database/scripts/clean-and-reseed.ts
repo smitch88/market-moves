@@ -683,7 +683,15 @@ async function seedDatabase() {
         ...marketFields,
         closesAt: bettingCloseTime,
         outcomes: JSON.stringify(outcomes),
-        outcomePrices: JSON.stringify(["0.50", "0.50"]),
+        // Calculate initial prices from seed values
+        outcomePrices: (() => {
+          const s0 = marketFields.seed0 || 1000;
+          const s1 = marketFields.seed1 || 1000;
+          const total = s0 + s1;
+          const p0 = (s0 / total).toFixed(4);
+          const p1 = (s1 / total).toFixed(4);
+          return JSON.stringify([p0, p1]);
+        })(),
         outcomeColors: outcomeColors ? JSON.stringify(outcomeColors) : null,
         status: MarketStatus.OPEN,
         publishedAt: new Date(),
