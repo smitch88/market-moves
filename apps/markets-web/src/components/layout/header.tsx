@@ -53,7 +53,7 @@ export function Header() {
         isImpersonating ? "border-red-500/50" : "border-border/40"
       )}
     >
-      <div className="container mx-auto flex h-16 items-center gap-6 px-4">
+      <div className="max-w-7xl mx-auto flex h-16 items-center gap-6 px-4 w-full">
         {/* Logo and Nav - Left side */}
         <div className="flex items-center gap-6 flex-shrink-0">
           <Link href="/" className="flex items-center gap-2">

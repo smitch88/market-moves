@@ -3,9 +3,9 @@
 import Link from "next/link";
 import Image from "next/image";
 import { format } from "date-fns";
-import { Clock, TrendingUp, BarChart3, Sparkles } from "lucide-react";
+import { Clock, TrendingUp, BarChart3 } from "lucide-react";
 import { motion } from "framer-motion";
-import type { Event, MarketCategory } from "@vault/database";
+import type { Event } from "@vault/database";
 import { cn } from "@vault/ui/lib/utils";
 import { getMarketUrl } from "@/lib/urls";
 
@@ -20,13 +20,6 @@ interface EventCardProps {
   index?: number;
 }
 
-// Check if event was created within last 48 hours
-function isNewEvent(createdAt: Date | string): boolean {
-  const created = typeof createdAt === "string" ? new Date(createdAt) : createdAt;
-  const hoursSinceCreation = (Date.now() - created.getTime()) / (1000 * 60 * 60);
-  return hoursSinceCreation < 48;
-}
-
 // Format volume for display
 function formatVolume(v: number): string {
   if (v >= 1000000) return `$${(v / 1000000).toFixed(1)}M`;
@@ -35,7 +28,6 @@ function formatVolume(v: number): string {
 }
 
 export function EventCard({ event, index = 0 }: EventCardProps) {
-  const isNew = isNewEvent(event.createdAt);
   const endTime = event.endTime ? new Date(event.endTime) : null;
   const isEndingSoon = endTime && endTime.getTime() - Date.now() < 24 * 60 * 60 * 1000;
 
@@ -50,17 +42,9 @@ export function EventCard({ event, index = 0 }: EventCardProps) {
       }}
       className="relative"
     >
-      {/* Animated gradient border for new events */}
-      {isNew && (
-        <div className="absolute -inset-[1px] rounded-xl bg-gradient-to-r from-emerald-500/50 via-cyan-500/50 to-emerald-500/50 opacity-60 blur-[2px] animate-gradient-shift" />
-      )}
-
       <Link href={getMarketUrl(event.slug)} className="block group relative">
         <motion.div
-          className={cn(
-            "glass-card overflow-hidden h-full flex flex-col relative",
-            isNew && "border-emerald-500/30"
-          )}
+          className="relative overflow-hidden rounded-lg border bg-white/5 backdrop-blur-md border-white/10 shadow-xl h-full flex flex-col"
           whileHover={{
             y: -4,
             transition: { duration: 0.2, ease: "easeOut" },
@@ -123,20 +107,11 @@ export function EventCard({ event, index = 0 }: EventCardProps) {
                   </motion.div>
                 ) : (
                   <motion.div
-                    className={cn(
-                      "h-10 w-10 rounded-lg flex items-center justify-center flex-shrink-0",
-                      isNew
-                        ? "bg-gradient-to-br from-emerald-500/30 to-cyan-500/20"
-                        : "bg-gradient-to-br from-primary/30 to-primary/10"
-                    )}
+                    className="h-10 w-10 rounded-lg flex items-center justify-center flex-shrink-0 bg-gradient-to-br from-primary/30 to-primary/10"
                     whileHover={{ scale: 1.05 }}
                     transition={{ duration: 0.2 }}
                   >
-                    {isNew ? (
-                      <Sparkles className="h-5 w-5 text-emerald-400" />
-                    ) : (
-                      <TrendingUp className="h-5 w-5 text-primary" />
-                    )}
+                    <TrendingUp className="h-5 w-5 text-primary" />
                   </motion.div>
                 )}
                 <div className="flex-1 min-w-0">
@@ -144,16 +119,6 @@ export function EventCard({ event, index = 0 }: EventCardProps) {
                     <span className="text-xs text-muted-foreground font-medium">
                       {event.category}
                     </span>
-                    {isNew && (
-                      <motion.span
-                        initial={{ opacity: 0, scale: 0.8 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-gradient-to-r from-emerald-500/20 to-cyan-500/20 text-emerald-400 border border-emerald-500/30"
-                      >
-                        <Sparkles className="h-2.5 w-2.5" />
-                        New
-                      </motion.span>
-                    )}
                   </div>
                 </div>
               </div>
@@ -162,8 +127,7 @@ export function EventCard({ event, index = 0 }: EventCardProps) {
             {/* Title */}
             <h3
               className={cn(
-                "font-semibold text-lg leading-tight mb-2 transition-colors",
-                isNew ? "group-hover:text-emerald-400" : "group-hover:text-primary",
+                "font-semibold text-lg leading-tight mb-2 transition-colors group-hover:text-primary",
                 event.bannerUrl && "mt-1"
               )}
             >

@@ -4,7 +4,7 @@ export function EventGridSkeleton() {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
       {Array.from({ length: 6 }).map((_, i) => (
-        <div key={i} className="glass-card overflow-hidden">
+        <div key={i} className="relative overflow-hidden rounded-lg border bg-white/5 backdrop-blur-md border-white/10 shadow-xl">
           {/* Banner skeleton */}
           <Skeleton className="h-32 w-full rounded-none" />
           

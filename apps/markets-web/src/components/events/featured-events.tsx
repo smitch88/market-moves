@@ -79,7 +79,7 @@ export async function FeaturedEvents() {
 export function FeaturedEventsSkeleton() {
   return (
     <div className="mb-6">
-      <div className="glass-card overflow-hidden animate-pulse">
+      <div className="relative overflow-hidden rounded-lg border bg-white/5 backdrop-blur-md border-white/10 shadow-xl animate-pulse">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-0">
           {/* Left Side Skeleton */}
           <div className="p-6">

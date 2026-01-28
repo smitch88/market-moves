@@ -280,7 +280,7 @@ export function FeaturedEventBanner({ events }: FeaturedEventBannerProps) {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.3 }}
-            className="glass-card overflow-hidden"
+            className="relative overflow-hidden rounded-lg border bg-white/5 backdrop-blur-md border-white/10 shadow-xl"
           >
             <Link
               href={getMarketUrl(currentEvent.slug)}
@@ -452,21 +452,13 @@ export function FeaturedEventBanner({ events }: FeaturedEventBannerProps) {
               </div>
 
               {/* Right Side - Chart */}
-              <div className="relative border-l border-border/50 bg-muted/5">
+              <div className="relative border-l border-border/50 bg-muted/5 p-4 flex flex-col">
                 {/* Top: Countdown + Date + Live indicator */}
-                <div className="absolute top-4 left-4 right-4 flex items-center justify-between z-10">
+                <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2 text-sm">
                     <Clock className="h-4 w-4 text-muted-foreground" />
                     <span className="text-muted-foreground">Begins in</span>
                     <span className="font-semibold">{countdown}</span>
-                    {currentEvent.startTime && (
-                      <>
-                        <span className="text-muted-foreground">·</span>
-                        <span className="text-muted-foreground">
-                          {formatDateTime(new Date(currentEvent.startTime))}
-                        </span>
-                      </>
-                    )}
                   </div>
                   <div className="flex items-center gap-2">
                     {isLive ? (
@@ -479,36 +471,13 @@ export function FeaturedEventBanner({ events }: FeaturedEventBannerProps) {
                         <WifiOff className="h-3 w-3" />
                       </span>
                     )}
-                    <span className="text-lg font-bold text-primary">
-                      Vault
-                    </span>
                   </div>
                 </div>
 
-                {/* Price Labels */}
-                <div className="absolute right-4 top-1/2 -translate-y-1/2 z-10 space-y-4">
-                  {outcomes.slice(0, 2).map((outcome, index) => {
-                    const percent = index === 0 ? percent0 : percent1;
-                    const color = outcomeColors[index] || (index === 0 ? "#22C55E" : "#EF4444");
-
-                    return (
-                      <div key={index} className="text-right">
-                        <p className="text-xs text-muted-foreground">{outcome}</p>
-                        <p
-                          className="text-xl font-bold tabular-nums"
-                          style={{ color }}
-                        >
-                          {percent}%
-                        </p>
-                      </div>
-                    );
-                  })}
-                </div>
-
                 {/* Chart */}
-                <div className="h-[220px] pt-12 pb-4 pr-20 pl-4">
+                <div className="flex-1 min-h-[180px]">
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={chartData}>
+                    <LineChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 5 }}>
                       <XAxis
                         dataKey="time"
                         axisLine={false}
@@ -522,7 +491,7 @@ export function FeaturedEventBanner({ events }: FeaturedEventBannerProps) {
                         tickLine={false}
                         tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
                         tickFormatter={(v) => `${v}%`}
-                        width={35}
+                        width={30}
                         tickCount={5}
                       />
                       <Tooltip content={<CustomTooltip outcomes={outcomes} />} />
@@ -542,6 +511,30 @@ export function FeaturedEventBanner({ events }: FeaturedEventBannerProps) {
                       />
                     </LineChart>
                   </ResponsiveContainer>
+                </div>
+
+                {/* Legend at bottom */}
+                <div className="flex items-center justify-center gap-6 mt-3 pt-3 border-t border-border/30">
+                  {outcomes.slice(0, 2).map((outcome, index) => {
+                    const percent = index === 0 ? percent0 : percent1;
+                    const color = outcomeColors[index] || (index === 0 ? "#22C55E" : "#EF4444");
+
+                    return (
+                      <div key={index} className="flex items-center gap-2">
+                        <div
+                          className="h-2.5 w-2.5 rounded-full"
+                          style={{ backgroundColor: color }}
+                        />
+                        <span className="text-sm text-muted-foreground">{outcome}</span>
+                        <span
+                          className="text-sm font-bold tabular-nums"
+                          style={{ color }}
+                        >
+                          {percent}%
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             </div>

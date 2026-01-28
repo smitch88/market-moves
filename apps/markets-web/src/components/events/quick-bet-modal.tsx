@@ -235,13 +235,13 @@ export function QuickBetModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md p-0 overflow-hidden">
         {/* Header */}
-        <div className="p-4 border-b border-border/50 bg-muted/20">
+        <div className="px-4 py-3 border-b border-border/50 bg-muted/20">
           <DialogHeader>
-            <DialogTitle className="text-lg font-semibold">
+            <DialogTitle className="text-base font-semibold">
               {step === "success" ? "Bet Confirmed!" : `Bet on ${selectedOutcome}`}
             </DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-muted-foreground mt-1">{event.title}</p>
+          <p className="text-xs text-muted-foreground mt-1">{event.title}</p>
         </div>
 
         <div className="p-4">
@@ -252,7 +252,7 @@ export function QuickBetModal({
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: 20 }}
-                className="space-y-4"
+                className="space-y-3"
               >
                 {/* Selected outcome display */}
                 <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-border/50">
@@ -280,7 +280,7 @@ export function QuickBetModal({
                       value={amount}
                       onChange={(e) => setAmount(e.target.value)}
                       placeholder="0"
-                      className="w-full pl-7 pr-4 py-3 rounded-lg bg-background border border-border text-lg font-bold focus:outline-none focus:ring-2 focus:ring-primary"
+                      className="w-full pl-7 pr-3 py-2.5 rounded-lg bg-background border border-border text-lg font-bold focus:outline-none focus:ring-2 focus:ring-primary"
                     />
                   </div>
                   <div className="flex items-center justify-between text-xs text-muted-foreground">
@@ -292,13 +292,13 @@ export function QuickBetModal({
                 </div>
 
                 {/* Quick amounts */}
-                <div className="flex gap-2">
+                <div className="flex gap-1.5">
                   {QUICK_AMOUNTS.map((quickAmount) => (
                     <button
                       key={quickAmount}
                       onClick={() => setAmount(String(quickAmount))}
                       className={cn(
-                        "flex-1 py-2 rounded-lg text-sm font-medium transition-colors",
+                        "flex-1 py-1.5 rounded-md text-sm font-medium transition-colors",
                         amount === String(quickAmount)
                           ? "bg-primary text-primary-foreground"
                           : "bg-muted/50 hover:bg-muted"
@@ -310,7 +310,7 @@ export function QuickBetModal({
                   <button
                     onClick={() => setAmount(String(balance))}
                     className={cn(
-                      "px-3 py-2 rounded-lg text-sm font-medium transition-colors",
+                      "px-3 py-1.5 rounded-md text-sm font-medium transition-colors",
                       amount === String(balance)
                         ? "bg-primary text-primary-foreground"
                         : "bg-muted/50 hover:bg-muted"
@@ -331,9 +331,6 @@ export function QuickBetModal({
                       <span className="text-sm text-muted-foreground">Est. return</span>
                       <span className="font-bold text-outcome-yes">~${estimatedPayout.toLocaleString()}</span>
                     </div>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Final payout based on pool at settlement
-                    </p>
                   </motion.div>
                 )}
 
@@ -341,7 +338,7 @@ export function QuickBetModal({
                 <Button
                   onClick={handlePlaceBet}
                   disabled={amountNum <= 0 || amountNum > balance || isLoading}
-                  className="w-full h-12 text-base font-semibold"
+                  className="w-full h-10 text-sm font-semibold"
                 >
                   {isLoading ? (
                     <Loader2 className="h-5 w-5 animate-spin" />
@@ -363,20 +360,20 @@ export function QuickBetModal({
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -20 }}
-                className="space-y-4"
+                className="space-y-3"
               >
-                <div className="text-center p-4 rounded-lg bg-muted/30 border border-border/50">
-                  <p className="font-medium mb-1">Share your prediction on X</p>
-                  <p className="text-sm text-muted-foreground">
+                <div className="text-center p-3 rounded-lg bg-muted/30 border border-border/50">
+                  <p className="font-medium text-sm mb-1">Share your prediction on X</p>
+                  <p className="text-xs text-muted-foreground">
                     Post the tweet to confirm your ${amountNum} bet on {selectedOutcome}
                   </p>
                 </div>
 
-                <div className="space-y-3">
+                <div className="space-y-2">
                   <Button
                     onClick={handleOpenTweetIntent}
                     disabled={isLoading}
-                    className="w-full h-11"
+                    className="w-full h-10"
                   >
                     {tweetIntentMutation.isPending ? (
                       <Loader2 className="h-4 w-4 animate-spin mr-2" />
@@ -421,6 +418,7 @@ export function QuickBetModal({
                     />
                     <Button
                       variant="outline"
+                      size="sm"
                       onClick={() => handleVerify("url")}
                       disabled={!tweetUrl || isLoading}
                     >
@@ -431,6 +429,7 @@ export function QuickBetModal({
 
                 <Button
                   variant="ghost"
+                  size="sm"
                   onClick={() => setStep("amount")}
                   className="w-full text-muted-foreground"
                 >
@@ -445,19 +444,19 @@ export function QuickBetModal({
                 key="success"
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="text-center py-6 space-y-4"
+                className="text-center py-4 space-y-3"
               >
                 <motion.div
                   initial={{ scale: 0 }}
                   animate={{ scale: 1 }}
                   transition={{ type: "spring", duration: 0.5 }}
-                  className="h-16 w-16 rounded-full bg-outcome-yes/20 flex items-center justify-center mx-auto"
+                  className="h-14 w-14 rounded-full bg-outcome-yes/20 flex items-center justify-center mx-auto"
                 >
-                  <Check className="h-8 w-8 text-outcome-yes" />
+                  <Check className="h-7 w-7 text-outcome-yes" />
                 </motion.div>
                 <div>
                   <p className="text-lg font-bold">Bet Confirmed!</p>
-                  <p className="text-muted-foreground">
+                  <p className="text-sm text-muted-foreground">
                     ${amountNum.toLocaleString()} on {selectedOutcome}
                   </p>
                 </div>

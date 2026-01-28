@@ -15,7 +15,7 @@ export default async function ProfilePage() {
   return (
     <div className="min-h-screen">
       <Header />
-      <main className="container mx-auto px-4 py-6">
+      <main className="max-w-7xl mx-auto px-4 py-6">
         <Suspense fallback={<ProfileSkeleton />}>
           <ProfileContent userId={user.id} />
         </Suspense>

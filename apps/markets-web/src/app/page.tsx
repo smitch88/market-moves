@@ -23,7 +23,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
   return (
     <div className="min-h-screen">
       <Header />
-      <main className="container mx-auto px-4 py-4 md:py-6">
+      <main className="max-w-7xl mx-auto px-4 py-6">
         {/* Featured Events Banner */}
         <Suspense fallback={<FeaturedEventsSkeleton />}>
           <FeaturedEvents />
