@@ -2,13 +2,11 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ChevronLeft,
   ChevronRight,
   Clock,
-  TrendingUp,
   Plus,
   Wifi,
   WifiOff,
@@ -289,41 +287,23 @@ export function FeaturedEventBanner({ events }: FeaturedEventBannerProps) {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-0">
               {/* Left Side - Event Info */}
               <div className="p-6 flex flex-col">
-                {/* Header: Logo + Category */}
-                <div className="flex items-start gap-4 mb-4">
-                  {/* Event Logo */}
-                  <div className="relative h-14 w-14 rounded-xl overflow-hidden bg-muted/50 flex-shrink-0 border border-white/10">
-                    {currentEvent.logoUrl ? (
-                      <Image
-                        src={currentEvent.logoUrl}
-                        alt=""
-                        fill
-                        className="object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <TrendingUp className="h-6 w-6 text-muted-foreground" />
-                      </div>
-                    )}
+                {/* Header */}
+                <div className="mb-4">
+                  {/* Category Badge */}
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium bg-primary/10 text-primary border border-primary/20">
+                      <span className="h-1.5 w-1.5 bg-primary rounded-full animate-pulse" />
+                      LIVE
+                    </span>
+                    <span className="text-xs text-muted-foreground font-medium">
+                      {currentEvent.category}
+                    </span>
                   </div>
 
-                  <div className="flex-1 min-w-0">
-                    {/* Category Badge */}
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium bg-primary/10 text-primary border border-primary/20">
-                        <span className="h-1.5 w-1.5 bg-primary rounded-full animate-pulse" />
-                        LIVE
-                      </span>
-                      <span className="text-xs text-muted-foreground font-medium">
-                        {currentEvent.category}
-                      </span>
-                    </div>
-
-                    {/* Title */}
-                    <h2 className="text-xl font-bold leading-tight group-hover:text-primary transition-colors">
-                      {currentEvent.title}
-                    </h2>
-                  </div>
+                  {/* Title */}
+                  <h2 className="text-xl font-bold leading-tight group-hover:text-primary transition-colors">
+                    {currentEvent.title}
+                  </h2>
                 </div>
 
                 {/* Outcome Buttons */}

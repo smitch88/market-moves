@@ -61,21 +61,6 @@ export function EventCard({ event, index = 0 }: EventCardProps) {
                 className="object-cover transition-transform duration-300 group-hover:scale-105"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-background/40 to-transparent" />
-              
-              {/* Logo overlay */}
-              {event.logoUrl && (
-                <div className="absolute bottom-3 left-3">
-                  <div className="h-12 w-12 rounded-lg overflow-hidden bg-background/80 backdrop-blur-sm border border-white/10">
-                    <Image
-                      src={event.logoUrl}
-                      alt=""
-                      width={48}
-                      height={48}
-                      className="object-cover w-full h-full"
-                    />
-                  </div>
-                </div>
-              )}
 
               {/* Category badge */}
               <div className="absolute top-3 right-3">
@@ -88,39 +73,12 @@ export function EventCard({ event, index = 0 }: EventCardProps) {
 
           {/* Content */}
           <div className="p-4 flex-1 flex flex-col">
-            {/* Header without banner */}
+            {/* Category when no banner */}
             {!event.bannerUrl && (
-              <div className="flex items-start gap-3 mb-3">
-                {event.logoUrl ? (
-                  <motion.div
-                    className="h-10 w-10 rounded-lg overflow-hidden bg-muted flex-shrink-0"
-                    whileHover={{ scale: 1.05 }}
-                    transition={{ duration: 0.2 }}
-                  >
-                    <Image
-                      src={event.logoUrl}
-                      alt=""
-                      width={40}
-                      height={40}
-                      className="object-cover w-full h-full"
-                    />
-                  </motion.div>
-                ) : (
-                  <motion.div
-                    className="h-10 w-10 rounded-lg flex items-center justify-center flex-shrink-0 bg-gradient-to-br from-primary/30 to-primary/10"
-                    whileHover={{ scale: 1.05 }}
-                    transition={{ duration: 0.2 }}
-                  >
-                    <TrendingUp className="h-5 w-5 text-primary" />
-                  </motion.div>
-                )}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-xs text-muted-foreground font-medium">
-                      {event.category}
-                    </span>
-                  </div>
-                </div>
+              <div className="mb-2">
+                <span className="text-xs text-muted-foreground font-medium">
+                  {event.category}
+                </span>
               </div>
             )}
 

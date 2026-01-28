@@ -10,6 +10,7 @@ export { Textarea } from "./components/textarea";
 export { Skeleton } from "./components/skeleton";
 export { Separator } from "./components/separator";
 export { Progress } from "./components/progress";
+export { Switch } from "./components/switch";
 export { Badge, badgeVariants } from "./components/badge";
 export type { BadgeProps } from "./components/badge";
 
