@@ -96,6 +96,22 @@ export async function POST(request: NextRequest) {
         },
       });
 
+      // Create initial price snapshot for chart history
+      // Calculate initial prices from seed values
+      const totalSeeds = newMarket.seed0 + newMarket.seed1;
+      const initialPrice0 = totalSeeds > 0 ? newMarket.seed0 / totalSeeds : 0.5;
+      const initialPrice1 = totalSeeds > 0 ? newMarket.seed1 / totalSeeds : 0.5;
+      
+      await tx.priceSnapshot.create({
+        data: {
+          marketId: newMarket.id,
+          price0: initialPrice0,
+          price1: initialPrice1,
+          pool0: newMarket.seed0,
+          pool1: newMarket.seed1,
+        },
+      });
+
       await tx.adminActionLog.create({
         data: {
           adminUserId: admin.id,

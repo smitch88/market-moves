@@ -26,6 +26,7 @@ interface BaseMarketRowProps {
   onSelectOutcome: (marketId: string, outcomeIndex: number) => void;
   expandedMarketId?: string;
   onToggleExpand?: (marketId: string) => void;
+  eventSlug?: string;
 }
 
 // =============================================================================
@@ -98,6 +99,7 @@ interface ExpandableMarketCardProps {
   expandedMarketId?: string;
   onToggleExpand?: (marketId: string) => void;
   selectedOutcome?: number | null;
+  eventSlug?: string;
 }
 
 function ExpandableMarketCard({
@@ -106,8 +108,15 @@ function ExpandableMarketCard({
   expandedMarketId,
   onToggleExpand,
   selectedOutcome,
+  eventSlug,
 }: ExpandableMarketCardProps) {
   const isExpanded = expandedMarketId === market.id;
+
+  // Create market object with event for the chart
+  const marketWithEvent = {
+    ...market,
+    event: eventSlug ? { slug: eventSlug } : undefined,
+  };
 
   return (
     <MarketCard>
@@ -125,7 +134,7 @@ function ExpandableMarketCard({
       <AnimatePresence>
         {isExpanded && onToggleExpand && (
           <div className="px-4 pb-4">
-            <MarketChart market={market} selectedOutcome={selectedOutcome} />
+            <MarketChart market={marketWithEvent} selectedOutcome={selectedOutcome} />
           </div>
         )}
       </AnimatePresence>
@@ -170,6 +179,7 @@ export function MoneylineRow({
   onSelectOutcome,
   expandedMarketId,
   onToggleExpand,
+  eventSlug,
 }: MoneylineRowProps) {
   const outcomes = parseOutcomes(market.outcomes);
   const outcomePrices = parseOutcomePrices(market.outcomePrices);
@@ -187,6 +197,7 @@ export function MoneylineRow({
       expandedMarketId={expandedMarketId}
       onToggleExpand={onToggleExpand}
       selectedOutcome={selectedOutcome}
+      eventSlug={eventSlug}
     >
       <div className="flex items-center justify-between gap-4">
         <div className="flex-1 min-w-0">
@@ -232,6 +243,7 @@ export function SpreadRow({
   onSelectOutcome,
   expandedMarketId,
   onToggleExpand,
+  eventSlug,
 }: SpreadRowProps) {
   const lines = getLineValues(markets);
   const marketsByLine = groupMarketsByLine(markets);
@@ -256,6 +268,7 @@ export function SpreadRow({
       expandedMarketId={expandedMarketId}
       onToggleExpand={onToggleExpand}
       selectedOutcome={selectedOutcome}
+      eventSlug={eventSlug}
     >
       <div className="space-y-3">
         <div className="flex items-center justify-between gap-4">
@@ -311,6 +324,7 @@ export function TotalsRow({
   onSelectOutcome,
   expandedMarketId,
   onToggleExpand,
+  eventSlug,
 }: TotalsRowProps) {
   const lines = getLineValues(markets);
   const marketsByLine = groupMarketsByLine(markets);
@@ -333,6 +347,7 @@ export function TotalsRow({
       expandedMarketId={expandedMarketId}
       onToggleExpand={onToggleExpand}
       selectedOutcome={selectedOutcome}
+      eventSlug={eventSlug}
     >
       <div className="space-y-3">
         <div className="flex items-center justify-between gap-4">
@@ -388,6 +403,7 @@ export function TeamTotalRow({
   onSelectOutcome,
   expandedMarketId,
   onToggleExpand,
+  eventSlug,
 }: TeamTotalRowProps) {
   const lines = getLineValues(markets);
   const marketsByLine = groupMarketsByLine(markets);
@@ -410,6 +426,7 @@ export function TeamTotalRow({
       expandedMarketId={expandedMarketId}
       onToggleExpand={onToggleExpand}
       selectedOutcome={selectedOutcome}
+      eventSlug={eventSlug}
     >
       <div className="space-y-3">
         <div className="flex items-center justify-between gap-4">
@@ -465,6 +482,7 @@ export function PlayerPropRow({
   showLine = true,
   expandedMarketId,
   onToggleExpand,
+  eventSlug,
 }: PlayerPropRowProps) {
   const outcomes = parseOutcomes(market.outcomes);
   const outcomePrices = parseOutcomePrices(market.outcomePrices);
@@ -498,6 +516,7 @@ export function PlayerPropRow({
       expandedMarketId={expandedMarketId}
       onToggleExpand={onToggleExpand}
       selectedOutcome={selectedOutcome}
+      eventSlug={eventSlug}
     >
       <div className="flex items-center justify-between gap-4">
         <div className="flex-1 min-w-0">

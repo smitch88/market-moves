@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
 import {
   LineChart,
@@ -15,13 +15,27 @@ import type { Market } from "@vault/database";
 import { cn } from "@vault/ui/lib/utils";
 
 interface MarketChartProps {
-  market: Market;
+  market: Market & { event?: { slug: string } };
   selectedOutcome?: number | null;
 }
 
 type TimePeriod = "1H" | "6H" | "1D" | "1W" | "1M" | "ALL";
 
 const TIME_PERIODS: TimePeriod[] = ["1H", "6H", "1D", "1W", "1M", "ALL"];
+
+interface PriceSnapshot {
+  price0: number;
+  price1: number;
+  pool0: number;
+  pool1: number;
+  timestamp: string;
+}
+
+interface ChartDataPoint {
+  time: string;
+  price0: number;
+  price1: number;
+}
 
 function parseOutcomes(outcomes: string): string[] {
   try {
@@ -48,57 +62,62 @@ function parseOutcomeColors(outcomeColors: string | null): string[] {
   }
 }
 
-// Generate mock historical data for demonstration
+function formatTimestamp(timestamp: string, period: TimePeriod): string {
+  const date = new Date(timestamp);
+  
+  switch (period) {
+    case "1H":
+    case "6H":
+    case "1D":
+      return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    case "1W":
+    case "1M":
+    case "ALL":
+      return date.toLocaleDateString([], { month: "short", day: "numeric" });
+  }
+}
+
+// Generate mock data when no real data is available
 function generateMockData(
   currentPrice0: number,
   currentPrice1: number,
   period: TimePeriod
-): { time: string; price0: number; price1: number }[] {
+): ChartDataPoint[] {
   const now = new Date();
-  const points: { time: string; price0: number; price1: number }[] = [];
+  const points: ChartDataPoint[] = [];
 
   let numPoints: number;
   let intervalMs: number;
-  let formatTime: (date: Date) => string;
 
   switch (period) {
     case "1H":
       numPoints = 12;
-      intervalMs = 5 * 60 * 1000; // 5 minutes
-      formatTime = (d) => d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      intervalMs = 5 * 60 * 1000;
       break;
     case "6H":
       numPoints = 12;
-      intervalMs = 30 * 60 * 1000; // 30 minutes
-      formatTime = (d) => d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      intervalMs = 30 * 60 * 1000;
       break;
     case "1D":
       numPoints = 24;
-      intervalMs = 60 * 60 * 1000; // 1 hour
-      formatTime = (d) => d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      intervalMs = 60 * 60 * 1000;
       break;
     case "1W":
       numPoints = 7;
-      intervalMs = 24 * 60 * 60 * 1000; // 1 day
-      formatTime = (d) => d.toLocaleDateString([], { month: "short", day: "numeric" });
+      intervalMs = 24 * 60 * 60 * 1000;
       break;
     case "1M":
       numPoints = 30;
-      intervalMs = 24 * 60 * 60 * 1000; // 1 day
-      formatTime = (d) => d.toLocaleDateString([], { month: "short", day: "numeric" });
+      intervalMs = 24 * 60 * 60 * 1000;
       break;
     case "ALL":
       numPoints = 60;
-      intervalMs = 24 * 60 * 60 * 1000; // 1 day
-      formatTime = (d) => d.toLocaleDateString([], { month: "short", day: "numeric" });
+      intervalMs = 24 * 60 * 60 * 1000;
       break;
   }
 
-  // Generate data points working backwards from current price
   for (let i = numPoints - 1; i >= 0; i--) {
     const time = new Date(now.getTime() - i * intervalMs);
-    
-    // Add some random variation, trending towards current price
     const progress = (numPoints - i) / numPoints;
     const basePrice0 = currentPrice0 - 15 + Math.random() * 10;
     const variation0 = (Math.random() - 0.5) * 8;
@@ -106,13 +125,12 @@ function generateMockData(
     const price1 = 100 - price0;
 
     points.push({
-      time: formatTime(time),
+      time: formatTimestamp(time.toISOString(), period),
       price0: Math.round(price0),
       price1: Math.round(price1),
     });
   }
 
-  // Ensure last point matches current prices
   if (points.length > 0) {
     points[points.length - 1] = {
       time: points[points.length - 1]!.time,
@@ -155,6 +173,9 @@ function CustomTooltip({ active, payload, label, outcomes }: CustomTooltipProps)
 
 export function MarketChart({ market, selectedOutcome }: MarketChartProps) {
   const [activePeriod, setActivePeriod] = useState<TimePeriod>("1D");
+  const [snapshots, setSnapshots] = useState<PriceSnapshot[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const outcomes = parseOutcomes(market.outcomes);
   const outcomePrices = parseOutcomePrices(market.outcomePrices);
@@ -165,11 +186,51 @@ export function MarketChart({ market, selectedOutcome }: MarketChartProps) {
   const percent0 = Math.round(price0 * 100);
   const percent1 = Math.round(price1 * 100);
 
-  // Generate mock data based on current prices and selected period
-  const chartData = useMemo(
-    () => generateMockData(price0, price1, activePeriod),
-    [price0, price1, activePeriod]
-  );
+  // Fetch price history when period changes
+  useEffect(() => {
+    async function fetchPriceHistory() {
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        // Use event slug if available, otherwise use a placeholder
+        const slug = market.event?.slug || "unknown";
+        const url = `/api/markets/${slug}/history?period=${activePeriod}&marketId=${market.id}`;
+        
+        const response = await fetch(url);
+        
+        if (!response.ok) {
+          throw new Error("Failed to fetch price history");
+        }
+
+        const data = await response.json();
+        setSnapshots(data.snapshots || []);
+      } catch (err) {
+        console.error("Error fetching price history:", err);
+        setError(err instanceof Error ? err.message : "Unknown error");
+        setSnapshots([]);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    fetchPriceHistory();
+  }, [market.id, market.event?.slug, activePeriod]);
+
+  // Transform snapshots to chart data, or use mock data as fallback
+  const chartData = useMemo((): ChartDataPoint[] => {
+    if (snapshots.length === 0) {
+      // No real data, generate mock data
+      return generateMockData(price0, price1, activePeriod);
+    }
+
+    // Use real data
+    return snapshots.map((snapshot) => ({
+      time: formatTimestamp(snapshot.timestamp, activePeriod),
+      price0: Math.round(snapshot.price0 * 100),
+      price1: Math.round(snapshot.price1 * 100),
+    }));
+  }, [snapshots, price0, price1, activePeriod]);
 
   // Calculate Y-axis domain with some padding
   const yMin = Math.max(0, Math.min(...chartData.map((d) => Math.min(d.price0, d.price1))) - 10);
@@ -216,10 +277,18 @@ export function MarketChart({ market, selectedOutcome }: MarketChartProps) {
               );
             })}
           </div>
+          {snapshots.length === 0 && !isLoading && (
+            <span className="text-xs text-muted-foreground">Simulated data</span>
+          )}
         </div>
 
         {/* Chart */}
-        <div className="h-[200px] w-full">
+        <div className="h-[200px] w-full relative">
+          {isLoading && (
+            <div className="absolute inset-0 flex items-center justify-center bg-background/50 z-10">
+              <div className="h-5 w-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+            </div>
+          )}
           <ResponsiveContainer width="100%" height="100%">
             <LineChart
               data={chartData}
@@ -286,7 +355,10 @@ export function MarketChart({ market, selectedOutcome }: MarketChartProps) {
           {TIME_PERIODS.map((period) => (
             <button
               key={period}
-              onClick={() => setActivePeriod(period)}
+              onClick={(e) => {
+                e.stopPropagation();
+                setActivePeriod(period);
+              }}
               className={cn(
                 "px-2.5 py-1 text-xs font-medium rounded-md transition-colors",
                 activePeriod === period

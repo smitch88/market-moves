@@ -35,6 +35,7 @@ async function cleanDatabase() {
     tweetProofs: await prisma.tweetProof.count(),
     bets: await prisma.bet.count(),
     positions: await prisma.position.count(),
+    priceSnapshots: await prisma.priceSnapshot.count(),
     markets: await prisma.market.count(),
     events: await prisma.event.count(),
     tags: await prisma.tag.count(),
@@ -49,6 +50,7 @@ async function cleanDatabase() {
   console.log(`     - ${counts.markets} markets`);
   console.log(`     - ${counts.bets} bets`);
   console.log(`     - ${counts.positions} positions`);
+  console.log(`     - ${counts.priceSnapshots} price snapshots`);
   console.log(`     - ${counts.tweetProofs} tweet proofs`);
   console.log(`     - ${counts.raffleEntries} raffle entries`);
   console.log(`     - ${counts.tags} tags`);
@@ -66,6 +68,7 @@ async function cleanDatabase() {
   await prisma.bet.deleteMany({});
   await prisma.tweetProof.deleteMany({});
   await prisma.position.deleteMany({});
+  await prisma.priceSnapshot.deleteMany({});
   await prisma.market.deleteMany({});
   await prisma.event.deleteMany({});
   await prisma.tag.deleteMany({});
@@ -674,7 +677,7 @@ async function seedDatabase() {
   for (const marketData of markets) {
     const { outcomes, outcomeColors, ...marketFields } = marketData;
     
-    await prisma.market.create({
+    const market = await prisma.market.create({
       data: {
         eventId: event.id,
         ...marketFields,
@@ -685,6 +688,22 @@ async function seedDatabase() {
         status: MarketStatus.OPEN,
         publishedAt: new Date(),
         opensAt: new Date(),
+      },
+    });
+
+    // Create initial price snapshot for chart history
+    // Calculate initial prices from seed values
+    const totalSeeds = market.seed0 + market.seed1;
+    const initialPrice0 = totalSeeds > 0 ? market.seed0 / totalSeeds : 0.5;
+    const initialPrice1 = totalSeeds > 0 ? market.seed1 / totalSeeds : 0.5;
+    
+    await prisma.priceSnapshot.create({
+      data: {
+        marketId: market.id,
+        price0: initialPrice0,
+        price1: initialPrice1,
+        pool0: market.seed0,
+        pool1: market.seed1,
       },
     });
 

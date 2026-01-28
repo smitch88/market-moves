@@ -277,11 +277,36 @@ model Market {
   positions       Position[]
   tweetProofs     TweetProof[]
   raffleEntries   RaffleEntry[]
+  priceSnapshots  PriceSnapshot[]
 
   @@index([eventId])
   @@index([status])
   @@index([closesAt])
   @@index([publishedAt])
+}
+
+// ============================================================================
+// PRICE SNAPSHOT (for charts)
+// ============================================================================
+
+model PriceSnapshot {
+  id        String   @id @default(cuid())
+  marketId  String
+  market    Market   @relation(fields: [marketId], references: [id], onDelete: Cascade)
+  
+  // Prices as decimals (0-1), e.g., 0.65 means 65%
+  price0    Float
+  price1    Float
+  
+  // Pool values at this snapshot (for context)
+  pool0     Int
+  pool1     Int
+  
+  // Timestamp
+  timestamp DateTime @default(now())
+
+  @@index([marketId, timestamp])
+  @@index([timestamp])
 }
 
 // ============================================================================

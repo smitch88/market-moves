@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma, BetStatus, BalanceReason, AdminAction } from "@vault/database";
 import { requireAdmin } from "@vault/auth";
+import { createPriceSnapshot } from "@/lib/services/price-snapshot-service";
 import { z } from "zod";
 
 const cancelBetSchema = z.object({
@@ -73,12 +74,22 @@ export async function POST(
       // If bet was confirmed, decrement the pool
       if (bet.status === BetStatus.CONFIRMED) {
         const poolField = bet.outcomeIndex === 0 ? "pool0" : "pool1";
-        await tx.market.update({
+        const updatedMarket = await tx.market.update({
           where: { id: bet.marketId },
           data: {
             [poolField]: { decrement: bet.amount },
           },
         });
+
+        // Create price snapshot for chart history
+        await createPriceSnapshot(
+          tx,
+          bet.marketId,
+          updatedMarket.pool0,
+          updatedMarket.pool1,
+          updatedMarket.seed0,
+          updatedMarket.seed1
+        );
 
         // Also update the position
         const amountField = bet.outcomeIndex === 0 ? "amount0" : "amount1";
