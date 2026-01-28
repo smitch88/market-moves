@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma, MarketStatus, AdminAction } from "@vault/database";
+import { prisma, MarketStatus, BetStatus, BalanceReason, AdminAction } from "@vault/database";
 import { requireAdmin } from "@vault/auth";
 
 export async function POST(
@@ -19,6 +19,54 @@ export async function POST(
         throw new Error("Market is not open");
       }
 
+      // Find all pending bets for this market
+      const pendingBets = await tx.bet.findMany({
+        where: {
+          marketId: id,
+          status: BetStatus.PENDING_TWEET,
+        },
+        include: {
+          user: { select: { id: true, balance: true } },
+        },
+      });
+
+      // Refund all pending bets
+      let refundedCount = 0;
+      let totalRefunded = 0;
+
+      for (const bet of pendingBets) {
+        const refundAmount = bet.amount;
+        const newBalance = bet.user.balance + refundAmount;
+
+        // Refund user balance
+        await tx.user.update({
+          where: { id: bet.userId },
+          data: { balance: newBalance },
+        });
+
+        // Create refund ledger entry
+        await tx.balanceLedger.create({
+          data: {
+            userId: bet.userId,
+            delta: refundAmount,
+            balanceBefore: bet.user.balance,
+            balanceAfter: newBalance,
+            reason: BalanceReason.OTHER,
+            correlationId: bet.id,
+            actorAdminUserId: admin.id,
+          },
+        });
+
+        // Update bet status to rejected
+        await tx.bet.update({
+          where: { id: bet.id },
+          data: { status: BetStatus.REJECTED },
+        });
+
+        refundedCount++;
+        totalRefunded += refundAmount;
+      }
+
       const updated = await tx.market.update({
         where: { id },
         data: {
@@ -33,14 +81,18 @@ export async function POST(
           action: AdminAction.MARKET_CLOSE,
           targetType: "Market",
           targetId: id,
-          metadata: { newStatus: MarketStatus.CLOSED },
+          metadata: {
+            newStatus: MarketStatus.CLOSED,
+            pendingBetsRejected: refundedCount,
+            totalRefunded,
+          },
         },
       });
 
-      return updated;
+      return { market: updated, pendingBetsRejected: refundedCount, totalRefunded };
     });
 
-    return NextResponse.json({ market });
+    return NextResponse.json(market);
   } catch (error) {
     if (error instanceof Error && error.message === "Market not found") {
       return NextResponse.json({ error: error.message }, { status: 404 });

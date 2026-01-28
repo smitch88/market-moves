@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma, MarketStatus, AdminAction } from "@vault/database";
+import { prisma, MarketStatus, BetStatus, BalanceReason, AdminAction } from "@vault/database";
 import { requireAdmin } from "@vault/auth";
 import { z } from "zod";
 
@@ -40,6 +40,50 @@ export async function POST(
         throw new Error("Invalid outcome index");
       }
 
+      // Safety: Reject any remaining pending bets (shouldn't happen if close was called first)
+      const pendingBets = await tx.bet.findMany({
+        where: {
+          marketId: id,
+          status: BetStatus.PENDING_TWEET,
+        },
+        include: {
+          user: { select: { id: true, balance: true } },
+        },
+      });
+
+      let refundedCount = 0;
+      let totalRefunded = 0;
+
+      for (const bet of pendingBets) {
+        const refundAmount = bet.amount;
+        const newBalance = bet.user.balance + refundAmount;
+
+        await tx.user.update({
+          where: { id: bet.userId },
+          data: { balance: newBalance },
+        });
+
+        await tx.balanceLedger.create({
+          data: {
+            userId: bet.userId,
+            delta: refundAmount,
+            balanceBefore: bet.user.balance,
+            balanceAfter: newBalance,
+            reason: BalanceReason.OTHER,
+            correlationId: bet.id,
+            actorAdminUserId: admin.id,
+          },
+        });
+
+        await tx.bet.update({
+          where: { id: bet.id },
+          data: { status: BetStatus.REJECTED },
+        });
+
+        refundedCount++;
+        totalRefunded += refundAmount;
+      }
+
       const updated = await tx.market.update({
         where: { id },
         data: {
@@ -59,14 +103,16 @@ export async function POST(
             outcomeIndex,
             outcomeLabel,
             newStatus: MarketStatus.RESOLVED,
+            pendingBetsRejected: refundedCount,
+            totalRefunded,
           },
         },
       });
 
-      return updated;
+      return { market: updated, pendingBetsRejected: refundedCount, totalRefunded };
     });
 
-    return NextResponse.json({ market });
+    return NextResponse.json(market);
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: "Invalid request", details: error.errors }, { status: 400 });

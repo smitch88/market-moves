@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma, MarketStatus, BalanceReason, RaffleReason, AdminAction } from "@vault/database";
+import { prisma, MarketStatus, BetStatus, BalanceReason, RaffleReason, AdminAction } from "@vault/database";
 import { requireAdmin } from "@vault/auth";
 import { randomUUID } from "crypto";
 
@@ -12,11 +12,15 @@ export async function POST(
     const { id } = await params;
 
     const result = await prisma.$transaction(async (tx) => {
-      // Lock and fetch market
+      // Lock and fetch market with positions and bets
       const market = await tx.market.findUnique({
         where: { id },
         include: {
           positions: {
+            include: { user: true },
+          },
+          bets: {
+            where: { status: BetStatus.CONFIRMED },
             include: { user: true },
           },
         },
@@ -118,6 +122,48 @@ export async function POST(
         }
       }
 
+      // Update bet statuses and payouts
+      // First, calculate per-bet payouts based on their stake in the winning pool
+      const betPayouts = new Map<string, number>();
+      
+      for (const bet of market.bets) {
+        const isWinner = bet.outcomeIndex === market.resolvedOutcome;
+        
+        if (isWinner && winningPool > 0) {
+          // Calculate this bet's share of the net pool
+          const betPayout = Math.floor((bet.amount / winningPool) * netPool);
+          betPayouts.set(bet.id, betPayout);
+        }
+      }
+
+      // Update all bets with their final status and payout
+      for (const bet of market.bets) {
+        const isWinner = bet.outcomeIndex === market.resolvedOutcome;
+        const payout = betPayouts.get(bet.id) || 0;
+
+        await tx.bet.update({
+          where: { id: bet.id },
+          data: {
+            status: isWinner ? BetStatus.WON : BetStatus.LOST,
+            payout: payout,
+          },
+        });
+
+        // Create SETTLEMENT_LOSS ledger entry for losing bets (delta: 0 to track the event)
+        if (!isWinner) {
+          await tx.balanceLedger.create({
+            data: {
+              userId: bet.userId,
+              delta: 0,
+              balanceBefore: bet.user.balance,
+              balanceAfter: bet.user.balance,
+              reason: BalanceReason.SETTLEMENT_LOSS,
+              correlationId: bet.id,
+            },
+          });
+        }
+      }
+
       // Award referral bonuses for qualified referrals
       const qualifiedReferrals = await tx.referral.findMany({
         where: {
@@ -193,11 +239,19 @@ export async function POST(
         },
       });
 
+      const winningBetsCount = market.bets.filter(b => b.outcomeIndex === market.resolvedOutcome).length;
+      const losingBetsCount = market.bets.length - winningBetsCount;
+
       return {
         market: updatedMarket,
         settlementRunId,
         payoutsCount: payouts.length,
         totalPaidOut: payouts.reduce((sum, p) => sum + p.amount, 0),
+        betsUpdated: {
+          won: winningBetsCount,
+          lost: losingBetsCount,
+          total: market.bets.length,
+        },
       };
     });
 
