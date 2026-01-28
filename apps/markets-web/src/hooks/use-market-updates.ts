@@ -62,6 +62,12 @@ export function useMarketUpdates(options: UseMarketUpdatesOptions = {}) {
   const eventSourceRef = useRef<EventSource | null>(null);
   const reconnectAttemptsRef = useRef(0);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isConnectingRef = useRef(false);
+  const lastEventIdRef = useRef(eventId);
+  
+  // Store callback in a ref to avoid dependency issues
+  const onPriceUpdateRef = useRef(onPriceUpdate);
+  onPriceUpdateRef.current = onPriceUpdate;
 
   /**
    * Get the current price for a specific market
@@ -118,8 +124,8 @@ export function useMarketUpdates(options: UseMarketUpdatesOptions = {}) {
             return next;
           });
 
-          // Call the callback if provided
-          onPriceUpdate?.(update);
+          // Call the callback if provided (use ref to avoid stale closure)
+          onPriceUpdateRef.current?.(update);
         }
       } catch (error) {
         console.error("Error parsing SSE message:", error);
@@ -127,24 +133,33 @@ export function useMarketUpdates(options: UseMarketUpdatesOptions = {}) {
     };
 
     eventSource.onerror = () => {
+      // Prevent duplicate error handling
+      if (!eventSourceRef.current) {
+        return;
+      }
+      
       setStatus("error");
       eventSource.close();
       eventSourceRef.current = null;
+      isConnectingRef.current = false;
 
       // Attempt to reconnect with exponential backoff
+      // Use a minimum delay of 5 seconds to prevent rapid reconnection
       if (reconnectAttemptsRef.current < maxReconnectAttempts) {
-        const delay = reconnectDelay * Math.pow(2, reconnectAttemptsRef.current);
+        const baseDelay = Math.max(reconnectDelay, 5000);
+        const delay = baseDelay * Math.pow(1.5, reconnectAttemptsRef.current);
         reconnectAttemptsRef.current++;
         
         reconnectTimeoutRef.current = setTimeout(() => {
           setStatus("disconnected");
+          isConnectingRef.current = false;
           connect();
-        }, delay);
+        }, Math.min(delay, 30000)); // Cap at 30 seconds
       } else {
         setStatus("disconnected");
       }
     };
-  }, [enabled, eventId, onPriceUpdate, reconnectDelay, maxReconnectAttempts]);
+  }, [enabled, eventId, reconnectDelay, maxReconnectAttempts]);
 
   /**
    * Disconnect from the SSE stream
@@ -173,23 +188,39 @@ export function useMarketUpdates(options: UseMarketUpdatesOptions = {}) {
     connect();
   }, [connect, disconnect]);
 
-  // Connect on mount, disconnect on unmount
+  // Connect on mount, cleanup on unmount
   useEffect(() => {
-    if (enabled) {
-      connect();
-    }
-    
-    return () => {
+    if (!enabled) {
       disconnect();
-    };
-  }, [enabled, connect, disconnect]);
-
-  // Reconnect when eventId changes
-  useEffect(() => {
-    if (enabled && status === "connected") {
-      reconnect();
+      isConnectingRef.current = false;
+      return;
     }
-  }, [eventId]);
+
+    // Prevent duplicate connection attempts
+    if (isConnectingRef.current && lastEventIdRef.current === eventId) {
+      return;
+    }
+
+    // If eventId changed, disconnect first
+    if (lastEventIdRef.current !== eventId && eventSourceRef.current) {
+      disconnect();
+    }
+
+    lastEventIdRef.current = eventId;
+    isConnectingRef.current = true;
+
+    // Connect with a small delay to batch rapid updates
+    const timer = setTimeout(() => {
+      connect();
+    }, 50);
+
+    return () => {
+      clearTimeout(timer);
+      disconnect();
+      isConnectingRef.current = false;
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled, eventId]);
 
   return {
     /** Current connection status */

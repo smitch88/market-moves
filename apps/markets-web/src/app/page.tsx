@@ -1,5 +1,10 @@
 import { Suspense } from "react";
-import { EventGrid, EventGridSkeleton } from "@/components/events";
+import {
+  EventGrid,
+  EventGridSkeleton,
+  FeaturedEvents,
+  FeaturedEventsSkeleton,
+} from "@/components/events";
 import { Header } from "@/components/layout/header";
 import { MarketFilters } from "@/components/markets/market-filters";
 
@@ -19,6 +24,11 @@ export default async function HomePage({ searchParams }: HomePageProps) {
     <div className="min-h-screen">
       <Header />
       <main className="container mx-auto px-4 py-4 md:py-6">
+        {/* Featured Events Banner */}
+        <Suspense fallback={<FeaturedEventsSkeleton />}>
+          <FeaturedEvents />
+        </Suspense>
+
         {/* Mobile filters - horizontal scroll */}
         <div className="lg:hidden mb-4">
           <Suspense>
