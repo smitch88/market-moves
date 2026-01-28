@@ -1,6 +1,15 @@
 import type { Metadata } from "next";
-import { GeistSans } from "geist/font/sans";
-import { GeistMono } from "geist/font/mono";
+import { Montserrat, JetBrains_Mono } from "next/font/google";
+
+const montserrat = Montserrat({
+  subsets: ["latin"],
+  variable: "--font-montserrat",
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  variable: "--font-jetbrains-mono",
+});
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { PrivyProvider } from "@/components/providers/privy-provider";
 import { QueryProvider } from "@/components/providers/query-provider";
@@ -29,7 +38,7 @@ export default function RootLayout({
       <head>
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
       </head>
-      <body className={`${GeistSans.variable} ${GeistMono.variable} font-sans antialiased min-h-screen bg-background grid-bg`}>
+      <body className={`${montserrat.variable} ${jetbrainsMono.variable} font-sans antialiased min-h-screen bg-background grid-bg`}>
         <ThemeProvider
           attribute="class"
           defaultTheme="dark"

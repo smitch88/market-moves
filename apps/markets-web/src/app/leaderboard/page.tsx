@@ -11,6 +11,15 @@ export const metadata = {
   description: "Top predictors on Vault Markets",
 };
 
+// Mock XP and PnL data generator
+function generateMockStats(rank: number) {
+  // Higher ranked users have higher XP and PnL
+  const baseMultiplier = Math.max(1, 51 - rank);
+  const xp = Math.floor(baseMultiplier * 5000 + Math.random() * 25000);
+  const pnl = Math.floor(baseMultiplier * 100000 + Math.random() * 500000);
+  return { xp, pnl };
+}
+
 async function getLeaderboardData() {
   const users = await prisma.user.findMany({
     select: {
@@ -26,10 +35,15 @@ async function getLeaderboardData() {
     take: 50,
   });
 
-  return users.map((user, index) => ({
-    rank: index + 1,
-    ...user,
-  }));
+  return users.map((user, index) => {
+    const { xp, pnl } = generateMockStats(index + 1);
+    return {
+      rank: index + 1,
+      ...user,
+      xp,
+      pnl,
+    };
+  });
 }
 
 export default async function LeaderboardPage() {

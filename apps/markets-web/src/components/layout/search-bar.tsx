@@ -10,16 +10,32 @@ import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { getMarketUrl } from "@/lib/urls";
 
+interface SearchResultMarket {
+  id: string;
+  question: string;
+  outcomes: string;
+  outcomePrices: string;
+  endDate: string | null;
+  volume: number;
+  liquidity: number;
+  betCount: number;
+  event: {
+    id: string;
+    slug: string;
+    title: string;
+    category: string;
+    icon: string | null;
+  };
+}
+
 interface SearchResult {
   id: string;
   slug: string;
   title: string;
-  question: string;
   category: string;
   logoUrl: string | null;
   closesAt: string | null;
-  outcomes: { id: string; key: string; label: string }[];
-  _count: { bets: number };
+  betCount: number;
 }
 
 function useDebounce<T>(value: T, delay: number): T {
@@ -65,7 +81,17 @@ export function SearchBar() {
         const res = await fetch(`/api/markets/search?q=${encodeURIComponent(debouncedQuery)}&limit=6`);
         if (res.ok) {
           const data = await res.json();
-          setResults(data.markets || []);
+          // Map API response to SearchResult format
+          const mappedResults: SearchResult[] = (data.markets || []).map((market: SearchResultMarket) => ({
+            id: market.id,
+            slug: market.event?.slug || market.id,
+            title: market.question,
+            category: market.event?.category || "other",
+            logoUrl: market.event?.icon || null,
+            closesAt: market.endDate,
+            betCount: market.betCount || 0,
+          }));
+          setResults(mappedResults);
         }
       } catch (error) {
         console.error("Search error:", error);
@@ -199,7 +225,7 @@ export function SearchBar() {
             transition={{ duration: 0.15, ease: "easeOut" }}
             className="absolute top-full left-0 right-0 mt-2 z-50"
           >
-            <div className="glass rounded-xl border border-border/50 shadow-xl overflow-hidden">
+            <div className="bg-background rounded-xl border border-border/50 shadow-xl overflow-hidden">
               {isSearching ? (
                 <div className="p-4 flex items-center justify-center gap-2 text-muted-foreground">
                   <div className="h-4 w-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
@@ -244,13 +270,13 @@ export function SearchBar() {
                           </p>
                           <div className="flex items-center gap-2 mt-0.5">
                             <span className="text-xs text-muted-foreground capitalize">
-                              {market.category.toLowerCase().replace("_", " ")}
+                              {(market.category ?? "other").toLowerCase().replace("_", " ")}
                             </span>
-                            {market._count.bets > 0 && (
+                            {market.betCount > 0 && (
                               <>
                                 <span className="text-muted-foreground/30">•</span>
                                 <span className="text-xs text-muted-foreground">
-                                  {market._count.bets} bets
+                                  {market.betCount} bets
                                 </span>
                               </>
                             )}

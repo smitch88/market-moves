@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTheme } from "next-themes";
 import Link from "next/link";
 import Image from "next/image";
 import {
@@ -20,7 +21,7 @@ import {
   Input,
   toast,
 } from "@vault/ui";
-import { User, LogOut, ChevronDown, Bug, Gift, Check, Copy, Users, Shield } from "lucide-react";
+import { User, LogOut, ChevronDown, Bug, Gift, Check, Copy, Users, Shield, Sun, Moon } from "lucide-react";
 
 // Custom X (Twitter) logo icon
 function XIcon({ className }: { className?: string }) {
@@ -48,6 +49,7 @@ async function fetchUserProfile() {
 export function ProfileCard() {
   const { user, logout } = usePrivy();
   const queryClient = useQueryClient();
+  const { theme, setTheme } = useTheme();
   const [copied, setCopied] = useState(false);
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
   
@@ -56,6 +58,22 @@ export function ProfileCard() {
     queryKey: ["profile"],
     queryFn: fetchUserProfile,
   });
+
+  // Fetch XP for level calculation
+  const { data: xpData } = useQuery({
+    queryKey: ["xp"],
+    queryFn: async () => {
+      const res = await fetch("/api/me/xp");
+      if (!res.ok) return { xp: 0 };
+      return res.json();
+    },
+  });
+
+  const xp = xpData?.xp ?? 0;
+  const level = xpData?.level ?? 0;
+  const progress = xpData?.progress ?? 0;
+  const xpInCurrentLevel = xpData?.xpInCurrentLevel ?? 0;
+  const xpNeededForNext = xpData?.xpNeededForNext ?? 1;
 
   // Check impersonation state separately
   const { data: impersonationData } = useQuery({
@@ -74,13 +92,6 @@ export function ProfileCard() {
   const displayName = profile?.name || profile?.handle || 
     user?.twitter?.username || user?.email?.address?.split("@")[0] || "User";
   const avatarUrl = profile?.profileImageUrl || user?.twitter?.profilePictureUrl;
-
-  const balance = profile?.balance ?? 10000;
-  const formattedBalance = new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 0,
-  }).format(balance);
 
   const referralLink = profile?.referralCode 
     ? `${typeof window !== "undefined" ? window.location.origin : ""}/r/${profile.referralCode}`
@@ -113,14 +124,42 @@ export function ProfileCard() {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button className={`flex items-center gap-2 px-3 py-1.5 rounded-full glass glass-hover ${isImpersonating ? "ring-2 ring-amber-500/50" : ""}`}>
-          <div className="relative h-8 w-8 rounded-full overflow-hidden bg-muted">
-            {avatarUrl ? (
-              <Image src={avatarUrl} alt={displayName} fill className="object-cover" />
-            ) : (
-              <div className="h-full w-full flex items-center justify-center bg-gradient-to-br from-violet-500 to-purple-600">
-                <User className="h-4 w-4 text-white" />
-              </div>
-            )}
+          {/* Avatar with progress ring */}
+          <div className="relative h-9 w-9 flex items-center justify-center">
+            {/* Progress ring SVG */}
+            <svg className="absolute inset-0 h-9 w-9 -rotate-90" viewBox="0 0 36 36">
+              {/* Background circle */}
+              <circle
+                cx="18"
+                cy="18"
+                r="16"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                className="text-muted/30"
+              />
+              {/* Progress circle */}
+              <circle
+                cx="18"
+                cy="18"
+                r="16"
+                fill="none"
+                stroke="#df2421"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeDasharray={`${progress * 100.5} 100.5`}
+              />
+            </svg>
+            {/* Avatar */}
+            <div className="relative h-7 w-7 rounded-full overflow-hidden bg-muted">
+              {avatarUrl ? (
+                <Image src={avatarUrl} alt={displayName} fill className="object-cover" />
+              ) : (
+                <div className="h-full w-full flex items-center justify-center bg-gradient-to-br from-violet-500 to-purple-600">
+                  <User className="h-3.5 w-3.5 text-white" />
+                </div>
+              )}
+            </div>
             {isImpersonating && (
               <div className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full bg-amber-500 border-2 border-background flex items-center justify-center">
                 <Bug className="h-2 w-2 text-amber-950" />
@@ -129,7 +168,7 @@ export function ProfileCard() {
           </div>
           <div className="hidden sm:block text-left">
             <p className="text-sm font-medium">{displayName}</p>
-            <p className="text-xs text-[#df2421] font-semibold">{formattedBalance}</p>
+            <p className="text-xs text-white/80 font-semibold">Lvl {level}</p>
           </div>
           <ChevronDown className="h-4 w-4 text-muted-foreground" />
         </button>
@@ -147,7 +186,7 @@ export function ProfileCard() {
         )}
         <div className="px-2 py-1.5 sm:hidden">
           <p className="text-sm font-medium">{displayName}</p>
-          <p className="text-xs text-[#df2421] font-semibold">{formattedBalance}</p>
+          <p className="text-xs text-amber-500 font-semibold">Lvl {level}</p>
         </div>
         <DropdownMenuSeparator className="sm:hidden" />
         <DropdownMenuItem asChild>
@@ -167,6 +206,18 @@ export function ProfileCard() {
         <DropdownMenuItem onClick={() => setInviteModalOpen(true)} className="cursor-pointer">
           <Gift className="mr-2 h-4 w-4" />
           Invite Friends
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem 
+          onClick={() => setTheme(theme === "dark" ? "light" : "dark")} 
+          className="cursor-pointer"
+        >
+          {theme === "dark" ? (
+            <Sun className="mr-2 h-4 w-4" />
+          ) : (
+            <Moon className="mr-2 h-4 w-4" />
+          )}
+          {theme === "dark" ? "Light Mode" : "Dark Mode"}
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         {isImpersonating ? (

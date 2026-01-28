@@ -6,7 +6,6 @@ import { usePathname } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
 import { useQuery } from "@tanstack/react-query";
 import { Button, Badge } from "@vault/ui";
-import { ThemeToggle } from "./theme-toggle";
 import { ProfileCard } from "./profile-card";
 import { SearchBar } from "./search-bar";
 import { SearchModal } from "./search-modal";
@@ -42,6 +41,30 @@ export function Header() {
   const isImpersonating = isDev && impersonationData?.active;
   // Only show ProfileCard if actually authenticated via Privy OR actively impersonating
   const hasSession = authenticated || isImpersonating;
+
+  // Fetch user profile for PnL
+  const { data: profile } = useQuery({
+    queryKey: ["profile"],
+    queryFn: async () => {
+      const res = await fetch("/api/me");
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: hasSession,
+  });
+
+  // Fetch XP
+  const { data: xpData } = useQuery({
+    queryKey: ["xp"],
+    queryFn: async () => {
+      const res = await fetch("/api/me/xp");
+      if (!res.ok) return { xp: 0 };
+      return res.json();
+    },
+    enabled: hasSession,
+  });
+
+  const xp = xpData?.xp ?? 0;
 
   return (
     <motion.header
@@ -122,7 +145,21 @@ export function Header() {
             <Search className="h-5 w-5 text-muted-foreground" />
           </motion.button>
 
-          <ThemeToggle />
+          {/* XP and Balance stats - shown when logged in */}
+          {hasSession && (
+            <div className="hidden sm:flex items-center gap-5 mr-2">
+              <div className="flex flex-col items-center">
+                <span className="text-[11px] text-muted-foreground font-medium tracking-wide">XP</span>
+                <span className="text-base font-semibold text-white/80">{xp.toLocaleString()}</span>
+              </div>
+              <div className="flex flex-col items-center">
+                <span className="text-[11px] text-muted-foreground font-medium tracking-wide">Balance</span>
+                <span className="text-base font-semibold text-[#21C55E]">
+                  ${(profile?.balance ?? 0).toLocaleString()}
+                </span>
+              </div>
+            </div>
+          )}
 
           {/* Show ProfileCard if authenticated via Privy OR actively impersonating */}
           <AnimatePresence mode="wait">

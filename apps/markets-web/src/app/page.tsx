@@ -29,31 +29,17 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           <FeaturedEvents />
         </Suspense>
 
-        {/* Mobile filters - horizontal scroll */}
-        <div className="lg:hidden mb-4">
+        {/* Filters - horizontal bar */}
+        <div className="mb-6">
           <Suspense>
             <MarketFilters />
           </Suspense>
         </div>
 
-        {/* Main content with sidebar filters */}
-        <div className="flex flex-col lg:flex-row gap-6">
-          {/* Filters sidebar - desktop only */}
-          <aside className="hidden lg:block lg:w-48 flex-shrink-0">
-            <div className="lg:sticky lg:top-20">
-              <Suspense>
-                <MarketFilters />
-              </Suspense>
-            </div>
-          </aside>
-
-          {/* Events Grid */}
-          <div className="flex-1 min-w-0">
-            <Suspense fallback={<EventGridSkeleton />}>
-              <EventGrid sort={sort} category={category} query={q} />
-            </Suspense>
-          </div>
-        </div>
+        {/* Events Grid */}
+        <Suspense fallback={<EventGridSkeleton />}>
+          <EventGrid sort={sort} category={category} query={q} />
+        </Suspense>
       </main>
     </div>
   );
