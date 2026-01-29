@@ -170,7 +170,10 @@ export function SportsBettingSidebar({
       // Store bet ID for potential share-for-XP
       setBetId(data.bet.id);
       
-      // Show success immediately
+      // Show toast immediately
+      toast.success("Bet confirmed!");
+      
+      // Show success modal
       setConfirmedBetAmount(parseInt(amount, 10));
       setConfirmedOutcome(selectedOutcome);
       setShowSuccessModal(true);
@@ -185,7 +188,10 @@ export function SportsBettingSidebar({
         queryClient.refetchQueries({ queryKey: ["market", event.slug] }),
       ]);
       
-      toast.success("Bet confirmed!");
+      // Small delay to allow async XP award to complete on backend
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ["xp"] });
+      }, 200);
     },
     onError: (error: Error) => {
       toast.error(error.message || "Failed to place bet");

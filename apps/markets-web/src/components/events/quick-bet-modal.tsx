@@ -179,6 +179,7 @@ export function QuickBetModal({
     onSuccess: async (data) => {
       setBetId(data.bet.id);
       setConfirmedAmount(amountNum);
+      toast.success("Bet confirmed!");
       setStep("success");
       await queryClient.invalidateQueries({ queryKey: ["profile"] });
       // Small delay to allow async XP award to complete on backend
@@ -186,7 +187,6 @@ export function QuickBetModal({
         queryClient.invalidateQueries({ queryKey: ["xp"] });
       }, 500);
       onSuccess?.();
-      toast.success("Bet confirmed!");
     },
     onError: (error: Error) => {
       toast.error(error.message || "Failed to place bet");

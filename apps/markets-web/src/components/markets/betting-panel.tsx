@@ -100,13 +100,21 @@ export function BettingPanel({ market, event, stats }: BettingPanelProps) {
       // Store bet ID for potential share-for-XP
       setBetId(data.bet.id);
       
+      // Show toast immediately
+      toast.success("Bet confirmed!");
+      
       // Invalidate and refetch queries
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["profile"] }),
         queryClient.refetchQueries({ queryKey: ["market", event.slug] }),
       ]);
       
-      // Show success modal immediately
+      // Small delay to allow async XP award to complete on backend
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ["xp"] });
+      }, 500);
+      
+      // Show success modal
       setConfirmedBetAmount(parseInt(amount, 10));
       setConfirmedOutcome(selectedOutcome);
       setShowSuccessModal(true);
@@ -115,8 +123,6 @@ export function BettingPanel({ market, event, stats }: BettingPanelProps) {
       setStep("select");
       setSelectedOutcome(null);
       setAmount("");
-      
-      toast.success("Bet confirmed!");
     },
     onError: (error: Error) => {
       toast.error(error.message || "Failed to place bet");
