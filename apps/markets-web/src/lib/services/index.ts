@@ -1,6 +1,9 @@
 // Pricing engines
 export * from "./pricing-engine";
 
+// Trade service (CPMM shares trading)
+export * from "./trade-service";
+
 // Balance operations
 export * from "./balance-service";
 
@@ -9,3 +12,6 @@ export * from "./price-snapshot-service";
 
 // Real-time price broadcasting
 export * from "./price-broadcaster";
+
+// User stats and PnL tracking
+export * from "./stats-service";

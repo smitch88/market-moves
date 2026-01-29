@@ -1,4 +1,4 @@
-import { PrismaClient, MarketCategory, MarketStatus, UserRole } from "../src/generated/client";
+import { PrismaClient, Prisma, MarketCategory, MarketStatus, UserRole } from "../src/generated/client";
 
 const prisma = new PrismaClient();
 
@@ -14,7 +14,7 @@ async function main() {
       handle: "vault_admin",
       name: "Vault Admin",
       role: UserRole.ADMIN,
-      balance: 100000,
+      balance: "100000.00",
     },
   });
   console.log("✅ Created admin user:", admin.handle);
@@ -28,7 +28,7 @@ async function main() {
         privyUserId: "test-user-1",
         handle: "crypto_whale",
         name: "Crypto Whale",
-        balance: 50000,
+        balance: "50000.00",
       },
     }),
     prisma.user.upsert({
@@ -38,7 +38,7 @@ async function main() {
         privyUserId: "test-user-2",
         handle: "sports_guru",
         name: "Sports Guru",
-        balance: 25000,
+        balance: "25000.00",
       },
     }),
     prisma.user.upsert({
@@ -48,7 +48,7 @@ async function main() {
         privyUserId: "test-user-3",
         handle: "market_maker",
         name: "Market Maker",
-        balance: 75000,
+        balance: "75000.00",
       },
     }),
   ]);
@@ -500,15 +500,21 @@ async function main() {
 
       // Create initial price snapshot for chart history
       // Calculate initial prices from seed values
-      const totalSeeds = market.seed0 + market.seed1;
-      const initialPrice0 = totalSeeds > 0 ? market.seed0 / totalSeeds : 0.5;
-      const initialPrice1 = totalSeeds > 0 ? market.seed1 / totalSeeds : 0.5;
+      const seed0Num = typeof market.seed0 === 'object' && 'toNumber' in market.seed0 
+        ? (market.seed0 as Prisma.Decimal).toNumber() 
+        : Number(market.seed0);
+      const seed1Num = typeof market.seed1 === 'object' && 'toNumber' in market.seed1 
+        ? (market.seed1 as Prisma.Decimal).toNumber() 
+        : Number(market.seed1);
+      const totalSeeds = seed0Num + seed1Num;
+      const initialPrice0 = totalSeeds > 0 ? seed0Num / totalSeeds : 0.5;
+      const initialPrice1 = totalSeeds > 0 ? seed1Num / totalSeeds : 0.5;
       
       await prisma.priceSnapshot.create({
         data: {
           marketId: market.id,
-          price0: initialPrice0,
-          price1: initialPrice1,
+          price0: initialPrice0.toFixed(4),
+          price1: initialPrice1.toFixed(4),
           pool0: market.seed0,
           pool1: market.seed1,
         },

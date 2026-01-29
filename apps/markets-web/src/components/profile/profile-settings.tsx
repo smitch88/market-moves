@@ -2,16 +2,8 @@
 
 import { useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
-import {
-  GlassCard,
-  GlassCardContent,
-  GlassCardHeader,
-  Button,
-  Input,
-  Label,
-  Separator,
-} from "@vault/ui";
-import { Copy, Check, ExternalLink, Twitter, Users, Gift } from "lucide-react";
+import { Button, Input, Label } from "@vault/ui";
+import { Copy, Check, ExternalLink, Twitter, LogOut, Users } from "lucide-react";
 
 interface ProfileSettingsProps {
   profile: {
@@ -53,122 +45,99 @@ export function ProfileSettings({ profile }: ProfileSettingsProps) {
   };
 
   const hasTwitter = user?.twitter;
-  const referralCount = profile._count?.referralsGiven ?? 0;
+  const friendsInvited = profile._count?.referralsGiven ?? 0;
 
   return (
-    <div className="space-y-6">
-      {/* Account settings */}
-      <GlassCard>
-        <GlassCardHeader>
-          <h2 className="text-lg font-semibold">Account</h2>
-        </GlassCardHeader>
-        <GlassCardContent className="space-y-4">
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 max-w-6xl">
+      {/* Account Section */}
+      <div className="border border-border rounded-xl p-6">
+        <h3 className="font-semibold text-lg mb-6">Account</h3>
+        
+        <div className="space-y-6">
+          {/* Email */}
           <div className="space-y-2">
-            <Label>Email</Label>
-            <Input 
-              value={profile.email || "Not connected"} 
-              disabled 
-              className="font-mono"
+            <Label className="text-sm font-medium">Email</Label>
+            <Input
+              value={profile.email || "Not connected"}
+              disabled
+              className="bg-muted/50 border-border"
             />
-            {!profile.email && (
-              <p className="text-xs text-muted-foreground">
-                No email linked to this account
-              </p>
-            )}
           </div>
 
+          {/* Twitter */}
           <div className="space-y-2">
-            <Label>X (Twitter)</Label>
+            <Label className="text-sm font-medium">X (Twitter)</Label>
             {hasTwitter ? (
               <div className="flex items-center gap-2">
-                <Input value={`@${user.twitter?.username}`} disabled />
-                <Button variant="ghost" size="icon" asChild>
-                  <a
-                    href={`https://x.com/${user.twitter?.username}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    <ExternalLink className="h-4 w-4" />
-                  </a>
-                </Button>
+                <Input
+                  value={`@${user.twitter?.username}`}
+                  disabled
+                  className="bg-muted/50 border-border"
+                />
+                <a
+                  href={`https://x.com/${user.twitter?.username}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center h-10 w-10 rounded-md border border-border hover:bg-muted transition-colors"
+                >
+                  <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                </a>
               </div>
             ) : (
-              <Button onClick={linkTwitter} variant="outline">
+              <Button onClick={linkTwitter} variant="outline" className="w-full">
+                <Twitter className="h-4 w-4 mr-2" />
                 Connect X Account
               </Button>
             )}
           </div>
+        </div>
 
-          <div className="space-y-2">
-            <Label>Account Role</Label>
-            <div className="flex items-center gap-2">
-              <Input 
-                value={profile.role} 
-                disabled 
-                className={profile.role === "ADMIN" ? "text-primary font-medium" : ""}
-              />
-              {profile.role === "ADMIN" && (
-                <span className="px-2 py-0.5 text-xs font-medium rounded bg-primary/20 text-primary">
-                  Admin
-                </span>
-              )}
-            </div>
-          </div>
-
-          <Separator />
-
-          <Button variant="destructive" onClick={logout}>
-            Sign Out
+        <div className="mt-8 pt-6 border-t border-border">
+          <Button 
+            variant="ghost" 
+            onClick={logout} 
+            className="text-red-500 hover:text-red-600 hover:bg-red-500/10"
+          >
+            <LogOut className="h-4 w-4 mr-2" />
+            Sign out
           </Button>
-        </GlassCardContent>
-      </GlassCard>
+        </div>
+      </div>
 
-      {/* Referral */}
-      <GlassCard>
-        <GlassCardHeader>
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-              <Gift className="h-5 w-5 text-primary" />
-            </div>
-            <div>
-              <h2 className="text-lg font-semibold">Invite Friends</h2>
-              <p className="text-sm text-muted-foreground">
-                Earn bonus entries when friends join and bet!
-              </p>
-            </div>
+      {/* Referral Section */}
+      <div className="border border-border rounded-xl p-6">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h3 className="font-semibold text-lg">Invite Friends</h3>
+            <p className="text-sm text-muted-foreground mt-1">
+              Share your link and earn rewards when friends join
+            </p>
           </div>
-        </GlassCardHeader>
-        <GlassCardContent className="space-y-6">
-          {/* Stats */}
-          <div className="flex items-center gap-4 p-4 rounded-lg bg-muted/50">
-            <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
-              <Users className="h-6 w-6 text-primary" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold">{referralCount}</p>
-              <p className="text-sm text-muted-foreground">
-                {referralCount === 1 ? "Friend invited" : "Friends invited"}
-              </p>
-            </div>
+          <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-muted/50">
+            <Users className="h-4 w-4 text-muted-foreground" />
+            <span className="font-bold text-lg">{friendsInvited}</span>
+            <span className="text-sm text-muted-foreground">invited</span>
           </div>
+        </div>
 
+        <div className="space-y-4">
           {/* Referral Link */}
-          <div className="space-y-3">
-            <Label>Your Referral Link</Label>
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Your referral link</Label>
             <div className="flex items-center gap-2">
-              <Input 
-                value={referralLink} 
-                readOnly 
-                className="font-mono text-sm bg-muted/30" 
+              <Input
+                value={referralLink}
+                readOnly
+                className="bg-muted/50 border-border font-mono text-sm"
               />
-              <Button 
-                variant="outline" 
-                size="icon" 
+              <Button
+                variant="outline"
+                size="icon"
                 onClick={handleCopyReferral}
                 className="flex-shrink-0"
               >
                 {copied ? (
-                  <Check className="h-4 w-4 text-outcome-yes" />
+                  <Check className="h-4 w-4 text-green-500" />
                 ) : (
                   <Copy className="h-4 w-4" />
                 )}
@@ -177,25 +146,25 @@ export function ProfileSettings({ profile }: ProfileSettingsProps) {
           </div>
 
           {/* Share buttons */}
-          <div className="flex gap-2">
+          <div className="flex gap-3">
             <Button 
               onClick={handleCopyReferral} 
-              variant="outline" 
+              variant="outline"
               className="flex-1"
             >
               {copied ? (
                 <>
-                  <Check className="h-4 w-4 mr-2 text-outcome-yes" />
-                  Copied!
+                  <Check className="h-4 w-4 mr-2 text-green-500" />
+                  Copied
                 </>
               ) : (
                 <>
                   <Copy className="h-4 w-4 mr-2" />
-                  Copy Link
+                  Copy link
                 </>
               )}
             </Button>
-            <Button 
+            <Button
               onClick={handleShareTwitter}
               className="flex-1 bg-[#1DA1F2] hover:bg-[#1a8cd8]"
             >
@@ -204,17 +173,15 @@ export function ProfileSettings({ profile }: ProfileSettingsProps) {
             </Button>
           </div>
 
-          {/* Code display */}
-          <div className="pt-4 border-t border-border/50">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Referral Code</span>
-              <code className="px-2 py-1 rounded bg-muted font-mono text-sm">
-                {profile.referralCode}
-              </code>
-            </div>
+          {/* Referral code */}
+          <div className="flex items-center justify-between px-4 py-3 rounded-lg bg-muted/30 border border-border">
+            <span className="text-sm text-muted-foreground">Referral code</span>
+            <code className="px-2 py-1 bg-background rounded font-mono text-sm font-medium">
+              {profile.referralCode}
+            </code>
           </div>
-        </GlassCardContent>
-      </GlassCard>
+        </div>
+      </div>
     </div>
   );
 }

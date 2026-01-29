@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma, BetStatus } from "@vault/database";
+import { prisma, BetStatus, PricingModel } from "@vault/database";
 import { requireUser } from "@vault/auth";
 import { twitterService } from "@vault/twitter-service";
 import {
@@ -10,6 +10,7 @@ import {
 } from "@/lib/services/tweet-verification";
 import { createPriceSnapshot } from "@/lib/services/price-snapshot-service";
 import { broadcastPriceChange } from "@/lib/services/price-broadcaster";
+import { tradeService } from "@/lib/services/trade-service";
 import { z } from "zod";
 
 const verifySchema = z.object({
@@ -37,6 +38,12 @@ export async function POST(request: NextRequest) {
         pool0: true,
         pool1: true,
         eventId: true,
+        // AMM fields
+        pricingModel: true,
+        reserve0: true,
+        reserve1: true,
+        k: true,
+        feeBps: true,
         event: {
           select: {
             slug: true,
@@ -123,9 +130,9 @@ export async function POST(request: NextRequest) {
     }
 
     if (verificationResult.verified) {
-      // Update bet status to confirmed
+      // Update bet status to confirmed and execute trade
       await prisma.$transaction(async (tx) => {
-        // Update bet
+        // Update bet status
         await tx.bet.update({
           where: { id: bet.id },
           data: {
@@ -134,79 +141,98 @@ export async function POST(request: NextRequest) {
           },
         });
 
-        // Update or create position aggregate and market pools
         const isOutcome0 = bet.outcomeIndex === 0;
 
-        await tx.position.upsert({
-          where: {
-            userId_marketId: {
+        // Handle differently based on pricing model
+        if (market.pricingModel === PricingModel.CPMM) {
+          // CPMM: Execute share purchase using trade service
+          // Fetch full market for trade execution
+          const fullMarket = await tx.market.findUnique({
+            where: { id: market.id },
+          });
+
+          if (fullMarket) {
+            await tradeService.executeBuy(tx, bet, fullMarket);
+          }
+        } else {
+          // PARI_MUTUEL: Use legacy pool-based logic
+          await tx.position.upsert({
+            where: {
+              userId_marketId: {
+                userId: user.id,
+                marketId: market.id,
+              },
+            },
+            update: {
+              ...(isOutcome0
+                ? {
+                    amount0: { increment: bet.amount },
+                    weighted0: { increment: bet.amount * bet.weight },
+                  }
+                : {
+                    amount1: { increment: bet.amount },
+                    weighted1: { increment: bet.amount * bet.weight },
+                  }),
+              lastBetAt: new Date(),
+            },
+            create: {
               userId: user.id,
               marketId: market.id,
+              amount0: isOutcome0 ? bet.amount : 0,
+              amount1: isOutcome0 ? 0 : bet.amount,
+              weighted0: isOutcome0 ? bet.amount * bet.weight : 0,
+              weighted1: isOutcome0 ? 0 : bet.amount * bet.weight,
+              lastBetAt: new Date(),
             },
-          },
-          update: {
-            ...(isOutcome0
-              ? {
-                  amount0: { increment: bet.amount },
-                  weighted0: { increment: bet.amount * bet.weight },
-                }
-              : {
-                  amount1: { increment: bet.amount },
-                  weighted1: { increment: bet.amount * bet.weight },
-                }),
-            lastBetAt: new Date(),
-          },
-          create: {
-            userId: user.id,
-            marketId: market.id,
-            amount0: isOutcome0 ? bet.amount : 0,
-            amount1: isOutcome0 ? 0 : bet.amount,
-            weighted0: isOutcome0 ? bet.amount * bet.weight : 0,
-            weighted1: isOutcome0 ? 0 : bet.amount * bet.weight,
-            lastBetAt: new Date(),
-          },
-        });
+          });
 
-        // Update market pool totals
-        let updatedMarket = await tx.market.update({
-          where: { id: market.id },
-          data: {
-            ...(isOutcome0
-              ? { pool0: { increment: bet.amount } }
-              : { pool1: { increment: bet.amount } }),
-          },
-        });
+          // Update market pool totals
+          let updatedMarket = await tx.market.update({
+            where: { id: market.id },
+            data: {
+              ...(isOutcome0
+                ? { pool0: { increment: bet.amount } }
+                : { pool1: { increment: bet.amount } }),
+            },
+          });
 
-        // Calculate new prices
-        const totalPool = updatedMarket.seed0 + updatedMarket.seed1 + updatedMarket.pool0 + updatedMarket.pool1;
-        const price0 = totalPool > 0 ? (updatedMarket.seed0 + updatedMarket.pool0) / totalPool : 0.5;
-        const price1 = totalPool > 0 ? (updatedMarket.seed1 + updatedMarket.pool1) / totalPool : 0.5;
+          // Calculate new prices (pari-mutuel style)
+          // Convert Decimals to numbers for calculation
+          const seed0Num = Number(updatedMarket.seed0);
+          const seed1Num = Number(updatedMarket.seed1);
+          const pool0Num = Number(updatedMarket.pool0);
+          const pool1Num = Number(updatedMarket.pool1);
+          
+          const totalPool = seed0Num + seed1Num + pool0Num + pool1Num;
+          const price0 = totalPool > 0 ? (seed0Num + pool0Num) / totalPool : 0.5;
+          const price1 = totalPool > 0 ? (seed1Num + pool1Num) / totalPool : 0.5;
 
-        // Persist new prices to database
-        updatedMarket = await tx.market.update({
-          where: { id: market.id },
-          data: {
-            outcomePrices: JSON.stringify([price0.toFixed(4), price1.toFixed(4)]),
-          },
-        });
+          // Persist new prices to database
+          updatedMarket = await tx.market.update({
+            where: { id: market.id },
+            data: {
+              outcomePrices: JSON.stringify([price0.toFixed(4), price1.toFixed(4)]),
+            },
+          });
 
-        // Create price snapshot for chart history
-        await createPriceSnapshot(
-          tx,
-          market.id,
-          updatedMarket.pool0,
-          updatedMarket.pool1,
-          updatedMarket.seed0,
-          updatedMarket.seed1
-        );
+          // Create price snapshot for chart history
+          await createPriceSnapshot(
+            tx,
+            market.id,
+            updatedMarket.pool0,
+            updatedMarket.pool1,
+            updatedMarket.seed0,
+            updatedMarket.seed1
+          );
 
-        // Broadcast to connected clients for real-time updates
-        broadcastPriceChange(
-          market.id,
-          market.eventId,
-          [price0, price1],
-          [updatedMarket.seed0 + updatedMarket.pool0, updatedMarket.seed1 + updatedMarket.pool1]
-        );
+          // Broadcast to connected clients for real-time updates
+          broadcastPriceChange(
+            market.id,
+            market.eventId,
+            [price0, price1],
+            [seed0Num + pool0Num, seed1Num + pool1Num]
+          );
+        }
 
         // Check if this is user's first confirmed bet and handle referral
         const userBetCount = await tx.bet.count({

@@ -13,7 +13,7 @@ import { config } from "dotenv";
 // Load .env
 config({ path: resolve(__dirname, "../.env") });
 
-import { PrismaClient, MarketCategory, MarketStatus, UserRole } from "../src/generated/client";
+import { PrismaClient, MarketCategory, MarketStatus, UserRole, PricingModel } from "../src/generated/client";
 
 const prisma = new PrismaClient();
 
@@ -81,9 +81,9 @@ async function cleanDatabase() {
     console.log("   ✓ Deleted all data including users");
   } else {
     await prisma.user.updateMany({
-      data: { balance: 10000, balanceLocked: false },
+      data: { balance: "10000.00", balanceLocked: false }, // $10,000
     });
-    console.log("   ✓ Deleted all market data, reset user balances to 10,000");
+    console.log("   ✓ Deleted all market data, reset user balances to $10,000");
   }
 
   console.log("\n   ✅ Database cleaned!\n");
@@ -100,22 +100,22 @@ async function seedDatabase() {
   // Create or update admin user
   const admin = await prisma.user.upsert({
     where: { privyUserId: "admin-seed-user" },
-    update: { balance: 100000 },
+    update: { balance: "100000.00" }, // $100,000
     create: {
       privyUserId: "admin-seed-user",
       handle: "vault_admin",
       name: "Vault Admin",
       role: UserRole.ADMIN,
-      balance: 100000,
+      balance: "100000.00", // $100,000
     },
   });
   console.log("   ✅ Admin user ready:", admin.handle);
 
   // Create test users
   const testUserData = [
-    { privyUserId: "test-user-1", handle: "crypto_whale", name: "Crypto Whale", balance: 50000 },
-    { privyUserId: "test-user-2", handle: "sports_guru", name: "Sports Guru", balance: 25000 },
-    { privyUserId: "test-user-3", handle: "market_maker", name: "Market Maker", balance: 75000 },
+    { privyUserId: "test-user-1", handle: "crypto_whale", name: "Crypto Whale", balance: "50000.00" }, // $50,000
+    { privyUserId: "test-user-2", handle: "sports_guru", name: "Sports Guru", balance: "25000.00" }, // $25,000
+    { privyUserId: "test-user-3", handle: "market_maker", name: "Market Maker", balance: "75000.00" }, // $75,000
   ];
 
   for (const userData of testUserData) {
@@ -677,22 +677,31 @@ async function seedDatabase() {
   for (const marketData of markets) {
     const { outcomes, outcomeColors, ...marketFields } = marketData;
     
+    // Set up CPMM reserves from seed values
+    // Reserves represent share liquidity (not scaled)
+    const reserve0 = marketFields.seed0 || 1000; // Reserves are in shares
+    const reserve1 = marketFields.seed1 || 1000; // Reserves are in shares
+    const k = reserve0 * reserve1; // CPMM invariant
+    
+    // Calculate initial prices using CPMM formula
+    // In CPMM: price0 = reserve1 / (reserve0 + reserve1)
+    const total = reserve0 + reserve1;
+    const price0 = (reserve1 / total).toFixed(4);
+    const price1 = (reserve0 / total).toFixed(4);
+    
     const market = await prisma.market.create({
       data: {
         eventId: event.id,
         ...marketFields,
         closesAt: bettingCloseTime,
         outcomes: JSON.stringify(outcomes),
-        // Calculate initial prices from seed values
-        outcomePrices: (() => {
-          const s0 = marketFields.seed0 || 1000;
-          const s1 = marketFields.seed1 || 1000;
-          const total = s0 + s1;
-          const p0 = (s0 / total).toFixed(4);
-          const p1 = (s1 / total).toFixed(4);
-          return JSON.stringify([p0, p1]);
-        })(),
+        outcomePrices: JSON.stringify([price0, price1]),
         outcomeColors: outcomeColors ? JSON.stringify(outcomeColors) : null,
+        // CPMM pricing model
+        pricingModel: PricingModel.CPMM,
+        reserve0,
+        reserve1,
+        k,
         status: MarketStatus.OPEN,
         publishedAt: new Date(),
         opensAt: new Date(),
@@ -700,18 +709,13 @@ async function seedDatabase() {
     });
 
     // Create initial price snapshot for chart history
-    // Calculate initial prices from seed values
-    const totalSeeds = market.seed0 + market.seed1;
-    const initialPrice0 = totalSeeds > 0 ? market.seed0 / totalSeeds : 0.5;
-    const initialPrice1 = totalSeeds > 0 ? market.seed1 / totalSeeds : 0.5;
-    
     await prisma.priceSnapshot.create({
       data: {
         marketId: market.id,
-        price0: initialPrice0,
-        price1: initialPrice1,
-        pool0: market.seed0,
-        pool1: market.seed1,
+        price0: parseFloat(price0),
+        price1: parseFloat(price1),
+        pool0: Math.floor(reserve0),
+        pool1: Math.floor(reserve1),
       },
     });
 

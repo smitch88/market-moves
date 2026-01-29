@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma, MarketStatus, BetStatus, BalanceReason, RaffleReason, AdminAction } from "@vault/database";
+import { prisma, MarketStatus, BetStatus, BalanceReason, RaffleReason, AdminAction, PricingModel } from "@vault/database";
 import { requireAdmin } from "@vault/auth";
 import { randomUUID } from "crypto";
+import { createPnLSnapshot } from "@/lib/services/stats-service";
 
 export async function POST(
   request: NextRequest,
@@ -50,44 +51,76 @@ export async function POST(
       const winningOutcomeLabel = outcomes[market.resolvedOutcome];
       const isOutcome0 = market.resolvedOutcome === 0;
 
-      // Calculate pools from seed + confirmed positions
-      let pool0 = market.seed0 + market.pool0;
-      let pool1 = market.seed1 + market.pool1;
+      // Determine pricing model for settlement calculation
+      const isCPMM = market.pricingModel === PricingModel.CPMM;
 
+      // Calculate pools from seed + confirmed positions (for pari-mutuel)
+      const pool0 = market.seed0 + market.pool0;
+      const pool1 = market.seed1 + market.pool1;
       const totalPool = pool0 + pool1;
       const winningPool = isOutcome0 ? pool0 : pool1;
       const fee = market.feeBps / 10000;
       const netPool = totalPool * (1 - fee);
 
-      // Calculate and distribute payouts
-      const payouts: { userId: string; amount: number }[] = [];
+      // Calculate and distribute payouts based on pricing model
+      // Also track cost basis for PnL calculation
+      const payouts: { userId: string; amount: number; costBasis: number }[] = [];
 
       for (const position of market.positions) {
-        const userStake = isOutcome0
-          ? position.amount0
-          : position.amount1;
+        let payout = 0;
+        let costBasis = 0;
 
-        if (userStake > 0 && winningPool > 0) {
-          // Pro-rata payout
-          const payout = Math.floor((userStake / winningPool) * netPool);
-          payouts.push({ userId: position.userId, amount: payout });
+        if (isCPMM) {
+          // CPMM: 1 winning share = 100 cents (after fees)
+          const userShares = isOutcome0 ? position.shares0 : position.shares1;
+          const avgCost = isOutcome0 ? position.avgCost0 : position.avgCost1;
+          
+          if (userShares > 0) {
+            // Each winning share is worth $1
+            const grossPayout = userShares; // Already in dollars (Decimal)
+            payout = Math.floor(grossPayout * (1 - fee));
+            // Cost basis = shares * avgCost (both already in dollars)
+            costBasis = Math.floor(userShares * avgCost);
+          }
+        } else {
+          // PARI_MUTUEL: Pro-rata payout from pool
+          const userStake = isOutcome0 ? position.amount0 : position.amount1;
+
+          if (userStake > 0 && winningPool > 0) {
+            payout = Math.floor((userStake / winningPool) * netPool);
+            costBasis = userStake;
+          }
+        }
+
+        if (payout > 0) {
+          payouts.push({ userId: position.userId, amount: payout, costBasis });
         }
       }
 
+      // Track users who received payouts for PnL snapshots
+      const affectedUserIds: string[] = [];
+
       // Apply payouts
-      for (const { userId, amount } of payouts) {
+      for (const { userId, amount, costBasis } of payouts) {
         const user = await tx.user.findUnique({
           where: { id: userId },
-          select: { balance: true },
+          select: { balance: true, realizedPnL: true },
         });
 
         if (user) {
           const newBalance = user.balance + amount;
+          // Realized PnL = payout - cost basis
+          const pnlDelta = amount - costBasis;
 
           await tx.user.update({
             where: { id: userId },
-            data: { balance: newBalance },
+            data: { 
+              balance: newBalance,
+              realizedPnL: { increment: pnlDelta },
+            },
           });
+          
+          affectedUserIds.push(userId);
 
           await tx.balanceLedger.create({
             data: {
@@ -123,16 +156,27 @@ export async function POST(
       }
 
       // Update bet statuses and payouts
-      // First, calculate per-bet payouts based on their stake in the winning pool
+      // Calculate per-bet payouts based on pricing model
       const betPayouts = new Map<string, number>();
       
       for (const bet of market.bets) {
         const isWinner = bet.outcomeIndex === market.resolvedOutcome;
         
-        if (isWinner && winningPool > 0) {
-          // Calculate this bet's share of the net pool
-          const betPayout = Math.floor((bet.amount / winningPool) * netPool);
-          betPayouts.set(bet.id, betPayout);
+        if (isWinner) {
+          let betPayout = 0;
+
+          if (isCPMM && bet.shares) {
+            // CPMM: payout based on shares (1 share = $1, minus fee)
+            const grossPayout = bet.shares; // Already in dollars (Decimal)
+            betPayout = Math.floor(grossPayout * (1 - fee));
+          } else if (!isCPMM && winningPool > 0) {
+            // PARI_MUTUEL: pro-rata from pool
+            betPayout = Math.floor((bet.amount / winningPool) * netPool);
+          }
+
+          if (betPayout > 0) {
+            betPayouts.set(bet.id, betPayout);
+          }
         }
       }
 
@@ -149,7 +193,7 @@ export async function POST(
           },
         });
 
-        // Create SETTLEMENT_LOSS ledger entry for losing bets (delta: 0 to track the event)
+        // Create SETTLEMENT_LOSS ledger entry for losing bets and update realized PnL
         if (!isWinner) {
           await tx.balanceLedger.create({
             data: {
@@ -161,6 +205,21 @@ export async function POST(
               correlationId: bet.id,
             },
           });
+          
+          // Update realized PnL for losing bets (loss = -bet amount)
+          // Only for BUY trades (sells already realized their PnL)
+          if (bet.tradeType === "BUY") {
+            await tx.user.update({
+              where: { id: bet.userId },
+              data: {
+                realizedPnL: { decrement: bet.amount },
+              },
+            });
+            
+            if (!affectedUserIds.includes(bet.userId)) {
+              affectedUserIds.push(bet.userId);
+            }
+          }
         }
       }
 
@@ -229,6 +288,7 @@ export async function POST(
           targetId: id,
           metadata: {
             settlementRunId,
+            pricingModel: market.pricingModel,
             totalPool,
             netPool,
             winningOutcome: winningOutcomeLabel,
@@ -252,8 +312,14 @@ export async function POST(
           lost: losingBetsCount,
           total: market.bets.length,
         },
+        affectedUserIds,
       };
     });
+
+    // Create PnL snapshots for affected users (fire-and-forget)
+    for (const userId of result.affectedUserIds) {
+      createPnLSnapshot(userId).catch(console.error);
+    }
 
     return NextResponse.json(result);
   } catch (error) {

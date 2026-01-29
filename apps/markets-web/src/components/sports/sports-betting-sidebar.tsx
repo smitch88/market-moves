@@ -6,7 +6,7 @@ import { usePrivy } from "@privy-io/react-auth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import { toPng } from "html-to-image";
-import { ChevronRight, Wallet, Sparkles, X, TrendingUp, TrendingDown } from "lucide-react";
+import { ChevronRight, Wallet, Sparkles, X, TrendingUp, TrendingDown, ArrowUpDown } from "lucide-react";
 import {
   Button,
   Input,
@@ -53,6 +53,7 @@ export function SportsBettingSidebar({
   const [betId, setBetId] = useState<string | null>(null);
   const [tweetUrl, setTweetUrl] = useState("");
   const [step, setStep] = useState<"bet" | "verify">("bet");
+  const [tradeMode, setTradeMode] = useState<"buy" | "sell">("buy");
 
   // Success modal state
   const [showSuccessModal, setShowSuccessModal] = useState(false);
@@ -107,6 +108,42 @@ export function SportsBettingSidebar({
 
   const balance = profile?.balance ?? 10000;
 
+  // Determine if this is a CPMM market (shares-based)
+  const isCPMM = selectedMarket?.pricingModel === "CPMM";
+
+  // Fetch quote for CPMM markets
+  const amountNum = parseInt(amount, 10) || 0;
+  const { data: quote } = useQuery({
+    queryKey: ["quote", selectedMarket?.id, selectedOutcome, amountNum, tradeMode],
+    queryFn: async () => {
+      if (!selectedMarket || selectedOutcome === null || amountNum <= 0) return null;
+      const res = await fetch(
+        `/api/trades/quote?marketId=${selectedMarket.id}&outcomeIndex=${selectedOutcome}&side=${tradeMode}&amount=${amountNum}`
+      );
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: isCPMM && !!selectedMarket && selectedOutcome !== null && amountNum > 0,
+    staleTime: 5000, // Refresh every 5 seconds
+  });
+
+  // Fetch user position for sell mode
+  const { data: position } = useQuery({
+    queryKey: ["position", selectedMarket?.id],
+    queryFn: async () => {
+      if (!selectedMarket) return null;
+      const res = await fetch(`/api/me/positions?marketId=${selectedMarket.id}`);
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: isCPMM && authenticated && !!selectedMarket,
+  });
+
+  const userShares = useMemo(() => {
+    if (!position || selectedOutcome === null) return 0;
+    return selectedOutcome === 0 ? (position.shares0 || 0) : (position.shares1 || 0);
+  }, [position, selectedOutcome]);
+
   // Check for pending bets
   const { data: pendingBetData } = useQuery({
     queryKey: ["pendingBet", selectedMarket?.id],
@@ -124,22 +161,31 @@ export function SportsBettingSidebar({
     if (pendingBetData?.pendingBet && !betId && step === "bet") {
       const pendingBet = pendingBetData.pendingBet;
       setBetId(pendingBet.id);
-      setAmount(String(pendingBet.amount));
+      // Amount is now stored in dollars (Decimal), convert to number for display
+      const displayAmount = typeof pendingBet.amount === 'number' 
+        ? pendingBet.amount 
+        : parseFloat(String(pendingBet.amount));
+      setAmount(String(displayAmount));
       setStep("verify");
     }
-  }, [pendingBetData, betId, step]);
+  }, [pendingBetData, betId, step, isCPMM]);
 
-  // Place bet mutation
+  // Place bet/trade mutation
   const placeBetMutation = useMutation({
     mutationFn: async () => {
       if (!selectedMarket) throw new Error("No market selected");
-      const res = await fetch("/api/bets", {
+      
+      // Use different endpoints for CPMM vs pari-mutuel
+      const endpoint = isCPMM ? "/api/trades/buy" : "/api/bets";
+      const amountToSend = parseInt(amount, 10); // Amount in dollars
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           marketId: selectedMarket.id,
           outcomeIndex: selectedOutcome,
-          amount: parseInt(amount, 10),
+          amount: amountToSend,
+          ...(isCPMM && { maxSlippage: 0.25 }), // 25% max slippage for CPMM trades
         }),
       });
       if (!res.ok) {
@@ -152,10 +198,54 @@ export function SportsBettingSidebar({
       setBetId(data.bet.id);
       setStep("verify");
       queryClient.invalidateQueries({ queryKey: ["pendingBet", selectedMarket?.id] });
-      toast.info("Bet reserved! Share on X to confirm.");
+      queryClient.invalidateQueries({ queryKey: ["quote"] });
+      toast.info(isCPMM 
+        ? `Order for ~${quote?.outputAmount?.toFixed(2) || "?"} shares reserved! Share on X to confirm.`
+        : "Bet reserved! Share on X to confirm."
+      );
     },
     onError: (error: Error) => {
       toast.error(error.message || "Failed to place bet");
+    },
+  });
+  
+  // Sell shares mutation (CPMM only, no tweet required)
+  const sellSharesMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedMarket || !isCPMM) throw new Error("Invalid market");
+      const res = await fetch("/api/trades/sell", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          marketId: selectedMarket.id,
+          outcomeIndex: selectedOutcome,
+          shares: parseFloat(amount), // For sell, amount is shares
+        }),
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || "Failed to sell shares");
+      }
+      return res.json();
+    },
+    onSuccess: async (data) => {
+      const proceedsNum = typeof data.proceeds === 'number' 
+        ? data.proceeds 
+        : parseFloat(String(data.proceeds));
+      const sharesNum = typeof data.shares === 'number' 
+        ? data.shares 
+        : parseFloat(String(data.shares));
+      toast.success(`Sold ${sharesNum.toFixed(2)} shares for $${proceedsNum.toFixed(2)}`);
+      setAmount("");
+      setTradeMode("buy");
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["profile"] }),
+        queryClient.invalidateQueries({ queryKey: ["position", selectedMarket?.id] }),
+        queryClient.refetchQueries({ queryKey: ["market", event.slug] }),
+      ]);
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to sell shares");
     },
   });
 
@@ -236,8 +326,13 @@ export function SportsBettingSidebar({
       login();
       return;
     }
-    if (!amount || parseInt(amount, 10) <= 0) return;
-    placeBetMutation.mutate();
+    if (!amount || parseFloat(amount) <= 0) return;
+    
+    if (isCPMM && tradeMode === "sell") {
+      sellSharesMutation.mutate();
+    } else {
+      placeBetMutation.mutate();
+    }
   };
 
   const handleOpenTweetIntent = () => {
@@ -351,8 +446,14 @@ export function SportsBettingSidebar({
     selectedMarket.status === "OPEN" ||
     (selectedMarket.status === "PUBLISHED" && (!selectedMarket.closesAt || new Date(selectedMarket.closesAt) > new Date()));
 
-  const amountNum = parseInt(amount, 10) || 0;
-  const potentialWin = selectedPrice > 0 ? Math.floor((amountNum / selectedPrice) * 100) : 0;
+  const amountNumLocal = parseInt(amount, 10) || 0;
+  
+  // Calculate display values based on pricing model
+  const sharesDisplay = isCPMM && quote ? quote.outputAmount?.toFixed(2) : null;
+  const potentialWin = isCPMM 
+    ? (quote?.outputAmount ? Math.floor(quote.outputAmount) : 0) // 1 share = $1 at settlement
+    : (selectedPrice > 0 ? Math.floor((amountNumLocal / selectedPrice) * 100) : 0);
+  const priceImpactDisplay = quote?.priceImpact ? (quote.priceImpact * 100).toFixed(2) : null;
 
   return (
     <>
@@ -411,13 +512,54 @@ export function SportsBettingSidebar({
                 exit={{ opacity: 0, x: 10 }}
                 className="space-y-4"
               >
-                {/* Balance display */}
-                <div className="flex items-center justify-between text-sm">
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <Wallet className="h-4 w-4" />
-                    <span>Balance</span>
+                {/* Buy/Sell toggle for CPMM markets */}
+                {isCPMM && userShares > 0 && (
+                  <div className="flex rounded-lg bg-muted/30 p-1">
+                    <button
+                      onClick={() => setTradeMode("buy")}
+                      className={cn(
+                        "flex-1 py-2 text-sm font-medium rounded-md transition-colors",
+                        tradeMode === "buy" 
+                          ? "bg-outcome-yes text-white" 
+                          : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      Buy
+                    </button>
+                    <button
+                      onClick={() => setTradeMode("sell")}
+                      className={cn(
+                        "flex-1 py-2 text-sm font-medium rounded-md transition-colors",
+                        tradeMode === "sell" 
+                          ? "bg-outcome-no text-white" 
+                          : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      Sell
+                    </button>
                   </div>
-                  <span className="font-bold text-primary">${balance.toLocaleString()}</span>
+                )}
+
+                {/* Balance and position display */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <Wallet className="h-4 w-4" />
+                      <span>Balance</span>
+                    </div>
+                    <span className="font-bold text-primary">${(balance).toLocaleString()}</span>
+                  </div>
+                  
+                  {/* Show position for CPMM markets */}
+                  {isCPMM && userShares > 0 && (
+                    <div className="flex items-center justify-between text-sm">
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <ArrowUpDown className="h-4 w-4" />
+                        <span>Your shares</span>
+                      </div>
+                      <span className="font-bold text-foreground">{userShares.toFixed(2)}</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Amount input */}
@@ -449,35 +591,93 @@ export function SportsBettingSidebar({
                   ))}
                 </div>
 
-                {/* Estimated return */}
-                {amountNum > 0 && (
+                {/* Estimated return / shares info */}
+                {amountNumLocal > 0 && (
                   <motion.div
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: "auto" }}
-                    className="py-3 px-4 bg-outcome-yes/10 rounded-xl border border-outcome-yes/20"
+                    className={cn(
+                      "py-3 px-4 rounded-xl border",
+                      tradeMode === "buy" 
+                        ? "bg-outcome-yes/10 border-outcome-yes/20" 
+                        : "bg-outcome-no/10 border-outcome-no/20"
+                    )}
                   >
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground">Est. return</span>
-                      <span className="font-bold text-outcome-yes">~${potentialWin.toLocaleString()}</span>
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Final payout based on pool at settlement
-                    </p>
+                    {isCPMM ? (
+                      <>
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-muted-foreground">
+                            {tradeMode === "buy" ? "You receive" : "You get"}
+                          </span>
+                          <span className={cn(
+                            "font-bold",
+                            tradeMode === "buy" ? "text-outcome-yes" : "text-outcome-no"
+                          )}>
+                            {tradeMode === "buy" 
+                              ? `~${sharesDisplay || "?"} shares`
+                              : `~$${quote?.outputAmount?.toFixed(2) || "?"}`
+                            }
+                          </span>
+                        </div>
+                        {tradeMode === "buy" && (
+                          <div className="flex items-center justify-between mt-1">
+                            <span className="text-sm text-muted-foreground">Payout if correct</span>
+                            <span className="font-bold text-outcome-yes">
+                              ~${potentialWin.toLocaleString()}
+                            </span>
+                          </div>
+                        )}
+                        {priceImpactDisplay && parseFloat(priceImpactDisplay) > 1 && (
+                          <p className="text-xs text-amber-500 mt-1">
+                            Price impact: {priceImpactDisplay}%
+                          </p>
+                        )}
+                        <p className="text-xs text-muted-foreground mt-1">
+                          1 winning share = $1 at settlement
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-muted-foreground">Est. return</span>
+                          <span className="font-bold text-outcome-yes">~${potentialWin.toLocaleString()}</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Final payout based on pool at settlement
+                        </p>
+                      </>
+                    )}
                   </motion.div>
                 )}
 
-                {/* Place bet button */}
+                {/* Place bet/trade button */}
                 <Button
                   onClick={handlePlaceBet}
-                  disabled={!canBet || !amount || amountNum <= 0 || placeBetMutation.isPending}
-                  className="w-full h-12 text-base font-semibold"
+                  disabled={
+                    !canBet || 
+                    !amount || 
+                    parseFloat(amount) <= 0 || 
+                    placeBetMutation.isPending || 
+                    sellSharesMutation.isPending ||
+                    (tradeMode === "sell" && parseFloat(amount) > userShares)
+                  }
+                  className={cn(
+                    "w-full h-12 text-base font-semibold",
+                    tradeMode === "sell" && "bg-outcome-no hover:bg-outcome-no/90"
+                  )}
                   size="lg"
                 >
-                  {placeBetMutation.isPending ? (
-                    "Placing..."
+                  {(placeBetMutation.isPending || sellSharesMutation.isPending) ? (
+                    tradeMode === "sell" ? "Selling..." : "Placing..."
                   ) : (
                     <span className="flex items-center gap-2">
-                      Bet on {selectedOutcome !== null && outcomes[selectedOutcome]}
+                      {isCPMM ? (
+                        tradeMode === "sell" 
+                          ? `Sell ${amount || 0} shares`
+                          : `Buy ~${sharesDisplay || "?"} shares`
+                      ) : (
+                        `Bet on ${selectedOutcome !== null ? outcomes[selectedOutcome] : ""}`
+                      )}
                       <ChevronRight className="h-4 w-4" />
                     </span>
                   )}

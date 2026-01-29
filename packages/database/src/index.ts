@@ -26,10 +26,12 @@ export type {
   Bet,
   Position,
   BalanceLedger,
+  UserPnLSnapshot,
   Referral,
   RaffleEntry,
   TweetProof,
   AdminActionLog,
+  PriceSnapshot,
 } from "./generated/client";
 
 export {
@@ -41,6 +43,8 @@ export {
   RaffleReason,
   TweetProofMethod,
   AdminAction,
+  TradeType,
+  PricingModel,
 } from "./generated/client";
 
 // Export Prisma namespace for advanced types

@@ -83,9 +83,14 @@ export async function POST(
         });
 
         // Calculate new prices
-        const totalPool = updatedMarket.seed0 + updatedMarket.seed1 + updatedMarket.pool0 + updatedMarket.pool1;
-        const price0 = totalPool > 0 ? (updatedMarket.seed0 + updatedMarket.pool0) / totalPool : 0.5;
-        const price1 = totalPool > 0 ? (updatedMarket.seed1 + updatedMarket.pool1) / totalPool : 0.5;
+        const seed0Num = Number(updatedMarket.seed0);
+        const seed1Num = Number(updatedMarket.seed1);
+        const pool0Num = Number(updatedMarket.pool0);
+        const pool1Num = Number(updatedMarket.pool1);
+        
+        const totalPool = seed0Num + seed1Num + pool0Num + pool1Num;
+        const price0 = totalPool > 0 ? (seed0Num + pool0Num) / totalPool : 0.5;
+        const price1 = totalPool > 0 ? (seed1Num + pool1Num) / totalPool : 0.5;
 
         // Persist new prices to database
         updatedMarket = await tx.market.update({

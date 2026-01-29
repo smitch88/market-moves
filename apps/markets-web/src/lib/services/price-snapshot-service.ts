@@ -27,14 +27,20 @@ export interface PriceSnapshotData {
 export async function createPriceSnapshot(
   tx: Prisma.TransactionClient,
   marketId: string,
-  pool0: number,
-  pool1: number,
-  seed0: number,
-  seed1: number
+  pool0: number | Prisma.Decimal,
+  pool1: number | Prisma.Decimal,
+  seed0: number | Prisma.Decimal,
+  seed1: number | Prisma.Decimal
 ): Promise<void> {
+  // Convert Decimals to numbers if needed
+  const pool0Num = typeof pool0 === 'number' ? pool0 : Number(pool0);
+  const pool1Num = typeof pool1 === 'number' ? pool1 : Number(pool1);
+  const seed0Num = typeof seed0 === 'number' ? seed0 : Number(seed0);
+  const seed1Num = typeof seed1 === 'number' ? seed1 : Number(seed1);
+
   // Calculate total pools including seeds
-  const totalPool0 = seed0 + pool0;
-  const totalPool1 = seed1 + pool1;
+  const totalPool0 = seed0Num + pool0Num;
+  const totalPool1 = seed1Num + pool1Num;
 
   // Calculate prices
   const { price0, price1 } = pricingEngine.calculatePrice(totalPool0, totalPool1);

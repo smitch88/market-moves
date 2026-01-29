@@ -155,7 +155,7 @@ export function Header() {
               <div className="flex flex-col items-center">
                 <span className="text-[11px] text-muted-foreground font-medium tracking-wide">Balance</span>
                 <span className="text-base font-semibold text-[#21C55E]">
-                  ${(profile?.balance ?? 0).toLocaleString()}
+                  ${((profile?.balance ?? 0)).toLocaleString()}
                 </span>
               </div>
             </div>

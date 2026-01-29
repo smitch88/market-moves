@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma, MarketStatus, AdminAction } from "@vault/database";
+import { prisma, MarketStatus, AdminAction, PricingModel } from "@vault/database";
 import { requireAdmin } from "@vault/auth";
+import { ConstantProductAMM } from "@/lib/services/pricing-engine";
 import { z } from "zod";
 
 const createMarketSchema = z.object({
@@ -13,8 +14,13 @@ const createMarketSchema = z.object({
   opensAt: z.string().nullable().optional(),
   closesAt: z.string().nullable().optional(),
   feeBps: z.number().int().min(0).max(10000).default(100),
+  // Legacy pari-mutuel seeds (kept for backward compatibility)
   seed0: z.number().int().min(0).default(1000),
   seed1: z.number().int().min(0).default(1000),
+  // AMM options
+  pricingModel: z.enum(["PARI_MUTUEL", "CPMM"]).default("CPMM"),
+  reserve0: z.number().min(0).optional(), // Initial shares for outcome 0
+  reserve1: z.number().min(0).optional(), // Initial shares for outcome 1
 });
 
 export async function GET(request: NextRequest) {
@@ -76,10 +82,40 @@ export async function POST(request: NextRequest) {
     }
 
     const market = await prisma.$transaction(async (tx) => {
-      // Calculate initial prices from seed values
-      const totalSeeds = data.seed0 + data.seed1;
-      const initialPrice0 = totalSeeds > 0 ? (data.seed0 / totalSeeds).toFixed(4) : "0.5000";
-      const initialPrice1 = totalSeeds > 0 ? (data.seed1 / totalSeeds).toFixed(4) : "0.5000";
+      const isCPMM = data.pricingModel === "CPMM";
+      const cpmm = new ConstantProductAMM();
+
+      // Set up reserves for CPMM or seeds for pari-mutuel
+      // For CPMM: reserves represent share liquidity (not scaled)
+      let reserve0: number;
+      let reserve1: number;
+      
+      if (isCPMM) {
+        reserve0 = data.reserve0 ?? data.seed0; // Reserves are shares
+        reserve1 = data.reserve1 ?? data.seed1; // Reserves are shares
+      } else {
+        // Pari-mutuel uses seeds directly (in cents)
+        reserve0 = data.seed0;
+        reserve1 = data.seed1;
+      }
+      
+      const k = isCPMM ? ConstantProductAMM.calculateInitialK(reserve0, reserve1) : null;
+
+      // Calculate initial prices
+      let initialPrice0: string;
+      let initialPrice1: string;
+
+      if (isCPMM) {
+        // CPMM: price is based on reserve ratio
+        const prices = cpmm.calculatePrice(reserve0, reserve1);
+        initialPrice0 = prices.price0.toFixed(4);
+        initialPrice1 = prices.price1.toFixed(4);
+      } else {
+        // Pari-mutuel: price is based on seed ratio
+        const totalSeeds = data.seed0 + data.seed1;
+        initialPrice0 = totalSeeds > 0 ? (data.seed0 / totalSeeds).toFixed(4) : "0.5000";
+        initialPrice1 = totalSeeds > 0 ? (data.seed1 / totalSeeds).toFixed(4) : "0.5000";
+      }
 
       const newMarket = await tx.market.create({
         data: {
@@ -95,23 +131,30 @@ export async function POST(request: NextRequest) {
           opensAt: data.opensAt ? new Date(data.opensAt) : null,
           closesAt: data.closesAt ? new Date(data.closesAt) : null,
           feeBps: data.feeBps,
+          // Pricing model
+          pricingModel: isCPMM ? PricingModel.CPMM : PricingModel.PARI_MUTUEL,
+          // Legacy pari-mutuel fields
           seed0: data.seed0,
           seed1: data.seed1,
+          // CPMM AMM fields
+          reserve0,
+          reserve1,
+          k,
           status: MarketStatus.DRAFT,
         },
       });
 
       // Create initial price snapshot for chart history
-      const snapshotPrice0 = totalSeeds > 0 ? newMarket.seed0 / totalSeeds : 0.5;
-      const snapshotPrice1 = totalSeeds > 0 ? newMarket.seed1 / totalSeeds : 0.5;
+      const snapshotPrice0 = parseFloat(initialPrice0);
+      const snapshotPrice1 = parseFloat(initialPrice1);
       
       await tx.priceSnapshot.create({
         data: {
           marketId: newMarket.id,
           price0: snapshotPrice0,
           price1: snapshotPrice1,
-          pool0: newMarket.seed0,
-          pool1: newMarket.seed1,
+          pool0: Math.floor(reserve0),
+          pool1: Math.floor(reserve1),
         },
       });
 
@@ -124,6 +167,10 @@ export async function POST(request: NextRequest) {
           metadata: { 
             eventId: data.eventId,
             question: data.question,
+            pricingModel: data.pricingModel,
+            reserve0,
+            reserve1,
+            k,
           },
         },
       });
