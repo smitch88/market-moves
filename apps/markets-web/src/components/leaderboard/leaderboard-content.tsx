@@ -6,7 +6,6 @@ import {
   Avatar,
   AvatarImage,
   AvatarFallback,
-  Input,
   Badge,
   Button,
 } from "@vault/ui";
@@ -433,18 +432,17 @@ export function LeaderboardContent() {
             className="space-y-4"
           >
             {/* Table Header with Search */}
-            <div className="flex items-center px-4 py-2 text-sm text-muted-foreground border-b border-border/30">
+            <div className="flex items-center px-4 py-2 text-xs text-muted-foreground/60 uppercase tracking-wider">
               <div className="w-12" />
-              <div className="flex-1">
-                <div className="relative max-w-[200px]">
-                  <Search className="absolute left-0 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/50" />
-                  <Input
-                    placeholder="Search..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-5 h-7 text-sm bg-transparent border-0 rounded-none focus-visible:ring-0 placeholder:text-muted-foreground/40"
-                  />
-                </div>
+              <div className="flex-1 relative">
+                <Search className="absolute left-0 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/40" />
+                <input
+                  type="text"
+                  placeholder="Search users..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-6 py-1 text-sm font-normal normal-case tracking-normal bg-transparent border-none outline-none focus:outline-none placeholder:text-muted-foreground/40"
+                />
               </div>
               {metric === "xp" && (
                 <div className="w-16 text-center hidden sm:block">Level</div>
