@@ -120,16 +120,6 @@ function PositionRow({ position, outcomeIndex, shares, avgCost, onSellComplete }
         isClaimed && "opacity-60"
       )}>
         <div className="flex items-center gap-4">
-          {/* Outcome indicator */}
-          <div
-            className={cn(
-              "w-2 h-8 rounded-full flex-shrink-0",
-              didWin && !isClaimed && "ring-2 ring-green-500 ring-offset-2 ring-offset-background",
-              canRedeem && "animate-pulse"
-            )}
-            style={{ backgroundColor: outcomeColor }}
-          />
-
           {/* Market info */}
           <div className="flex-1 min-w-0">
             <Link
@@ -302,7 +292,6 @@ export function ProfilePositions() {
       <div className="space-y-4">
         {Array.from({ length: 3 }).map((_, i) => (
           <div key={i} className="flex items-center gap-4 py-4">
-            <Skeleton className="w-2 h-8 rounded-full" />
             <div className="flex-1 space-y-2">
               <Skeleton className="h-5 w-48" />
               <Skeleton className="h-4 w-32" />

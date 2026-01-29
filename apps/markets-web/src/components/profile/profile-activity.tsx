@@ -73,7 +73,6 @@ export function ProfileActivity({ bets, redemptions = [], isLoading }: ProfileAc
       <div className="space-y-4">
         {Array.from({ length: 5 }).map((_, i) => (
           <div key={i} className="flex items-center gap-4 py-3">
-            <Skeleton className="w-2 h-6 rounded-full" />
             <div className="flex-1 space-y-1.5">
               <Skeleton className="h-5 w-48" />
               <Skeleton className="h-4 w-64" />
@@ -131,12 +130,6 @@ function BetRow({ bet }: { bet: BetEntry }) {
       href={getMarketUrl(eventSlug)}
       className="flex items-center gap-4 py-4 border-b border-border/50 last:border-0 group hover:bg-muted/30 -mx-2 px-2 rounded-lg transition-colors"
     >
-      {/* Outcome indicator */}
-      <div
-        className="w-2 h-6 rounded-full flex-shrink-0"
-        style={{ backgroundColor: outcomeColor }}
-      />
-
       {/* Content */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5">

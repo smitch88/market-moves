@@ -13,6 +13,7 @@ import {
   ResponsiveContainer,
   Tooltip,
   XAxis,
+  YAxis,
 } from "recharts";
 import { User, ExternalLink } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent, Skeleton } from "@vault/ui";
@@ -143,6 +144,7 @@ export function ProfileContent({ userId }: ProfileContentProps) {
   const searchParams = useSearchParams();
   const defaultTab = searchParams.get("tab") || "positions";
   const [timeRange, setTimeRange] = useState<TimeRange>("ALL");
+  const [hoveredPnL, setHoveredPnL] = useState<{ value: number; timestamp: string } | null>(null);
   const { user } = usePrivy();
 
   const { data: profile, isLoading: profileLoading } = useQuery({
@@ -188,6 +190,10 @@ export function ProfileContent({ userId }: ProfileContentProps) {
   const avatarUrl = profile?.profileImageUrl || user?.twitter?.profilePictureUrl;
   const totalPnL = stats?.totalPnL || 0;
   const isPositive = totalPnL >= 0;
+  
+  // Use hovered value if available, otherwise show the total
+  const displayPnL = hoveredPnL?.value ?? totalPnL;
+  const displayIsPositive = displayPnL >= 0;
 
   // Filter chart data based on time range
   const now = Date.now();
@@ -198,18 +204,63 @@ export function ProfileContent({ userId }: ProfileContentProps) {
     "ALL": Infinity,
   };
 
-  const chartData = (pnlHistory || [])
+  // Get sorted raw data points within range
+  const rawChartData = (pnlHistory || [])
     .filter((point) => {
       if (timeRange === "ALL") return true;
       return now - new Date(point.timestamp).getTime() <= rangeMs[timeRange];
     })
+    .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
     .map((point) => ({
-      date: format(new Date(point.timestamp), "MMM d"),
-      timestamp: point.timestamp,
+      timestamp: new Date(point.timestamp).getTime(),
       value: point.realizedPnL + point.unrealizedPnL,
     }));
 
-  const hasChartData = chartData.length > 1;
+  // Generate evenly spaced data points across the ENTIRE time range
+  const generateChartData = () => {
+    // Determine time range boundaries
+    const rangeStart = timeRange === "ALL" 
+      ? (rawChartData.length > 0 ? rawChartData[0].timestamp : now - 7 * 24 * 60 * 60 * 1000)
+      : now - rangeMs[timeRange];
+    const rangeEnd = now;
+    
+    // Number of points based on time range
+    const pointCount: Record<TimeRange, number> = {
+      "1D": 24,   // 1 per hour
+      "1W": 42,   // 1 every 4 hours
+      "1M": 30,   // 1 per day
+      "ALL": Math.min(90, Math.max(30, rawChartData.length * 2)), // Dynamic
+    };
+    
+    const numPoints = pointCount[timeRange];
+    const interval = (rangeEnd - rangeStart) / numPoints;
+    const points: Array<{ date: string; timestamp: string; value: number }> = [];
+    
+    for (let i = 0; i <= numPoints; i++) {
+      const pointTime = rangeStart + (i * interval);
+      
+      // Find the latest P&L value at or before this point
+      let value = 0;
+      for (const dataPoint of rawChartData) {
+        if (dataPoint.timestamp <= pointTime) {
+          value = dataPoint.value;
+        } else {
+          break;
+        }
+      }
+      
+      points.push({
+        date: format(new Date(pointTime), timeRange === "1D" ? "h:mm a" : "MMM d"),
+        timestamp: new Date(pointTime).toISOString(),
+        value,
+      });
+    }
+    
+    return points;
+  };
+
+  const chartData = generateChartData();
+  const hasChartData = chartData.length > 1 || rawChartData.length > 0;
 
   return (
     <div className="max-w-6xl mx-auto">
@@ -295,16 +346,24 @@ export function ProfileContent({ userId }: ProfileContentProps) {
           <div className="flex items-start justify-between mb-4">
             <div>
               <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-                <span className={cn("w-2 h-2 rounded-full", isPositive ? "bg-green-500" : "bg-red-500")} />
+                <span className={cn("w-2 h-2 rounded-full", displayIsPositive ? "bg-green-500" : "bg-red-500")} />
                 Profit/Loss
               </div>
               <div className={cn(
                 "text-3xl font-bold tabular-nums tracking-tight",
-                isPositive ? "text-green-500" : "text-red-500"
+                displayIsPositive ? "text-green-500" : "text-red-500"
               )}>
-                {formatMoney(totalPnL, { showSign: false })}
+                {formatMoney(displayPnL, { showSign: false })}
               </div>
-              <div className="text-sm text-muted-foreground mt-0.5">All-Time</div>
+              <div className="text-sm text-muted-foreground mt-0.5">
+                {hoveredPnL 
+                  ? format(new Date(hoveredPnL.timestamp), "MMM d, yyyy 'at' h:mm a")
+                  : timeRange === "1D" ? "Past 24 Hours"
+                  : timeRange === "1W" ? "Past 7 Days"
+                  : timeRange === "1M" ? "Past 30 Days"
+                  : "All-Time"
+                }
+              </div>
             </div>
 
             {/* Time range selector */}
@@ -314,7 +373,7 @@ export function ProfileContent({ userId }: ProfileContentProps) {
                   key={range}
                   onClick={() => setTimeRange(range)}
                   className={cn(
-                    "px-2.5 py-1 text-xs font-medium rounded-md transition-colors",
+                    "px-2.5 py-1 text-xs font-medium rounded-md transition-colors focus:outline-none",
                     timeRange === range
                       ? "bg-primary text-primary-foreground"
                       : "text-muted-foreground hover:text-foreground"
@@ -327,36 +386,65 @@ export function ProfileContent({ userId }: ProfileContentProps) {
           </div>
 
           {/* Chart */}
-          <div className="h-[120px] -mx-2">
+          <div 
+            className="h-[120px] -mx-2"
+            onMouseLeave={() => setHoveredPnL(null)}
+          >
             {hasChartData ? (
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={chartData} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
+                <AreaChart 
+                  data={chartData} 
+                  margin={{ top: 5, right: 5, left: 5, bottom: 5 }}
+                  onMouseMove={(state) => {
+                    if (state?.activePayload?.[0]?.payload) {
+                      const { value, timestamp } = state.activePayload[0].payload;
+                      setHoveredPnL({ value, timestamp });
+                    }
+                  }}
+                  onMouseLeave={() => setHoveredPnL(null)}
+                >
                   <defs>
-                    <linearGradient id="pnlHeaderGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop
-                        offset="0%"
-                        stopColor={isPositive ? "hsl(var(--primary))" : "#ef4444"}
-                        stopOpacity={0.4}
-                      />
-                      <stop
-                        offset="100%"
-                        stopColor={isPositive ? "hsl(var(--primary))" : "#ef4444"}
-                        stopOpacity={0.05}
-                      />
+                    <linearGradient id="pnlGradientPositive" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
+                      <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0.05} />
+                    </linearGradient>
+                    <linearGradient id="pnlGradientNegative" x1="0" y1="1" x2="0" y2="0">
+                      <stop offset="0%" stopColor="#ef4444" stopOpacity={0.3} />
+                      <stop offset="100%" stopColor="#ef4444" stopOpacity={0.05} />
                     </linearGradient>
                   </defs>
                   <XAxis dataKey="date" hide />
-                  <Tooltip 
-                    content={<ChartTooltip />} 
-                    cursor={{ stroke: 'hsl(var(--border))', strokeWidth: 1, strokeDasharray: '4 4' }}
+                  <YAxis 
+                    hide 
+                    domain={['dataMin', (dataMax: number) => Math.max(dataMax, 0) * 1.1 || 0.1]}
+                  />
+                  <Tooltip
+                    cursor={{ stroke: 'hsl(var(--muted-foreground))', strokeWidth: 1 }}
+                    content={({ active, payload }) => {
+                      if (active && payload?.[0]?.payload) {
+                        const { value, timestamp } = payload[0].payload;
+                        // Update the state for header display
+                        if (!hoveredPnL || hoveredPnL.value !== value || hoveredPnL.timestamp !== timestamp) {
+                          setTimeout(() => setHoveredPnL({ value, timestamp }), 0);
+                        }
+                      }
+                      return null; // Don't render a tooltip box
+                    }}
                   />
                   <Area
                     type="monotone"
                     dataKey="value"
                     stroke={isPositive ? "hsl(var(--primary))" : "#ef4444"}
-                    strokeWidth={2.5}
-                    fill="url(#pnlHeaderGradient)"
-                    animationDuration={800}
+                    strokeWidth={2}
+                    fill={isPositive ? "url(#pnlGradientPositive)" : "url(#pnlGradientNegative)"}
+                    animationDuration={300}
+                    dot={false}
+                    activeDot={{ 
+                      r: 5, 
+                      fill: isPositive ? "hsl(var(--primary))" : "#ef4444",
+                      stroke: "hsl(var(--background))",
+                      strokeWidth: 2
+                    }}
                   />
                 </AreaChart>
               </ResponsiveContainer>
