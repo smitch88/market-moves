@@ -39,6 +39,8 @@ export interface OutcomeButtonProps {
   price: number;
   isSelected: boolean;
   onClick: () => void;
+  /** When true, button takes full width on mobile */
+  fullWidth?: boolean;
 }
 
 export function OutcomeButton({
@@ -46,6 +48,7 @@ export function OutcomeButton({
   price,
   isSelected,
   onClick,
+  fullWidth = false,
 }: OutcomeButtonProps) {
   return (
     <motion.button
@@ -54,8 +57,9 @@ export function OutcomeButton({
         onClick();
       }}
       className={cn(
-        "w-[90px] sm:w-[120px] px-2 sm:px-3 py-2 sm:py-2.5 rounded-lg font-medium text-xs sm:text-sm transition-all",
+        "px-2 sm:px-3 py-2 sm:py-2.5 rounded-lg font-medium text-xs sm:text-sm transition-all",
         "flex items-center justify-between gap-1 sm:gap-2",
+        fullWidth ? "flex-1 sm:flex-none sm:w-[120px]" : "w-[90px] sm:w-[120px]",
         isSelected
           ? "bg-primary text-primary-foreground ring-2 ring-primary ring-offset-2 ring-offset-background"
           : "bg-muted/50 text-foreground hover:bg-muted border border-border/50 hover:border-border"

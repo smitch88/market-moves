@@ -26,6 +26,7 @@ export type ProvisionedUser = {
   balance: number;
   referralCode: string;
   hasSeenWelcomeModal: boolean;
+  createdAt: Date;
   _count: { referralsGiven: number };
 };
 
@@ -71,6 +72,7 @@ export async function provisionUser(input: ProvisionUserInput): Promise<Provisio
         balance: true,
         referralCode: true,
         hasSeenWelcomeModal: true,
+        createdAt: true,
         _count: {
           select: { referralsGiven: true },
         },

@@ -128,7 +128,7 @@ export function ProfileContent({ userId }: ProfileContentProps) {
   const totalPnL = stats?.totalPnL || 0;
 
   return (
-    <div className="max-w-6xl mx-auto">
+    <div className="max-w-6xl mx-auto overflow-hidden">
       {/* Header - Two column layout like Polymarket */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
         {/* Left side - User info */}

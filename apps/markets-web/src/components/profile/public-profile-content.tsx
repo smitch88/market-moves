@@ -1,15 +1,13 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import Link from "next/link";
-import { format } from "date-fns";
-import { Tabs, TabsList, TabsTrigger, TabsContent, Skeleton } from "@vault/ui";
-import { cn } from "@vault/ui/lib/utils";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@vault/ui";
 import { ProfileActivity } from "./profile-activity";
+import { ProfilePositions } from "./profile-positions";
 import { ProfileHeaderCard } from "./profile-header-card";
 import { PnLChart } from "./pnl-chart";
 import { ProfileContentSkeleton } from "./profile-content-skeleton";
-import { formatXp } from "./profile-utils";
+import { formatMoney } from "./profile-utils";
 
 interface PublicProfileContentProps {
   /** User ID or handle - the API supports both */
@@ -40,6 +38,18 @@ interface ProfileResponse {
   stats: UserStats;
 }
 
+interface PnLHistoryPoint {
+  timestamp: string;
+  realizedPnL: number;
+  unrealizedPnL: number;
+  totalVolume: number;
+}
+
+interface PublicPosition {
+  id: string;
+  totalValue: number;
+}
+
 async function fetchPublicProfile(
   handle: string
 ): Promise<ProfileResponse | null> {
@@ -54,36 +64,20 @@ async function fetchPublicActivity(handle: string) {
   return res.json();
 }
 
-interface PublicPosition {
-  id: string;
-  marketId: string;
-  shares0: number;
-  shares1: number;
-  totalCost: number;
-  totalValue: number;
-  unrealizedPnL: number;
-  avgPrice0: number | null;
-  avgPrice1: number | null;
-  lastBetAt: string | null;
-  market: {
-    id: string;
-    question: string;
-    status: string;
-    outcomes: string[];
-    outcomeColors: string[];
-    outcomePrices: number[];
-    resolvedOutcome: number | null;
-    event: {
-      slug: string;
-      title: string;
-    } | null;
-  };
+async function fetchPublicPnLHistory(handle: string): Promise<PnLHistoryPoint[]> {
+  const res = await fetch(`/api/users/${handle}/pnl-history?days=90`);
+  if (!res.ok) return [];
+  return res.json();
 }
 
 async function fetchPublicPositions(handle: string): Promise<PublicPosition[]> {
   const res = await fetch(`/api/users/${handle}/positions`);
   if (!res.ok) return [];
   return res.json();
+}
+
+function calculatePositionsValue(positions: PublicPosition[]): number {
+  return positions.reduce((total, pos) => total + (pos.totalValue || 0), 0);
 }
 
 export function PublicProfileContent({ handle }: PublicProfileContentProps) {
@@ -102,9 +96,15 @@ export function PublicProfileContent({ handle }: PublicProfileContentProps) {
     enabled: !!profileData,
   });
 
-  const { data: positions, isLoading: positionsLoading } = useQuery({
+  const { data: positions } = useQuery({
     queryKey: ["public-positions", handle],
     queryFn: () => fetchPublicPositions(handle),
+    enabled: !!profileData,
+  });
+
+  const { data: pnlHistory } = useQuery({
+    queryKey: ["public-pnl-history", handle],
+    queryFn: () => fetchPublicPnLHistory(handle),
     enabled: !!profileData,
   });
 
@@ -125,20 +125,10 @@ export function PublicProfileContent({ handle }: PublicProfileContentProps) {
     user.name || user.handle || `User ${user.id.slice(0, 8)}...`;
   const avatarUrl = user.profileImageUrl;
   const totalPnL = stats.totalPnL;
-
-  // Generate chart data from activity (simplified)
-  // In production, you might want a dedicated endpoint for public PnL history
-  const chartData = (activity?.bets || [])
-    .slice(0, 20)
-    .reverse()
-    .map((bet: { createdAt: string; amount: number }, index: number) => ({
-      date: format(new Date(bet.createdAt), "MMM d"),
-      timestamp: bet.createdAt,
-      value: totalPnL * ((index + 1) / 20), // Simplified linear progression
-    }));
+  const positionsValue = calculatePositionsValue(positions || []);
 
   return (
-    <div className="max-w-6xl mx-auto">
+    <div className="max-w-6xl mx-auto overflow-hidden">
       {/* Header - Two column layout */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
         {/* Left side - User info */}
@@ -146,12 +136,12 @@ export function PublicProfileContent({ handle }: PublicProfileContentProps) {
           displayName={displayName}
           avatarUrl={avatarUrl}
           handle={user.handle}
-          showHandleLink={false}
+          showHandleLink={true}
           joinedAt={user.createdAt}
           stats={[
             {
-              label: "XP",
-              value: formatXp(user.xp),
+              label: "Positions Value",
+              value: formatMoney(positionsValue || 0, { compact: true }),
             },
             {
               label: "Win Rate",
@@ -168,12 +158,11 @@ export function PublicProfileContent({ handle }: PublicProfileContentProps) {
           ]}
         />
 
-        {/* Right side - P&L */}
+        {/* Right side - P&L Chart */}
         <PnLChart
           totalPnL={totalPnL}
-          chartData={chartData}
-          interactive={false}
-          timeRangeLabel="All-Time"
+          pnlHistory={pnlHistory}
+          interactive={true}
         />
       </div>
 
@@ -197,10 +186,7 @@ export function PublicProfileContent({ handle }: PublicProfileContentProps) {
         </div>
 
         <TabsContent value="positions" className="mt-0">
-          <PublicPositionsList
-            positions={positions || []}
-            isLoading={positionsLoading}
-          />
+          <ProfilePositions userHandle={handle} readOnly />
         </TabsContent>
         <TabsContent value="activity" className="mt-0">
           <ProfileActivity
@@ -211,132 +197,5 @@ export function PublicProfileContent({ handle }: PublicProfileContentProps) {
         </TabsContent>
       </Tabs>
     </div>
-  );
-}
-
-// Positions list component
-function PublicPositionsList({
-  positions,
-  isLoading,
-}: {
-  positions: PublicPosition[];
-  isLoading: boolean;
-}) {
-  if (isLoading) {
-    return (
-      <div className="space-y-3">
-        {[1, 2, 3].map((i) => (
-          <Skeleton key={i} className="h-20 w-full rounded-lg" />
-        ))}
-      </div>
-    );
-  }
-
-  if (positions.length === 0) {
-    return (
-      <div className="text-center py-12 text-muted-foreground">
-        No active positions
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-3">
-      {positions.map((position) => (
-        <PositionCard key={position.id} position={position} />
-      ))}
-    </div>
-  );
-}
-
-// Individual position card
-function PositionCard({ position }: { position: PublicPosition }) {
-  const { market } = position;
-  const eventSlug = market.event?.slug || "";
-  const prices = market.outcomePrices || [0.5, 0.5];
-
-  // Determine which outcome(s) the user holds
-  const holdings: { outcomeIndex: number; shares: number; value: number }[] = [];
-  const shares0 = position.shares0 ?? 0;
-  const shares1 = position.shares1 ?? 0;
-
-  if (shares0 > 0) {
-    holdings.push({
-      outcomeIndex: 0,
-      shares: shares0,
-      value: shares0 * (prices[0] ?? 0.5),
-    });
-  }
-  if (shares1 > 0) {
-    holdings.push({
-      outcomeIndex: 1,
-      shares: shares1,
-      value: shares1 * (prices[1] ?? 0.5),
-    });
-  }
-
-  const totalValue = position.totalValue ?? 0;
-  const unrealizedPnL = position.unrealizedPnL ?? 0;
-  const isProfit = unrealizedPnL >= 0;
-
-  return (
-    <Link
-      href={eventSlug ? `/events/${eventSlug}` : "#"}
-      className="block border border-border rounded-lg p-4 hover:bg-muted/20 transition-colors"
-    >
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex-1 min-w-0">
-          <p className="font-medium truncate">{market.question}</p>
-          {market.event && (
-            <p className="text-sm text-muted-foreground truncate">
-              {market.event.title}
-            </p>
-          )}
-          <div className="flex flex-wrap gap-2 mt-2">
-            {holdings.map(({ outcomeIndex, shares }) => (
-              <span
-                key={outcomeIndex}
-                className="inline-flex items-center gap-1.5 text-sm"
-              >
-                <span
-                  className="w-2 h-2 rounded-full"
-                  style={{
-                    backgroundColor: market.outcomeColors?.[outcomeIndex] || "#888",
-                  }}
-                />
-                <span className="font-medium">
-                  {market.outcomes?.[outcomeIndex] || `Outcome ${outcomeIndex}`}
-                </span>
-                <span className="text-muted-foreground">
-                  {shares.toLocaleString(undefined, { maximumFractionDigits: 2 })}{" "}
-                  shares
-                </span>
-              </span>
-            ))}
-          </div>
-        </div>
-        <div className="text-right flex-shrink-0">
-          <div className="font-semibold tabular-nums">
-            $
-            {totalValue.toLocaleString(undefined, {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            })}
-          </div>
-          <div
-            className={cn(
-              "text-sm tabular-nums",
-              isProfit ? "text-green-500" : "text-red-500"
-            )}
-          >
-            {isProfit ? "+" : ""}$
-            {unrealizedPnL.toLocaleString(undefined, {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            })}
-          </div>
-        </div>
-      </div>
-    </Link>
   );
 }

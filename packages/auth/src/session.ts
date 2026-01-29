@@ -16,6 +16,7 @@ export interface SessionUser {
   balance: number;
   referralCode: string;
   hasSeenWelcomeModal: boolean;
+  createdAt: Date;
   _count?: {
     referralsGiven: number;
   };
@@ -65,6 +66,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
         balance: true,
         referralCode: true,
         hasSeenWelcomeModal: true,
+        createdAt: true,
         _count: {
           select: { referralsGiven: true },
         },
@@ -91,6 +93,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
             balance: true,
             referralCode: true,
             hasSeenWelcomeModal: true,
+            createdAt: true,
             _count: {
               select: { referralsGiven: true },
             },
@@ -140,6 +143,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
               balance: true,
               referralCode: true,
               hasSeenWelcomeModal: true,
+              createdAt: true,
               _count: {
                 select: { referralsGiven: true },
               },

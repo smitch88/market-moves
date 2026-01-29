@@ -55,6 +55,8 @@ export async function GET(
             outcomes: true,
             outcomePrices: true,
             resolvedOutcome: true,
+            settledAt: true,
+            feeBps: true,
             event: {
               select: {
                 slug: true,
@@ -95,6 +97,8 @@ export async function GET(
         marketId: pos.marketId,
         shares0,
         shares1,
+        avgCost0,
+        avgCost1,
         totalCost,
         totalValue,
         unrealizedPnL,
@@ -109,6 +113,8 @@ export async function GET(
           outcomeColors: colors,
           outcomePrices: prices,
           resolvedOutcome: pos.market.resolvedOutcome,
+          settledAt: pos.market.settledAt?.toISOString() || null,
+          feeBps: pos.market.feeBps,
           event: pos.market.event,
         },
       };

@@ -82,9 +82,15 @@ export function WelcomeModal() {
               <X className="h-4 w-4" />
             </button>
 
-            {/* Hero placeholder */}
-            <div className="h-48 border-b border-border bg-muted/30 flex items-center justify-center rounded-t-2xl">
-              <span className="text-sm text-muted-foreground">Hero image</span>
+            {/* Hero image */}
+            <div className="relative h-48 border-b border-border overflow-hidden rounded-t-2xl">
+              <Image
+                src="/hero.jpg"
+                alt="Super Bowl LIX"
+                fill
+                className="object-cover"
+                priority
+              />
             </div>
 
             <div className="px-8 py-8 text-center">

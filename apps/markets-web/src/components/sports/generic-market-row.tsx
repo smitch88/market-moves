@@ -86,18 +86,20 @@ export function GenericMarketRow({
               </p>
             </div>
 
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-2 w-full sm:w-auto sm:shrink-0">
               <OutcomeButton
                 label={label0}
                 price={price0}
                 isSelected={isSelected && selectedOutcome === 0}
                 onClick={() => onSelectOutcome(market.id, 0)}
+                fullWidth
               />
               <OutcomeButton
                 label={label1}
                 price={price1}
                 isSelected={isSelected && selectedOutcome === 1}
                 onClick={() => onSelectOutcome(market.id, 1)}
+                fullWidth
               />
             </div>
           </div>
