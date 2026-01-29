@@ -53,7 +53,7 @@ export function Header() {
     enabled: hasSession,
   });
 
-  // Fetch XP
+  // Fetch XP with auto-refresh
   const { data: xpData } = useQuery({
     queryKey: ["xp"],
     queryFn: async () => {
@@ -62,6 +62,8 @@ export function Header() {
       return res.json();
     },
     enabled: hasSession,
+    refetchInterval: 30000, // Refresh every 30 seconds
+    staleTime: 10000, // Consider data stale after 10 seconds
   });
 
   const xp = xpData?.xp ?? 0;

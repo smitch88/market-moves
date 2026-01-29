@@ -9,6 +9,7 @@
  */
 
 import { prisma, BetStatus, PricingModel } from "@vault/database";
+import { awardXPForVolume } from "./xp-service";
 
 // ============================================================================
 // TYPES
@@ -313,17 +314,25 @@ export async function getPnLHistory(
 
 /**
  * Update user's running stats (called after trades/settlements)
+ * Also awards XP based on trading volume
  */
 export async function updateUserStats(
   userId: string,
   volumeDelta: number,
-  realizedPnLDelta: number = 0
+  realizedPnLDelta: number = 0,
+  correlationId?: string
 ): Promise<void> {
+  // Update volume and PnL
   await prisma.user.update({
     where: { id: userId },
     data: {
       totalVolume: { increment: Math.abs(volumeDelta) },
       realizedPnL: { increment: realizedPnLDelta },
     },
+  });
+
+  // Award XP for volume (fire-and-forget, don't block the trade)
+  awardXPForVolume(userId, volumeDelta, correlationId).catch((err) => {
+    console.error(`Failed to award XP for user ${userId}:`, err);
   });
 }

@@ -25,9 +25,12 @@ model User {
   updatedAt        DateTime          @updatedAt
   realizedPnL      Decimal           @default(0.0000) @db.Decimal(19, 4)
   totalVolume      Decimal           @default(0.00) @db.Decimal(19, 2)
+  xp               Int               @default(0) // Total XP earned
   adminActions     AdminActionLog[]
   adminAdjustments BalanceLedger[]   @relation("AdminActor")
   balanceLedger    BalanceLedger[]
+  xpLedger         XPLedger[]
+  xpAdjustments    XPLedger[]        @relation("XPAdminActor")
   bets             Bet[]
   positions        Position[]
   raffleEntries    RaffleEntry[]
@@ -69,6 +72,35 @@ model UserPnLSnapshot {
   user          User     @relation(fields: [userId], references: [id])
 
   @@index([userId, createdAt])
+}
+
+model XPLedger {
+  id            String   @id @default(cuid())
+  userId        String
+  delta         Int      // XP change (positive or negative)
+  xpBefore      Int
+  xpAfter       Int
+  reason        XPReason
+  correlationId String?  // Links to bet/trade ID
+  adminUserId   String?  // If admin adjustment
+  createdAt     DateTime @default(now())
+  user          User     @relation(fields: [userId], references: [id])
+  admin         User?    @relation("XPAdminActor", fields: [adminUserId], references: [id])
+
+  @@index([userId])
+  @@index([userId, createdAt]) // Compound index for user history queries
+  @@index([createdAt])
+  @@index([reason])
+  @@index([correlationId]) // For lookups by trade/bet ID
+}
+
+model XPConfig {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  value       String   // JSON string for flexibility
+  description String?
+  updatedAt   DateTime @updatedAt
+  updatedBy   String?  // Admin ID who last updated
 }
 
 model Tag {
@@ -353,6 +385,15 @@ enum AdminAction {
   MARKET_RESOLVE
   MARKET_SETTLE
   USER_ROLE_UPDATE
+  USER_XP_ADJUST
+  CONFIG_UPDATE
   EVENT_CREATE
   EVENT_UPDATE
+}
+
+enum XPReason {
+  TRADE_VOLUME  // XP from trading
+  ADMIN_ADJUST  // Manual admin adjustment
+  BONUS         // Promotional bonus
+  PENALTY       // Penalty/correction
 }

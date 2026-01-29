@@ -28,6 +28,7 @@ export async function GET(request: NextRequest) {
           name: true,
           role: true,
           balance: true,
+          xp: true,
           createdAt: true,
           _count: {
             select: {

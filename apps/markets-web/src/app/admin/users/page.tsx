@@ -26,6 +26,7 @@ import {
   DollarSign,
   Plus,
   Minus,
+  Sparkles,
 } from "lucide-react";
 
 interface User {
@@ -35,6 +36,7 @@ interface User {
   name: string | null;
   role: string;
   balance: number;
+  xp: number;
   createdAt: string;
   _count: {
     bets: number;
@@ -61,6 +63,13 @@ export default function AdminUsersPage() {
   const [adjustAmount, setAdjustAmount] = useState("");
   const [adjustReason, setAdjustReason] = useState("");
   const [isAddition, setIsAddition] = useState(true);
+
+  // XP adjustment state
+  const [xpDialogOpen, setXpDialogOpen] = useState(false);
+  const [xpSelectedUser, setXpSelectedUser] = useState<User | null>(null);
+  const [xpAmount, setXpAmount] = useState("");
+  const [xpReason, setXpReason] = useState<"ADMIN_ADJUST" | "BONUS" | "PENALTY">("ADMIN_ADJUST");
+  const [xpIsAddition, setXpIsAddition] = useState(true);
 
   // Fetch users
   const { data, isLoading } = useQuery<UsersResponse>({
@@ -109,6 +118,34 @@ export default function AdminUsersPage() {
     },
   });
 
+  // XP adjustment mutation
+  const xpMutation = useMutation({
+    mutationFn: async ({
+      userId,
+      delta,
+      reason,
+    }: {
+      userId: string;
+      delta: number;
+      reason: "ADMIN_ADJUST" | "BONUS" | "PENALTY";
+    }) => {
+      const res = await fetch(`/api/admin/users/${userId}/xp`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ delta, reason }),
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || "Failed to adjust XP");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["adminUsers"] });
+      closeXpDialog();
+    },
+  });
+
   const openAdjustDialog = (user: User, isAdd: boolean) => {
     setSelectedUser(user);
     setIsAddition(isAdd);
@@ -136,6 +173,36 @@ export default function AdminUsersPage() {
       userId: selectedUser.id,
       delta,
       reason: adjustReason,
+    });
+  };
+
+  const openXpDialog = (user: User, isAdd: boolean) => {
+    setXpSelectedUser(user);
+    setXpIsAddition(isAdd);
+    setXpAmount("");
+    setXpReason(isAdd ? "BONUS" : "PENALTY");
+    setXpDialogOpen(true);
+  };
+
+  const closeXpDialog = () => {
+    setXpDialogOpen(false);
+    setXpSelectedUser(null);
+    setXpAmount("");
+    setXpReason("ADMIN_ADJUST");
+  };
+
+  const handleXpSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!xpSelectedUser) return;
+
+    const amount = parseInt(xpAmount, 10);
+    if (isNaN(amount) || amount <= 0) return;
+
+    const delta = xpIsAddition ? amount : -amount;
+    xpMutation.mutate({
+      userId: xpSelectedUser.id,
+      delta,
+      reason: xpReason,
     });
   };
 
@@ -175,6 +242,9 @@ export default function AdminUsersPage() {
                     </th>
                     <th className="text-right p-4 font-medium text-muted-foreground">
                       Balance
+                    </th>
+                    <th className="text-right p-4 font-medium text-muted-foreground">
+                      XP
                     </th>
                     <th className="text-right p-4 font-medium text-muted-foreground">
                       Bets
@@ -223,6 +293,11 @@ export default function AdminUsersPage() {
                       <td className="p-4 text-right font-mono text-[#df2421]">
                         ${user.balance.toLocaleString()}
                       </td>
+                      <td className="p-4 text-right">
+                        <span className="font-mono text-purple-400">
+                          {(user.xp ?? 0).toLocaleString()}
+                        </span>
+                      </td>
                       <td className="p-4 text-right">{user._count.bets}</td>
                       <td className="p-4 text-right">{user._count.positions}</td>
                       <td className="p-4 text-right text-sm text-muted-foreground">
@@ -246,6 +321,23 @@ export default function AdminUsersPage() {
                           >
                             <Minus className="h-4 w-4 text-red-500" />
                           </Button>
+                          <div className="w-px h-4 bg-border mx-1" />
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => openXpDialog(user, true)}
+                            title="Add XP"
+                          >
+                            <Sparkles className="h-4 w-4 text-purple-500" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => openXpDialog(user, false)}
+                            title="Subtract XP"
+                          >
+                            <Sparkles className="h-4 w-4 text-purple-300 opacity-50" />
+                          </Button>
                         </div>
                       </td>
                     </tr>
@@ -253,7 +345,7 @@ export default function AdminUsersPage() {
                   {users.length === 0 && (
                     <tr>
                       <td
-                        colSpan={7}
+                        colSpan={8}
                         className="p-8 text-center text-muted-foreground"
                       >
                         No users yet
@@ -399,6 +491,84 @@ export default function AdminUsersPage() {
                 {adjustMutation.error instanceof Error
                   ? adjustMutation.error.message
                   : "Failed to adjust balance"}
+              </p>
+            )}
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* XP Adjustment Dialog */}
+      <Dialog open={xpDialogOpen} onOpenChange={setXpDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-purple-500" />
+              {xpIsAddition ? "Add" : "Subtract"} XP
+            </DialogTitle>
+            <DialogDescription>
+              {xpIsAddition ? "Add to" : "Subtract from"}{" "}
+              {xpSelectedUser?.name || xpSelectedUser?.handle || "user"}&apos;s XP.
+              Current XP: {(xpSelectedUser?.xp ?? 0).toLocaleString()}
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleXpSubmit}>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="xpAmount">Amount</Label>
+                <Input
+                  id="xpAmount"
+                  type="number"
+                  min="1"
+                  value={xpAmount}
+                  onChange={(e) => setXpAmount(e.target.value)}
+                  placeholder="100"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="xpReason">Reason</Label>
+                <select
+                  id="xpReason"
+                  value={xpReason}
+                  onChange={(e) => setXpReason(e.target.value as typeof xpReason)}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <option value="ADMIN_ADJUST">Admin Adjustment</option>
+                  <option value="BONUS">Bonus</option>
+                  <option value="PENALTY">Penalty</option>
+                </select>
+              </div>
+              {xpSelectedUser && xpAmount && (
+                <p className="text-sm text-muted-foreground">
+                  New XP will be:{" "}
+                  {Math.max(
+                    0,
+                    (xpSelectedUser.xp ?? 0) + (xpIsAddition ? 1 : -1) * (parseInt(xpAmount, 10) || 0)
+                  ).toLocaleString()}
+                </p>
+              )}
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={closeXpDialog}>
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={xpMutation.isPending}
+                className={xpIsAddition ? "bg-purple-600 hover:bg-purple-700" : ""}
+                variant={xpIsAddition ? "default" : "destructive"}
+              >
+                {xpMutation.isPending && (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                )}
+                {xpIsAddition ? "Add" : "Subtract"} XP
+              </Button>
+            </DialogFooter>
+            {xpMutation.isError && (
+              <p className="text-destructive text-sm text-center mt-2">
+                {xpMutation.error instanceof Error
+                  ? xpMutation.error.message
+                  : "Failed to adjust XP"}
               </p>
             )}
           </form>

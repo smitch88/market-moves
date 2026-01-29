@@ -32,6 +32,8 @@ export type {
   TweetProof,
   AdminActionLog,
   PriceSnapshot,
+  XPLedger,
+  XPConfig,
 } from "./generated/client";
 
 export {
@@ -45,6 +47,7 @@ export {
   AdminAction,
   TradeType,
   PricingModel,
+  XPReason,
 } from "./generated/client";
 
 // Export Prisma namespace for advanced types
