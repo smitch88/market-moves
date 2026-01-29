@@ -89,16 +89,18 @@ interface PositionRowProps {
   outcomeIndex: 0 | 1;
   shares: number;
   avgCost: number;
-  onSellComplete: () => void;
+  onSellComplete?: () => void;
   unsharedBet?: UnsharedBet | null;
   profile?: {
     name?: string | null;
     handle?: string | null;
     profileImageUrl?: string | null;
   } | null;
+  /** If true, hides sell/boost buttons (for public profiles) */
+  readOnly?: boolean;
 }
 
-function PositionRow({ position, outcomeIndex, shares, avgCost, onSellComplete, unsharedBet, profile }: PositionRowProps) {
+function PositionRow({ position, outcomeIndex, shares, avgCost, onSellComplete, unsharedBet, profile, readOnly = false }: PositionRowProps) {
   const [showSellModal, setShowSellModal] = useState(false);
   const [showShareXPModal, setShowShareXPModal] = useState(false);
 
@@ -217,8 +219,8 @@ function PositionRow({ position, outcomeIndex, shares, avgCost, onSellComplete, 
 
           {/* Actions */}
           <div className="flex items-center gap-2">
-            {/* Boost XP button */}
-            {unsharedBet && (
+            {/* Boost XP button - only show for own profile */}
+            {!readOnly && unsharedBet && (
               <Button
                 variant="outline"
                 size="sm"
@@ -247,9 +249,15 @@ function PositionRow({ position, outcomeIndex, shares, avgCost, onSellComplete, 
                 ) : (
                   // Not yet claimed
                   canRedeem ? (
-                    <div className="text-xs text-amber-500 font-medium bg-amber-500/10 px-2 py-1 rounded border border-amber-500/20">
-                      Pending claim
-                    </div>
+                    readOnly ? (
+                      <div className="text-xs text-green-500 font-medium bg-green-500/10 px-2 py-1 rounded border border-green-500/20">
+                        Winner
+                      </div>
+                    ) : (
+                      <div className="text-xs text-amber-500 font-medium bg-amber-500/10 px-2 py-1 rounded border border-amber-500/20">
+                        Pending claim
+                      </div>
+                    )
                   ) : didLose ? (
                     <div className="text-xs text-muted-foreground bg-muted/50 px-2 py-1 rounded">
                       Lost
@@ -259,7 +267,7 @@ function PositionRow({ position, outcomeIndex, shares, avgCost, onSellComplete, 
               </div>
             ) : (
               <>
-                {isOpen && (
+                {!readOnly && isOpen && (
                   <Button
                     variant="ghost"
                     size="sm"
@@ -275,8 +283,8 @@ function PositionRow({ position, outcomeIndex, shares, avgCost, onSellComplete, 
         </div>
       </div>
 
-      {/* Sell Modal */}
-      {!isSettled && (
+      {/* Sell Modal - only when not read-only */}
+      {!readOnly && !isSettled && onSellComplete && (
         <SellPositionModal
           open={showSellModal}
           onOpenChange={setShowSellModal}
@@ -290,8 +298,8 @@ function PositionRow({ position, outcomeIndex, shares, avgCost, onSellComplete, 
         />
       )}
 
-      {/* Share XP Modal */}
-      {unsharedBet && (
+      {/* Share XP Modal - only when not read-only */}
+      {!readOnly && unsharedBet && (
         <ShareXPModal
           open={showShareXPModal}
           onOpenChange={setShowShareXPModal}
@@ -310,17 +318,82 @@ interface RedeemableSummary {
   losersCount: number;
 }
 
-export function ProfilePositions() {
+export interface ProfilePositionsProps {
+  /** User handle for public profile view. If not provided, fetches current user's positions. */
+  userHandle?: string;
+  /** If true, hides sell/redeem/boost functionality (for public profiles) */
+  readOnly?: boolean;
+}
+
+export function ProfilePositions({ userHandle, readOnly = false }: ProfilePositionsProps = {}) {
   const queryClient = useQueryClient();
   const [showRedeemModal, setShowRedeemModal] = useState(false);
   const authFetch = useAuthFetch();
 
+  // For public profiles, fetch from public API
+  const isPublicView = !!userHandle;
+
   const { data: positions, isLoading, error } = useQuery({
-    queryKey: ["positions"],
+    queryKey: isPublicView ? ["public-positions", userHandle] : ["positions"],
     queryFn: async (): Promise<Position[]> => {
-      const res = await authFetch("/api/me/positions");
-      if (!res.ok) throw new Error("Failed to fetch positions");
-      return res.json();
+      if (isPublicView) {
+        const res = await fetch(`/api/users/${userHandle}/positions`);
+        if (!res.ok) throw new Error("Failed to fetch positions");
+        const data = await res.json();
+        // Transform public API response to match Position interface
+        return data.map((pos: {
+          id: string;
+          marketId: string;
+          shares0: number;
+          shares1: number;
+          avgCost0: number;
+          avgCost1: number;
+          totalCost: number;
+          totalValue: number;
+          unrealizedPnL: number;
+          lastBetAt: string | null;
+          market: {
+            id: string;
+            question: string;
+            status: string;
+            outcomes: string[];
+            outcomeColors: string[];
+            outcomePrices: number[];
+            resolvedOutcome: number | null;
+            settledAt: string | null;
+            feeBps: number;
+            event: { slug: string; title: string } | null;
+          };
+        }) => ({
+          ...pos,
+          amount0: 0,
+          amount1: 0,
+          updatedAt: pos.lastBetAt || new Date().toISOString(),
+          claimedAt: null,
+          market: {
+            ...pos.market,
+            outcomes: JSON.stringify(pos.market.outcomes),
+            outcomeColors: JSON.stringify(pos.market.outcomeColors),
+            outcomePrices: JSON.stringify(pos.market.outcomePrices),
+            reserve0: 0,
+            reserve1: 0,
+            pool0: 0,
+            pool1: 0,
+            seed0: 0,
+            seed1: 0,
+            feeBps: pos.market.feeBps || 100,
+            event: pos.market.event ? {
+              id: pos.market.event.slug,
+              title: pos.market.event.title,
+              slug: pos.market.event.slug,
+            } : undefined,
+          },
+        }));
+      } else {
+        const res = await authFetch("/api/me/positions");
+        if (!res.ok) throw new Error("Failed to fetch positions");
+        return res.json();
+      }
     },
   });
 
@@ -335,6 +408,7 @@ export function ProfilePositions() {
         return null;
       }
     },
+    enabled: !isPublicView, // Only fetch for own profile
   });
 
   // Fetch unshared bets for Boost XP feature
@@ -345,6 +419,7 @@ export function ProfilePositions() {
       if (!res.ok) return [];
       return res.json();
     },
+    enabled: !isPublicView, // Only fetch for own profile
   });
 
   // Fetch profile for share modal
@@ -355,6 +430,7 @@ export function ProfilePositions() {
       if (!res.ok) return null;
       return res.json();
     },
+    enabled: !isPublicView, // Only fetch for own profile
   });
 
   // Create a map of marketId-outcomeIndex to unshared bet for quick lookup
@@ -421,16 +497,18 @@ export function ProfilePositions() {
     }
   });
 
-  // Get redeemable positions from API summary
-  const hasRedeemable = redeemableSummary && redeemableSummary.positionsCount > 0;
+  // Get redeemable positions from API summary (only for own profile)
+  const hasRedeemable = !isPublicView && redeemableSummary && redeemableSummary.positionsCount > 0;
 
   if (positionRows.length === 0) {
     return (
       <div className="text-center py-16">
         <p className="text-muted-foreground mb-4">No open positions</p>
-        <Link href="/">
-          <Button variant="outline">Browse markets</Button>
-        </Link>
+        {!isPublicView && (
+          <Link href="/">
+            <Button variant="outline">Browse markets</Button>
+          </Link>
+        )}
       </div>
     );
   }
@@ -453,8 +531,8 @@ export function ProfilePositions() {
 
   return (
     <div>
-      {/* Redeemable positions banner */}
-      {hasRedeemable && redeemableSummary && (
+      {/* Redeemable positions banner - only for own profile */}
+      {!isPublicView && hasRedeemable && redeemableSummary && (
         <div className="mb-6 p-4 rounded-xl bg-gradient-to-r from-green-500/10 to-primary/10 border border-green-500/20">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
@@ -484,30 +562,32 @@ export function ProfilePositions() {
         </div>
       )}
 
-      {/* Redeem Modal */}
-      <RedeemPositionsModal
-        open={showRedeemModal}
-        onOpenChange={setShowRedeemModal}
-      />
+      {/* Redeem Modal - only for own profile */}
+      {!isPublicView && (
+        <RedeemPositionsModal
+          open={showRedeemModal}
+          onOpenChange={setShowRedeemModal}
+        />
+      )}
 
       {/* Summary bar */}
-      <div className="flex items-center gap-6 pb-4 mb-2 text-sm">
+      <div className="flex items-center gap-3 sm:gap-6 pb-4 mb-2 text-xs sm:text-sm">
         <div>
           <span className="text-muted-foreground">Value</span>
-          <span className="ml-2 font-bold tabular-nums">
+          <span className="ml-1 sm:ml-2 font-bold tabular-nums">
             ${totals.totalValue.toFixed(2)}
           </span>
         </div>
         <div>
           <span className="text-muted-foreground">Cost</span>
-          <span className="ml-2 font-medium tabular-nums">
+          <span className="ml-1 sm:ml-2 font-medium tabular-nums">
             ${totals.totalCost.toFixed(2)}
           </span>
         </div>
         <div>
           <span className="text-muted-foreground">P&L</span>
           <span className={cn(
-            "ml-2 font-bold tabular-nums",
+            "ml-1 sm:ml-2 font-bold tabular-nums",
             totals.totalPnL >= 0 ? "text-green-500" : "text-red-500"
           )}>
             {totals.totalPnL >= 0 ? "+" : ""}${totals.totalPnL.toFixed(2)}
@@ -522,7 +602,7 @@ export function ProfilePositions() {
       <div className="space-y-3">
         {positionRows.map((row) => {
           const positionKey = `${row.position.market.id}-${row.outcomeIndex}`;
-          const unsharedBet = unsharedBetMap.get(positionKey);
+          const unsharedBet = isPublicView ? undefined : unsharedBetMap.get(positionKey);
           
           return (
             <PositionRow
@@ -531,11 +611,12 @@ export function ProfilePositions() {
               outcomeIndex={row.outcomeIndex}
               shares={row.shares}
               avgCost={row.avgCost}
-              onSellComplete={() => {
+              onSellComplete={isPublicView ? undefined : () => {
                 queryClient.invalidateQueries({ queryKey: ["positions"] });
               }}
               unsharedBet={unsharedBet}
-              profile={profile}
+              profile={isPublicView ? undefined : profile}
+              readOnly={readOnly || isPublicView}
             />
           );
         })}

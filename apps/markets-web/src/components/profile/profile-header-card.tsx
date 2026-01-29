@@ -90,13 +90,13 @@ export function ProfileHeaderCard({
       </div>
 
       {/* Stats row - pushed to bottom */}
-      <div className="flex items-center gap-6 pt-6 mt-auto border-t border-border">
+      <div className="flex items-center gap-4 sm:gap-6 pt-4 sm:pt-6 mt-4 sm:mt-auto border-t border-border">
         {stats.map((stat, index) => (
-          <div key={stat.label} className="flex items-center gap-6">
-            {index > 0 && <div className="h-10 w-px bg-border" />}
-            <div>
-              <div className="text-2xl font-bold tabular-nums">{stat.value}</div>
-              <div className="text-sm text-muted-foreground mt-1">
+          <div key={stat.label} className="flex items-center gap-4 sm:gap-6 flex-shrink-0">
+            {index > 0 && <div className="h-8 sm:h-10 w-px bg-border" />}
+            <div className="min-w-0">
+              <div className="text-lg sm:text-2xl font-bold tabular-nums">{stat.value}</div>
+              <div className="text-xs sm:text-sm text-muted-foreground mt-0.5 sm:mt-1">
                 {stat.label}
                 {stat.sublabel && <span className="ml-1">{stat.sublabel}</span>}
               </div>
