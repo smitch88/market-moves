@@ -181,6 +181,10 @@ export function QuickBetModal({
       setConfirmedAmount(amountNum);
       setStep("success");
       await queryClient.invalidateQueries({ queryKey: ["profile"] });
+      // Small delay to allow async XP award to complete on backend
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ["xp"] });
+      }, 500);
       onSuccess?.();
       toast.success("Bet confirmed!");
     },
