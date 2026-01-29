@@ -386,6 +386,12 @@ export function ProfileContent({ userId }: ProfileContentProps) {
               Activity
             </TabsTrigger>
             <TabsTrigger
+              value="referrals"
+              className="relative pb-3 px-0 bg-transparent rounded-none data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-foreground text-muted-foreground hover:text-foreground transition-colors after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-primary after:scale-x-0 data-[state=active]:after:scale-x-100 after:transition-transform"
+            >
+              Referrals
+            </TabsTrigger>
+            <TabsTrigger
               value="settings"
               className="relative pb-3 px-0 bg-transparent rounded-none data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-foreground text-muted-foreground hover:text-foreground transition-colors after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-primary after:scale-x-0 data-[state=active]:after:scale-x-100 after:transition-transform"
             >
@@ -405,7 +411,10 @@ export function ProfileContent({ userId }: ProfileContentProps) {
           />
         </TabsContent>
         <TabsContent value="settings" className="mt-0">
-          <ProfileSettings profile={profile} />
+          <ProfileSettings profile={profile} showReferrals={false} />
+        </TabsContent>
+        <TabsContent value="referrals" className="mt-0">
+          <ProfileSettings profile={profile} onlyReferrals={true} />
         </TabsContent>
       </Tabs>
     </div>

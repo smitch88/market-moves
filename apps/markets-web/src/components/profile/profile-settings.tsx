@@ -40,7 +40,7 @@ interface HandleCheckResult {
   reason?: string;
 }
 
-export function ProfileSettings({ profile }: ProfileSettingsProps) {
+export function ProfileSettings({ profile, showReferrals = true, onlyReferrals = false }: ProfileSettingsProps) {
   const { logout, linkTwitter, user } = usePrivy();
   const queryClient = useQueryClient();
   const [copied, setCopied] = useState(false);
@@ -185,16 +185,91 @@ export function ProfileSettings({ profile }: ProfileSettingsProps) {
 
   const shouldShowImage = profileImageUrl && isValidImageUrl(profileImageUrl);
 
+  // If only showing referrals, render just that section
+  if (onlyReferrals) {
+    return (
+      <div className="max-w-4xl mx-auto space-y-8">
+        {/* Referral Link */}
+        <div className="space-y-2">
+          <Label className="text-sm font-medium">Referral Link</Label>
+          <div className="flex items-center gap-2">
+            <Input
+              value={referralLink}
+              readOnly
+              className="bg-card border-border font-mono text-sm"
+            />
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={handleCopyReferral}
+              className="flex-shrink-0"
+            >
+              {copied ? (
+                <Check className="h-4 w-4 text-green-500" />
+              ) : (
+                <Copy className="h-4 w-4" />
+              )}
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Share this link to invite friends and earn rewards
+          </p>
+        </div>
+
+        {/* Share buttons */}
+        <div className="grid grid-cols-2 gap-3">
+          <Button 
+            onClick={handleCopyReferral} 
+            variant="outline"
+          >
+            {copied ? (
+              <>
+                <Check className="h-4 w-4 mr-2 text-green-500" />
+                Copied
+              </>
+            ) : (
+              <>
+                <Copy className="h-4 w-4 mr-2" />
+                Copy Link
+              </>
+            )}
+          </Button>
+          <Button
+            onClick={handleShareTwitter}
+            className="bg-[#1DA1F2] hover:bg-[#1a8cd8]"
+          >
+            <Twitter className="h-4 w-4 mr-2" />
+            Share on X
+          </Button>
+        </div>
+
+        {/* Referral code and friends count */}
+        <div className="pt-6 border-t border-border">
+          <div className="flex items-center justify-between">
+            <div className="space-y-1">
+              <span className="text-sm text-muted-foreground">Your referral code</span>
+              <code className="block px-3 py-1.5 bg-card border border-border rounded-md font-mono text-sm font-medium w-fit">
+                {profile.referralCode}
+              </code>
+            </div>
+            <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-card border border-border">
+              <Users className="h-4 w-4 text-muted-foreground" />
+              <span className="font-semibold text-lg">{friendsInvited}</span>
+              <span className="text-sm text-muted-foreground">invited</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 max-w-6xl">
-      {/* Profile Section */}
-      <div className="border border-border rounded-xl p-6">
-        <h3 className="font-semibold text-lg mb-6">Profile</h3>
-        
+    <div className="max-w-4xl mx-auto">
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr,360px] gap-x-12 gap-y-8">
+        {/* Profile Section */}
         <div className="space-y-6">
-          {/* Profile Picture Preview */}
-          <div className="flex items-center gap-4">
-            <div className="relative h-16 w-16 rounded-full overflow-hidden bg-gradient-to-br from-orange-400 via-green-400 to-blue-400 flex-shrink-0">
+          <div className="flex items-start gap-6">
+            <div className="relative h-20 w-20 rounded-full overflow-hidden bg-gradient-to-br from-orange-400 via-green-400 to-blue-400 flex-shrink-0">
               {shouldShowImage ? (
                 <Image
                   src={profileImageUrl}
@@ -205,133 +280,120 @@ export function ProfileSettings({ profile }: ProfileSettingsProps) {
                 />
               ) : (
                 <div className="h-full w-full flex items-center justify-center">
-                  <User className="h-8 w-8 text-white/70" />
+                  <User className="h-9 w-9 text-white/70" />
                 </div>
               )}
             </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium">Profile Picture</p>
-              <p className="text-xs text-muted-foreground">Enter an image URL</p>
-            </div>
-          </div>
-
-          {/* Profile Image URL */}
-          <div className="space-y-2">
-            <Label className="text-sm font-medium flex items-center gap-2">
-              <ImageIcon className="h-4 w-4" />
-              Image URL
-            </Label>
-            <Input
-              value={profileImageUrl}
-              onChange={(e) => setProfileImageUrl(e.target.value)}
-              placeholder="https://example.com/your-photo.jpg"
-              className="bg-muted/50 border-border"
-            />
-            {profileImageUrl && !isValidImageUrl(profileImageUrl) && (
-              <p className="text-xs text-destructive">Please enter a valid URL</p>
-            )}
-          </div>
-
-          {/* Username */}
-          <div className="space-y-2">
-            <Label className="text-sm font-medium flex items-center gap-2">
-              <AtSign className="h-4 w-4" />
-              Username
-            </Label>
-            <div className="relative">
-              <Input
-                value={handle}
-                onChange={(e) => setHandle(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""))}
-                placeholder="your_username"
-                className={cn(
-                  "bg-muted/50 border-border pr-10",
-                  handleCheck && !handleCheck.available && "border-red-500 focus-visible:ring-red-500"
+            <div className="flex-1 space-y-4">
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Profile Image URL</Label>
+                <Input
+                  value={profileImageUrl}
+                  onChange={(e) => setProfileImageUrl(e.target.value)}
+                  placeholder="https://example.com/your-photo.jpg"
+                  className="bg-card border-border"
+                />
+                {profileImageUrl && !isValidImageUrl(profileImageUrl) && (
+                  <p className="text-xs text-destructive">Please enter a valid URL</p>
                 )}
-                maxLength={20}
-              />
-              {isCheckingHandle && (
-                <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
-              )}
-              {!isCheckingHandle && handleCheck && handle && (
-                <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                  {handleCheck.available ? (
-                    <Check className="h-4 w-4 text-green-500" />
-                  ) : (
-                    <span className="text-xs text-red-500">✕</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Username */}
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Username</Label>
+              <div className="relative">
+                <Input
+                  value={handle}
+                  onChange={(e) => setHandle(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""))}
+                  placeholder="your_username"
+                  className={cn(
+                    "bg-card border-border pr-10",
+                    handleCheck && !handleCheck.available && "border-red-500 focus-visible:ring-red-500"
                   )}
-                </div>
+                  maxLength={20}
+                />
+                {isCheckingHandle && (
+                  <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+                )}
+                {!isCheckingHandle && handleCheck && handle && (
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                    {handleCheck.available ? (
+                      <Check className="h-4 w-4 text-green-500" />
+                    ) : (
+                      <span className="text-xs text-red-500">✕</span>
+                    )}
+                  </div>
+                )}
+              </div>
+              {handleCheck && !handleCheck.available && (
+                <p className="text-xs text-red-500">{handleCheck.reason}</p>
+              )}
+              {handle && handle.length < 3 && (
+                <p className="text-xs text-muted-foreground">Min 3 characters</p>
               )}
             </div>
-            {handleCheck && !handleCheck.available && (
-              <p className="text-xs text-red-500">{handleCheck.reason}</p>
-            )}
-            {handle && handle.length < 3 && (
-              <p className="text-xs text-muted-foreground">Username must be at least 3 characters</p>
-            )}
-            {handle && profile.handle && (
-              <p className="text-xs text-muted-foreground">
-                Your profile URL: {baseUrl}/u/{handle}
+
+            {/* Display Name */}
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Display Name</Label>
+              <Input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Your Name"
+                className="bg-card border-border"
+                maxLength={50}
+              />
+            </div>
+          </div>
+
+          {handle && profile.handle && (
+            <p className="text-xs text-muted-foreground">
+              Profile URL: {baseUrl}/u/{handle}
+            </p>
+          )}
+
+          {/* Save Button */}
+          <div className="flex items-center gap-3">
+            <Button
+              onClick={handleSave}
+              disabled={!canSave}
+            >
+              {saveMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : saveMutation.isSuccess ? (
+                <>
+                  <Check className="h-4 w-4 mr-2" />
+                  Saved!
+                </>
+              ) : (
+                "Save Changes"
+              )}
+            </Button>
+
+            {saveMutation.isError && (
+              <p className="text-sm text-red-500">
+                {saveMutation.error.message}
               </p>
             )}
           </div>
-
-          {/* Display Name */}
-          <div className="space-y-2">
-            <Label className="text-sm font-medium flex items-center gap-2">
-              <User className="h-4 w-4" />
-              Display Name
-            </Label>
-            <Input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Your Name"
-              className="bg-muted/50 border-border"
-              maxLength={50}
-            />
-          </div>
-
-          {/* Save Button */}
-          <Button
-            onClick={handleSave}
-            disabled={!canSave}
-            className="w-full"
-          >
-            {saveMutation.isPending ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Saving...
-              </>
-            ) : saveMutation.isSuccess ? (
-              <>
-                <Check className="h-4 w-4 mr-2" />
-                Saved!
-              </>
-            ) : (
-              "Save Changes"
-            )}
-          </Button>
-
-          {saveMutation.isError && (
-            <p className="text-sm text-red-500 text-center">
-              {saveMutation.error.message}
-            </p>
-          )}
         </div>
-      </div>
 
-      {/* Account Section */}
-      <div className="space-y-6">
-        <div className="border border-border rounded-xl p-6">
-          <h3 className="font-semibold text-lg mb-6">Account</h3>
-          
-          <div className="space-y-6">
+        {/* Account Section */}
+        <div className="space-y-6">
+          <div className="space-y-4">
             {/* Email */}
             <div className="space-y-2">
               <Label className="text-sm font-medium">Email</Label>
               <Input
                 value={profile.email || "Not connected"}
                 disabled
-                className="bg-muted/50 border-border"
+                className="bg-card border-border"
               />
             </div>
 
@@ -343,13 +405,13 @@ export function ProfileSettings({ profile }: ProfileSettingsProps) {
                   <Input
                     value={`@${user.twitter?.username}`}
                     disabled
-                    className="bg-muted/50 border-border"
+                    className="bg-card border-border flex-1"
                   />
                   <a
                     href={`https://x.com/${user.twitter?.username}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center justify-center h-10 w-10 rounded-md border border-border hover:bg-muted transition-colors"
+                    className="flex items-center justify-center h-10 w-10 rounded-md border border-border hover:bg-muted transition-colors flex-shrink-0"
                   >
                     <ExternalLink className="h-4 w-4 text-muted-foreground" />
                   </a>
@@ -363,94 +425,15 @@ export function ProfileSettings({ profile }: ProfileSettingsProps) {
             </div>
           </div>
 
-          <div className="mt-8 pt-6 border-t border-border">
+          <div className="pt-4 border-t border-border">
             <Button 
               variant="ghost" 
               onClick={logout} 
-              className="text-red-500 hover:text-red-600 hover:bg-red-500/10"
+              className="text-red-500 hover:text-red-600 hover:bg-red-500/10 w-full justify-start"
             >
               <LogOut className="h-4 w-4 mr-2" />
               Sign out
             </Button>
-          </div>
-        </div>
-
-        {/* Referral Section */}
-        <div className="border border-border rounded-xl p-6">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h3 className="font-semibold text-lg">Invite Friends</h3>
-              <p className="text-sm text-muted-foreground mt-1">
-                Share your link and earn rewards when friends join
-              </p>
-            </div>
-            <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-muted/50">
-              <Users className="h-4 w-4 text-muted-foreground" />
-              <span className="font-bold text-lg">{friendsInvited}</span>
-              <span className="text-sm text-muted-foreground">invited</span>
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            {/* Referral Link */}
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">Your referral link</Label>
-              <div className="flex items-center gap-2">
-                <Input
-                  value={referralLink}
-                  readOnly
-                  className="bg-muted/50 border-border font-mono text-sm"
-                />
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={handleCopyReferral}
-                  className="flex-shrink-0"
-                >
-                  {copied ? (
-                    <Check className="h-4 w-4 text-green-500" />
-                  ) : (
-                    <Copy className="h-4 w-4" />
-                  )}
-                </Button>
-              </div>
-            </div>
-
-            {/* Share buttons */}
-            <div className="flex gap-3">
-              <Button 
-                onClick={handleCopyReferral} 
-                variant="outline"
-                className="flex-1"
-              >
-                {copied ? (
-                  <>
-                    <Check className="h-4 w-4 mr-2 text-green-500" />
-                    Copied
-                  </>
-                ) : (
-                  <>
-                    <Copy className="h-4 w-4 mr-2" />
-                    Copy link
-                  </>
-                )}
-              </Button>
-              <Button
-                onClick={handleShareTwitter}
-                className="flex-1 bg-[#1DA1F2] hover:bg-[#1a8cd8]"
-              >
-                <Twitter className="h-4 w-4 mr-2" />
-                Share on X
-              </Button>
-            </div>
-
-            {/* Referral code */}
-            <div className="flex items-center justify-between px-4 py-3 rounded-lg bg-muted/30 border border-border">
-              <span className="text-sm text-muted-foreground">Referral code</span>
-              <code className="px-2 py-1 bg-background rounded font-mono text-sm font-medium">
-                {profile.referralCode}
-              </code>
-            </div>
           </div>
         </div>
       </div>
