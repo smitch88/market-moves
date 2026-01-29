@@ -365,58 +365,65 @@ export function SportsBettingSidebar({
   if (compact && selectedOutcome !== null) {
     return (
       <>
-        <div className="flex items-center gap-3">
-          {/* Selection info */}
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="font-bold text-sm truncate">
-                {outcomes[selectedOutcome]}
-              </span>
-              <span className="text-xs text-muted-foreground">
-                {selectedPrice}%
-              </span>
+        <div className="space-y-3">
+          {/* Top row: Selection info with close button */}
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-0.5">
+                <span className="font-bold text-base">
+                  {outcomes[selectedOutcome]}
+                </span>
+                <span className="text-sm font-medium text-primary">
+                  {selectedPrice}%
+                </span>
+              </div>
+              <p className="text-sm text-muted-foreground line-clamp-1">
+                {selectedMarket.question}
+              </p>
             </div>
-            <p className="text-xs text-muted-foreground truncate">
-              {selectedMarket.question}
-            </p>
+            <button
+              onClick={onClearSelection}
+              className="w-8 h-8 rounded-full bg-muted/50 hover:bg-muted flex items-center justify-center transition-colors shrink-0"
+            >
+              <X className="h-4 w-4 text-muted-foreground" />
+            </button>
           </div>
 
-          {/* Amount input - compact */}
-          <div className="relative w-24">
-            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">$</span>
-            <Input
-              type="number"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              placeholder="0"
-              className="h-10 pl-6 pr-2 text-right text-sm font-bold bg-muted/30"
-              min={1}
-              max={balance}
-            />
+          {/* Bottom row: Amount input and bet button */}
+          <div className="flex items-center gap-3">
+            <div className="relative flex-1">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-base text-muted-foreground">$</span>
+              <Input
+                type="number"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                placeholder="0"
+                className="h-12 pl-8 pr-3 text-right text-lg font-bold bg-muted/30"
+                min={1}
+                max={balance}
+              />
+            </div>
+            <Button
+              onClick={handlePlaceBet}
+              disabled={
+                !canBet || 
+                !amount || 
+                parseFloat(amount) <= 0 || 
+                placeBetMutation.isPending
+              }
+              className="h-12 px-6 text-base font-semibold"
+            >
+              {placeBetMutation.isPending ? "..." : "Place Bet"}
+            </Button>
           </div>
 
-          {/* Bet button - compact */}
-          <Button
-            onClick={handlePlaceBet}
-            disabled={
-              !canBet || 
-              !amount || 
-              parseFloat(amount) <= 0 || 
-              placeBetMutation.isPending
-            }
-            className="h-10 px-4"
-            size="sm"
-          >
-            {placeBetMutation.isPending ? "..." : "Bet"}
-          </Button>
-
-          {/* Close button */}
-          <button
-            onClick={onClearSelection}
-            className="w-8 h-8 rounded-full bg-muted/50 hover:bg-muted flex items-center justify-center transition-colors shrink-0"
-          >
-            <X className="h-4 w-4 text-muted-foreground" />
-          </button>
+          {/* Potential win display */}
+          {amount && parseFloat(amount) > 0 && potentialWin > 0 && (
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">Potential win</span>
+              <span className="font-semibold text-green-500">${potentialWin.toLocaleString()}</span>
+            </div>
+          )}
         </div>
 
         {/* Success Modal - still needed for mobile */}

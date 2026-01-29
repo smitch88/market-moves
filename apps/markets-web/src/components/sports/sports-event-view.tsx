@@ -585,7 +585,7 @@ export function SportsEventView({ event, sport }: SportsEventViewProps) {
   };
 
   return (
-    <div className="max-w-7xl mx-auto pb-24 lg:pb-0">
+    <div className="max-w-7xl mx-auto pb-52 lg:pb-0">
       {/* Back navigation */}
       <motion.div
         initial={{ opacity: 0, x: -10 }}
@@ -677,7 +677,7 @@ export function SportsEventView({ event, sport }: SportsEventViewProps) {
 
       {/* Mobile fixed bottom bar - shown when outcome is selected */}
       {selectedMarket && selectedOutcome !== null && (
-        <div className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-background border-t border-border p-4 shadow-lg">
+        <div className="lg:hidden fixed bottom-20 md:bottom-0 left-0 right-0 z-[60] bg-background/95 backdrop-blur-xl border-t border-border px-4 py-4 shadow-2xl">
           <SportsBettingSidebar
             event={event}
             selectedMarket={selectedMarket}
