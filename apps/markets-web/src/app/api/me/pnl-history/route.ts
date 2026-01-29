@@ -17,35 +17,55 @@ export async function GET(request: NextRequest) {
     // Get historical snapshots
     const history = await getPnLHistory(user.id, days);
 
-    // Always include current point
+    // Get current user data
     const currentUser = await prisma.user.findUnique({
       where: { id: user.id },
-      select: { realizedPnL: true, totalVolume: true },
+      select: { realizedPnL: true, totalVolume: true, createdAt: true },
     });
 
     if (currentUser) {
       const unrealizedPnL = await calculateUnrealizedPnL(user.id);
-      
-      // Add current point if different from last snapshot
-      const lastPoint = history[history.length - 1];
       const now = new Date();
+      
+      // If no history, add a starting point from when user was created
+      if (history.length === 0) {
+        history.push({
+          timestamp: currentUser.createdAt,
+          realizedPnL: 0,
+          unrealizedPnL: 0,
+          totalVolume: 0,
+        });
+      }
+      
+      // Add current point if different from last snapshot or enough time has passed
+      const lastPoint = history[history.length - 1];
+      const currentRealizedPnL = Number(currentUser.realizedPnL);
+      const currentTotalVolume = Number(currentUser.totalVolume);
       
       if (
         !lastPoint ||
-        now.getTime() - lastPoint.timestamp.getTime() > 60 * 60 * 1000 || // More than 1 hour
-        lastPoint.realizedPnL !== currentUser.realizedPnL ||
-        lastPoint.totalVolume !== currentUser.totalVolume
+        now.getTime() - new Date(lastPoint.timestamp).getTime() > 60 * 60 * 1000 || // More than 1 hour
+        Number(lastPoint.realizedPnL) !== currentRealizedPnL ||
+        Number(lastPoint.totalVolume) !== currentTotalVolume
       ) {
         history.push({
           timestamp: now,
-          realizedPnL: currentUser.realizedPnL,
+          realizedPnL: currentRealizedPnL,
           unrealizedPnL,
-          totalVolume: currentUser.totalVolume,
+          totalVolume: currentTotalVolume,
         });
       }
     }
 
-    return NextResponse.json(history);
+    // Serialize Decimal values
+    const serializedHistory = history.map((point) => ({
+      timestamp: point.timestamp instanceof Date ? point.timestamp.toISOString() : point.timestamp,
+      realizedPnL: Number(point.realizedPnL),
+      unrealizedPnL: Number(point.unrealizedPnL),
+      totalVolume: Number(point.totalVolume),
+    }));
+
+    return NextResponse.json(serializedHistory);
   } catch (error) {
     console.error("Error fetching PnL history:", error);
     return NextResponse.json(

@@ -62,7 +62,9 @@ export async function calculateRealizedPnL(userId: string): Promise<number> {
     if (bet.tradeType === "SELL") {
       return total; // Sells are already realized when executed
     }
-    return total + ((bet.payout || 0) - bet.amount);
+    const payout = Number(bet.payout ?? 0);
+    const amount = Number(bet.amount);
+    return total + (payout - amount);
   }, 0);
 }
 
@@ -101,20 +103,27 @@ export async function calculateUnrealizedPnL(userId: string): Promise<number> {
     }
 
     if (position.market.pricingModel === PricingModel.CPMM) {
-      const totalReserve = position.market.reserve0 + position.market.reserve1;
-      const price0 = position.market.reserve1 / totalReserve;
-      const price1 = position.market.reserve0 / totalReserve;
+      const reserve0 = Number(position.market.reserve0);
+      const reserve1 = Number(position.market.reserve1);
+      const totalReserve = reserve0 + reserve1;
+      const price0 = reserve1 / totalReserve;
+      const price1 = reserve0 / totalReserve;
 
       // Calculate current value and cost basis for each outcome
-      if (position.shares0 > 0) {
-        const currentValue = position.shares0 * price0; // Already in dollars
-        const costBasis = position.shares0 * position.avgCost0; // Already in dollars
+      const shares0 = Number(position.shares0);
+      const shares1 = Number(position.shares1);
+      const avgCost0 = Number(position.avgCost0);
+      const avgCost1 = Number(position.avgCost1);
+
+      if (shares0 > 0) {
+        const currentValue = shares0 * price0;
+        const costBasis = shares0 * avgCost0;
         unrealizedPnL += currentValue - costBasis;
       }
 
-      if (position.shares1 > 0) {
-        const currentValue = position.shares1 * price1; // Already in dollars
-        const costBasis = position.shares1 * position.avgCost1; // Already in dollars
+      if (shares1 > 0) {
+        const currentValue = shares1 * price1;
+        const costBasis = shares1 * avgCost1;
         unrealizedPnL += currentValue - costBasis;
       }
     } else {
@@ -168,7 +177,7 @@ export async function calculateVolume(userId: string): Promise<number> {
     },
   });
 
-  return bets.reduce((total, bet) => total + Math.abs(bet.amount), 0);
+  return bets.reduce((total, bet) => total + Math.abs(Number(bet.amount)), 0);
 }
 
 /**

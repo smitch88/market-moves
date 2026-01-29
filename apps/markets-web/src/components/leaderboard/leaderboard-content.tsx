@@ -1,45 +1,80 @@
 "use client";
 
 import { useState } from "react";
-import { 
-  Avatar, 
-  AvatarImage, 
+import { useQuery } from "@tanstack/react-query";
+import {
+  Avatar,
+  AvatarImage,
   AvatarFallback,
-  Button,
   Input,
+  Badge,
 } from "@vault/ui";
-import { Search, Sparkles, DollarSign } from "lucide-react";
+import {
+  Search,
+  Sparkles,
+  TrendingUp,
+  Calendar,
+  Clock,
+  Trophy,
+  Medal,
+  Award,
+  Loader2,
+} from "lucide-react";
 import { cn } from "@vault/ui/lib/utils";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
+
+// ============================================================================
+// TYPES
+// ============================================================================
 
 interface LeaderboardEntry {
   rank: number;
-  id: string;
+  userId: string;
   handle: string | null;
   name: string | null;
   profileImageUrl: string | null;
-  balance: number;
-  xp: number;
-  pnl: number;
+  value: number;
+  level?: number;
 }
 
-interface LeaderboardContentProps {
-  leaderboard: LeaderboardEntry[];
+interface LeaderboardResponse {
+  entries: LeaderboardEntry[];
+  metric: "xp" | "pnl";
+  period: "all" | "monthly" | "weekly";
+  totalUsers: number;
+  updatedAt: string;
 }
 
-const leaderboardTabs = [
-  { label: "XP", value: "xp", icon: Sparkles },
-  { label: "PnL", value: "pnl", icon: DollarSign },
+type Metric = "xp" | "pnl";
+type Period = "all" | "monthly" | "weekly";
+
+// ============================================================================
+// CONSTANTS
+// ============================================================================
+
+const metricTabs = [
+  { label: "XP", value: "xp" as Metric, icon: Sparkles },
+  { label: "PnL", value: "pnl" as Metric, icon: TrendingUp },
 ];
+
+const periodTabs = [
+  { label: "All Time", value: "all" as Period, icon: Trophy },
+  { label: "Monthly", value: "monthly" as Period, icon: Calendar },
+  { label: "Weekly", value: "weekly" as Period, icon: Clock },
+];
+
+// ============================================================================
+// HELPERS
+// ============================================================================
 
 function formatXp(value: number): string {
   if (value >= 1_000_000) {
-    return `${(value / 1_000_000).toFixed(1)}M XP`;
+    return `${(value / 1_000_000).toFixed(1)}M`;
   }
   if (value >= 1_000) {
-    return `${(value / 1_000).toFixed(1)}K XP`;
+    return `${(value / 1_000).toFixed(1)}K`;
   }
-  return `${value.toLocaleString()} XP`;
+  return value.toLocaleString();
 }
 
 function formatPnl(value: number): string {
@@ -55,7 +90,6 @@ function formatPnl(value: number): string {
   return value >= 0 ? `+${formatted}` : `-${formatted}`;
 }
 
-// Generate gradient colors for avatars
 function getAvatarGradient(index: number): string {
   const gradients = [
     "from-violet-500 to-purple-600",
@@ -67,6 +101,17 @@ function getAvatarGradient(index: number): string {
   ];
   return gradients[index % gradients.length];
 }
+
+function getRankIcon(rank: number) {
+  if (rank === 1) return <Trophy className="h-4 w-4 text-yellow-400" />;
+  if (rank === 2) return <Medal className="h-4 w-4 text-slate-300" />;
+  if (rank === 3) return <Award className="h-4 w-4 text-amber-600" />;
+  return null;
+}
+
+// ============================================================================
+// ANIMATION VARIANTS
+// ============================================================================
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -81,176 +126,297 @@ const containerVariants = {
 
 const itemVariants = {
   hidden: { opacity: 0, y: 8 },
-  visible: { 
-    opacity: 1, 
+  visible: {
+    opacity: 1,
     y: 0,
-    transition: { duration: 0.3, ease: [0.25, 0.1, 0.25, 1] as const }
+    transition: { duration: 0.3, ease: [0.25, 0.1, 0.25, 1] as const },
   },
 };
 
-export function LeaderboardContent({ leaderboard }: LeaderboardContentProps) {
-  const [activeTab, setActiveTab] = useState<"xp" | "pnl">("xp");
+// ============================================================================
+// COMPONENT
+// ============================================================================
+
+export function LeaderboardContent() {
+  const [metric, setMetric] = useState<Metric>("xp");
+  const [period, setPeriod] = useState<Period>("all");
   const [searchQuery, setSearchQuery] = useState("");
 
-  const filteredLeaderboard = leaderboard
-    .filter((entry) => {
-      if (!searchQuery) return true;
-      const name = entry.name?.toLowerCase() || "";
-      const handle = entry.handle?.toLowerCase() || "";
-      return name.includes(searchQuery.toLowerCase()) || handle.includes(searchQuery.toLowerCase());
-    })
-    .sort((a, b) => {
-      // Sort by the active tab's metric
-      if (activeTab === "xp") {
-        return b.xp - a.xp;
-      }
-      return b.pnl - a.pnl;
-    })
-    .map((entry, index) => ({
-      ...entry,
-      rank: index + 1, // Re-rank based on current sort
-    }));
+  // Fetch leaderboard data
+  const { data, isLoading, error } = useQuery<LeaderboardResponse>({
+    queryKey: ["leaderboard", metric, period],
+    queryFn: async () => {
+      const res = await fetch(
+        `/api/leaderboard?metric=${metric}&period=${period}&limit=100`
+      );
+      if (!res.ok) throw new Error("Failed to fetch leaderboard");
+      return res.json();
+    },
+    staleTime: 60 * 1000, // 1 minute
+    refetchInterval: 5 * 60 * 1000, // Auto-refresh every 5 minutes
+  });
+
+  // Filter by search
+  const filteredEntries = (data?.entries || []).filter((entry) => {
+    if (!searchQuery) return true;
+    const name = entry.name?.toLowerCase() || "";
+    const handle = entry.handle?.toLowerCase() || "";
+    return (
+      name.includes(searchQuery.toLowerCase()) ||
+      handle.includes(searchQuery.toLowerCase())
+    );
+  });
 
   return (
-    <div className="flex flex-col lg:flex-row gap-6">
-      {/* Main Content */}
-      <div className="flex-1 min-w-0">
-      <motion.h1 
-          className="text-2xl font-bold mb-6"
+    <div className="space-y-6">
+      {/* Header */}
+      <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4 }}
+        transition={{ duration: 0.4 }}
       >
-        Leaderboard
-      </motion.h1>
-      
-        {/* Tabs */}
-        <motion.div 
-          className="flex items-center gap-2 mb-6"
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.1 }}
-        >
-          <div className="flex items-center bg-muted/30 rounded-lg p-1">
-            {leaderboardTabs.map((tab) => {
-              const Icon = tab.icon;
-              return (
-                <Button
-                  key={tab.value}
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setActiveTab(tab.value as "xp" | "pnl")}
-                  className={cn(
-                    "h-9 px-5 rounded-md text-sm font-medium transition-all gap-2",
-                    activeTab === tab.value
-                      ? "bg-background text-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
-                >
+        <h1 className="text-3xl font-bold mb-2">Leaderboard</h1>
+        <p className="text-muted-foreground">
+          Top predictors on Vault Markets
+        </p>
+      </motion.div>
+
+      {/* Filters Row */}
+      <motion.div
+        className="flex flex-col sm:flex-row gap-4"
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, delay: 0.1 }}
+      >
+        {/* Period Tabs */}
+        <div className="flex items-center bg-muted/30 backdrop-blur-sm rounded-xl p-1.5 border border-border/30">
+          {periodTabs.map((tab) => {
+            const Icon = tab.icon;
+            const isActive = period === tab.value;
+            return (
+              <button
+                key={tab.value}
+                onClick={() => setPeriod(tab.value)}
+                className={cn(
+                  "relative flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all",
+                  isActive
+                    ? "text-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {isActive && (
+                  <motion.div
+                    layoutId="activePeriod"
+                    className="absolute inset-0 bg-background rounded-lg shadow-sm border border-border/50"
+                    transition={{ type: "spring", bounce: 0.2, duration: 0.4 }}
+                  />
+                )}
+                <span className="relative flex items-center gap-2">
+                  <Icon className="h-4 w-4" />
+                  <span className="hidden sm:inline">{tab.label}</span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Metric Tabs */}
+        <div className="flex items-center bg-muted/30 backdrop-blur-sm rounded-xl p-1.5 border border-border/30">
+          {metricTabs.map((tab) => {
+            const Icon = tab.icon;
+            const isActive = metric === tab.value;
+            return (
+              <button
+                key={tab.value}
+                onClick={() => setMetric(tab.value)}
+                className={cn(
+                  "relative flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all",
+                  isActive
+                    ? "text-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {isActive && (
+                  <motion.div
+                    layoutId="activeMetric"
+                    className="absolute inset-0 bg-background rounded-lg shadow-sm border border-border/50"
+                    transition={{ type: "spring", bounce: 0.2, duration: 0.4 }}
+                  />
+                )}
+                <span className="relative flex items-center gap-2">
                   <Icon className="h-4 w-4" />
                   {tab.label}
-                </Button>
-              );
-            })}
-          </div>
-        </motion.div>
+                </span>
+              </button>
+            );
+          })}
+        </div>
 
-        {/* Search Input */}
-        <motion.div 
-          className="relative mb-4"
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.15 }}
-        >
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        {/* Search */}
+        <div className="relative flex-1 max-w-xs">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground z-10 pointer-events-none" />
           <Input
-            placeholder="Search by name"
+            placeholder="Search users..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10 bg-transparent border-border/30 h-10"
+            className="pl-10 bg-muted/30 border-border/30 h-11 rounded-xl"
           />
-        </motion.div>
+        </div>
+      </motion.div>
 
-        {/* Table Header */}
-        <motion.div 
-          className="flex items-center px-4 py-2 text-sm text-muted-foreground border-b border-border/30"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.4, delay: 0.2 }}
-        >
-          <div className="w-16" />
-          <div className="flex-1" />
-          <div className="w-32 text-right">
-            {activeTab === "xp" ? "XP" : "PnL"}
-          </div>
-        </motion.div>
+      {/* Loading State */}
+      {isLoading && (
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      )}
 
-        {/* Leaderboard Entries */}
-        <motion.div 
-          className="divide-y divide-border/20"
-          variants={containerVariants}
-          initial="hidden"
-          animate="visible"
-        >
-          {filteredLeaderboard.length === 0 ? (
-            <div className="py-12 text-center text-muted-foreground">
-              No users found
+      {/* Error State */}
+      {error && (
+        <div className="py-12 text-center">
+          <p className="text-muted-foreground">
+            Failed to load leaderboard. Please try again.
+          </p>
+        </div>
+      )}
+
+      {/* Content */}
+      {data && !isLoading && (
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={`${metric}-${period}`}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.3 }}
+            className="space-y-4"
+          >
+            {/* Table Header */}
+            <div className="flex items-center px-4 py-2 text-sm text-muted-foreground border-b border-border/30">
+              <div className="w-12" />
+              <div className="flex-1" />
+              {metric === "xp" && (
+                <div className="w-16 text-center hidden sm:block">Level</div>
+              )}
+              <div className="w-28 text-right">
+                {metric === "xp" ? "XP" : "PnL"}
+              </div>
             </div>
-          ) : (
-            filteredLeaderboard.map((entry, index) => {
-              const displayName = entry.name || entry.handle || entry.id.slice(0, 20) + "...";
-            
-            return (
+
+            {/* Entries */}
+            <motion.div
+              variants={containerVariants}
+              initial="hidden"
+              animate="visible"
+              className="divide-y divide-border/20"
+            >
+              {filteredEntries.length === 0 ? (
+                <div className="py-12 text-center text-muted-foreground">
+                  No users found
+                </div>
+              ) : (
+                filteredEntries.map((entry, index) => {
+                  const displayName =
+                    entry.name || entry.handle || "Anonymous";
+                  const rankIcon = getRankIcon(entry.rank);
+
+                  return (
+                    <motion.div
+                      key={entry.userId}
+                      variants={itemVariants}
+                      className="flex items-center px-4 py-3 transition-colors hover:bg-muted/20 rounded-lg"
+                    >
+                      {/* Rank */}
+                      <div className="w-12 flex items-center gap-1.5">
+                        {rankIcon}
+                        <span
+                          className={cn(
+                            "text-sm tabular-nums",
+                            entry.rank <= 3
+                              ? "font-semibold"
+                              : "text-muted-foreground"
+                          )}
+                        >
+                          {entry.rank}
+                        </span>
+                      </div>
+
+                      {/* Avatar + Name */}
+                      <div className="flex-1 flex items-center gap-3 min-w-0">
+                        <Avatar className="h-10 w-10 border border-border/30">
+                          <AvatarImage
+                            src={entry.profileImageUrl || undefined}
+                          />
+                          <AvatarFallback
+                            className={cn(
+                              "bg-gradient-to-br text-white text-sm",
+                              getAvatarGradient(index)
+                            )}
+                          >
+                            {displayName[0].toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0">
+                          <p className="font-medium truncate">
+                            {displayName}
+                          </p>
+                          {entry.handle && (
+                            <p className="text-xs text-muted-foreground truncate">
+                              @{entry.handle}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Level */}
+                      {metric === "xp" && (
+                        <div className="w-16 text-center hidden sm:block">
+                          <Badge
+                            variant="outline"
+                            className="text-xs border-border/30 bg-transparent"
+                          >
+                            Lvl {entry.level ?? 0}
+                          </Badge>
+                        </div>
+                      )}
+
+                      {/* Value */}
+                      <div className="w-28 text-right">
+                        <span
+                          className={cn(
+                            "font-semibold tabular-nums",
+                            metric === "xp"
+                              ? "text-primary"
+                              : entry.value >= 0
+                              ? "text-emerald-400"
+                              : "text-red-400"
+                          )}
+                        >
+                          {metric === "xp"
+                            ? formatXp(entry.value)
+                            : formatPnl(entry.value)}
+                        </span>
+                      </div>
+                    </motion.div>
+                  );
+                })
+              )}
+            </motion.div>
+
+            {/* Stats Footer */}
+            {data.totalUsers > 0 && (
               <motion.div
-                key={entry.id}
-                variants={itemVariants}
-                  whileHover={{ backgroundColor: "hsl(var(--muted) / 0.3)" }}
-                  className="flex items-center px-4 py-3 transition-colors"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.3 }}
+                className="text-center text-sm text-muted-foreground pt-4"
               >
-                {/* Rank */}
-                  <div className="w-8 text-sm text-muted-foreground tabular-nums">
-                      {entry.rank}
-                </div>
-
-                {/* Avatar */}
-                  <div className="w-8 mr-3">
-                    <Avatar className="h-10 w-10 border border-border/30">
-                  <AvatarImage src={entry.profileImageUrl || undefined} />
-                      <AvatarFallback className={cn(
-                        "bg-gradient-to-br text-white text-sm",
-                        getAvatarGradient(index)
-                      )}>
-                    {displayName[0].toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-                  </div>
-
-                {/* Name */}
-                  <div className="flex-1 min-w-0 ml-2">
-                  <p className="font-medium truncate">{displayName}</p>
-                </div>
-
-                  {/* Value based on active tab */}
-                  <div className="w-32 text-right">
-                    <span className={cn(
-                      "font-semibold tabular-nums",
-                      activeTab === "xp" 
-                        ? "text-primary"
-                        : entry.pnl >= 0 ? "text-emerald-400" : "text-red-400"
-                    )}>
-                      {activeTab === "xp" 
-                        ? formatXp(entry.xp)
-                        : formatPnl(entry.pnl)
-                      }
-                    </span>
-                  </div>
+                Showing {filteredEntries.length} of {data.totalUsers} users
               </motion.div>
-            );
-            })
-          )}
-        </motion.div>
-
-      </div>
+            )}
+          </motion.div>
+        </AnimatePresence>
+      )}
     </div>
   );
 }
