@@ -21,20 +21,18 @@ export default async function HomePage({ searchParams }: HomePageProps) {
   const { q, sort, category } = params;
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
       <Header />
-      <main className="max-w-7xl mx-auto px-4 py-6">
+      <main className="container mx-auto px-4 py-6 space-y-6">
         {/* Featured Events Banner */}
         <Suspense fallback={<FeaturedEventsSkeleton />}>
           <FeaturedEvents />
         </Suspense>
 
         {/* Filters - horizontal bar */}
-        <div className="mb-6">
-          <Suspense>
-            <MarketFilters />
-          </Suspense>
-        </div>
+        <Suspense>
+          <MarketFilters />
+        </Suspense>
 
         {/* Events Grid */}
         <Suspense fallback={<EventGridSkeleton />}>

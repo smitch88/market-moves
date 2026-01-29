@@ -167,6 +167,7 @@ async function seedDatabase() {
       endTime: superBowlDate,
       active: true,
       closed: false,
+      featured: true, // Mark as featured for home page carousel
       tags: {
         connect: [
           { id: tags["nfl"].id },

@@ -2,10 +2,11 @@ import { prisma } from "@vault/database";
 import { FeaturedEventBanner } from "./featured-event-banner";
 
 export async function FeaturedEvents() {
-  // Fetch active events with their primary markets
+  // Fetch featured events with their primary markets
   const events = await prisma.event.findMany({
     where: {
       active: true,
+      featured: true, // Only show featured events
       // Only show events that haven't ended yet
       OR: [
         { endTime: null },
@@ -94,30 +95,28 @@ export async function FeaturedEvents() {
 
 export function FeaturedEventsSkeleton() {
   return (
-    <div className="mb-6">
-      <div className="relative overflow-hidden rounded-lg border bg-white/5 backdrop-blur-md border-white/10 shadow-xl animate-pulse">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-0">
-          {/* Left Side Skeleton */}
-          <div className="p-6">
-            <div className="flex items-start gap-4 mb-4">
-              <div className="h-14 w-14 rounded-xl bg-muted" />
-              <div className="flex-1">
-                <div className="h-4 w-20 bg-muted rounded mb-2" />
-                <div className="h-6 w-48 bg-muted rounded" />
-              </div>
+    <div className="relative overflow-hidden rounded-2xl bg-card/60 backdrop-blur-sm border border-border/40 shadow-lg animate-pulse">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-0">
+        {/* Left Side Skeleton */}
+        <div className="p-8">
+          <div className="flex items-start gap-4 mb-6">
+            <div className="h-16 w-16 rounded-xl bg-muted/50" />
+            <div className="flex-1">
+              <div className="h-4 w-24 bg-muted/50 rounded mb-3" />
+              <div className="h-7 w-56 bg-muted/50 rounded" />
             </div>
-            <div className="flex gap-2 mb-4">
-              <div className="flex-1 h-16 bg-muted rounded-lg" />
-              <div className="flex-1 h-16 bg-muted rounded-lg" />
-            </div>
-            <div className="h-4 w-full bg-muted rounded mb-2" />
-            <div className="h-4 w-2/3 bg-muted rounded" />
           </div>
-          {/* Right Side Skeleton */}
-          <div className="border-l border-border/50 bg-muted/5 p-6">
-            <div className="h-4 w-48 bg-muted rounded mb-4" />
-            <div className="h-[160px] bg-muted/50 rounded" />
+          <div className="flex gap-3 mb-6">
+            <div className="flex-1 h-20 bg-muted/50 rounded-xl" />
+            <div className="flex-1 h-20 bg-muted/50 rounded-xl" />
           </div>
+          <div className="h-4 w-full bg-muted/50 rounded mb-3" />
+          <div className="h-4 w-3/4 bg-muted/50 rounded" />
+        </div>
+        {/* Right Side Skeleton */}
+        <div className="border-l border-border/30 bg-muted/5 p-8">
+          <div className="h-5 w-48 bg-muted/50 rounded mb-6" />
+          <div className="h-[180px] bg-muted/30 rounded-xl" />
         </div>
       </div>
     </div>

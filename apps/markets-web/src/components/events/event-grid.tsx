@@ -74,10 +74,10 @@ export async function EventGrid({ sort = "trending", category, query }: EventGri
 
   if (eventsWithAggregations.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 px-4">
-        <div className="h-16 w-16 rounded-full bg-muted/50 flex items-center justify-center mb-4">
+      <div className="flex flex-col items-center justify-center py-24 px-4">
+        <div className="h-20 w-20 rounded-2xl bg-primary/10 backdrop-blur-sm border border-primary/20 flex items-center justify-center mb-6">
           <svg
-            className="h-8 w-8 text-muted-foreground/50"
+            className="h-10 w-10 text-primary"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -90,16 +90,16 @@ export async function EventGrid({ sort = "trending", category, query }: EventGri
             />
           </svg>
         </div>
-        <p className="text-muted-foreground text-lg font-medium">No events found</p>
-        <p className="text-sm text-muted-foreground/70 mt-1">
-          Check back soon for new prediction events
+        <h3 className="text-foreground text-xl font-bold mb-2">No events found</h3>
+        <p className="text-sm text-muted-foreground">
+          Check back soon for new prediction markets
         </p>
       </div>
     );
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 auto-rows-fr">
       {eventsWithAggregations.map((event, index) => (
         <EventCard key={event.id} event={event} index={index} />
       ))}

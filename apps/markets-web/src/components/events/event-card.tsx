@@ -40,11 +40,11 @@ export function EventCard({ event, index = 0 }: EventCardProps) {
         delay: index * 0.05,
         ease: [0.25, 0.1, 0.25, 1] as const,
       }}
-      className="relative"
+      className="relative h-full"
     >
-      <Link href={getMarketUrl(event.slug)} className="block group relative">
+      <Link href={getMarketUrl(event.slug)} className="block group relative h-full">
         <motion.div
-          className="relative overflow-hidden rounded-lg border bg-white/5 backdrop-blur-md border-white/10 shadow-xl h-full flex flex-col"
+          className="relative overflow-hidden rounded-2xl bg-card/60 backdrop-blur-sm border border-border/40 shadow-lg hover:shadow-xl transition-shadow duration-300 h-full flex flex-col"
           whileHover={{
             y: -4,
             transition: { duration: 0.2, ease: "easeOut" },
@@ -53,18 +53,18 @@ export function EventCard({ event, index = 0 }: EventCardProps) {
         >
           {/* Banner Image */}
           {event.bannerUrl && (
-            <div className="relative h-32 w-full overflow-hidden">
+            <div className="relative h-36 w-full overflow-hidden">
               <Image
                 src={event.bannerUrl}
                 alt=""
                 fill
                 className="object-cover transition-transform duration-300 group-hover:scale-105"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-background/40 to-transparent" />
+              <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-background/50 to-transparent" />
 
               {/* Category badge */}
               <div className="absolute top-3 right-3">
-                <span className="px-2 py-1 rounded-full text-xs font-medium bg-background/80 backdrop-blur-sm border border-white/10">
+                <span className="px-3 py-1.5 rounded-full text-xs font-semibold bg-primary/90 text-primary-foreground backdrop-blur-sm shadow-lg">
                   {event.category}
                 </span>
               </div>
@@ -72,11 +72,11 @@ export function EventCard({ event, index = 0 }: EventCardProps) {
           )}
 
           {/* Content */}
-          <div className="p-4 flex-1 flex flex-col">
+          <div className="p-5 flex-1 flex flex-col">
             {/* Category when no banner */}
             {!event.bannerUrl && (
-              <div className="mb-2">
-                <span className="text-xs text-muted-foreground font-medium">
+              <div className="mb-3">
+                <span className="px-3 py-1.5 rounded-full text-xs font-semibold bg-primary/10 text-primary border border-primary/20">
                   {event.category}
                 </span>
               </div>
@@ -85,41 +85,40 @@ export function EventCard({ event, index = 0 }: EventCardProps) {
             {/* Title */}
             <h3
               className={cn(
-                "font-semibold text-lg leading-tight mb-2 transition-colors group-hover:text-primary",
+                "font-bold text-lg leading-tight mb-3 text-foreground group-hover:text-primary transition-colors line-clamp-2 min-h-[3.5rem]",
                 event.bannerUrl && "mt-1"
               )}
             >
               {event.title}
             </h3>
 
-            {/* Description */}
-            {event.description && (
-              <p className="text-sm text-muted-foreground line-clamp-2 mb-4">
-                {event.description}
-              </p>
-            )}
+            {/* Description - always render container for consistent height */}
+            <div className="text-sm text-muted-foreground line-clamp-2 mb-4 flex-1 min-h-[2.5rem]">
+              {event.description || " "}
+            </div>
 
             {/* Stats */}
-            <div className="mt-auto pt-3 border-t border-border/50">
-              <div className="flex items-center justify-between text-xs text-muted-foreground">
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-1">
-                    <BarChart3 className="h-3.5 w-3.5" />
-                    <span className="font-medium">{event._count.markets} markets</span>
+            <div className="mt-auto pt-4 border-t border-border/50">
+              <div className="flex items-center justify-between text-xs">
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-1.5 text-muted-foreground">
+                    <BarChart3 className="h-4 w-4 text-primary" />
+                    <span className="font-semibold">{event._count.markets}</span>
+                    <span className="text-muted-foreground/70">markets</span>
                   </div>
-                  <div className="flex items-center gap-1">
-                    <TrendingUp className="h-3.5 w-3.5" />
-                    <span>{formatVolume(event._aggregations.totalVolume)} Vol</span>
+                  <div className="flex items-center gap-1.5">
+                    <TrendingUp className="h-4 w-4 text-primary" />
+                    <span className="font-semibold text-foreground">{formatVolume(event._aggregations.totalVolume)}</span>
                   </div>
                 </div>
                 {endTime && (
                   <div
                     className={cn(
-                      "flex items-center gap-1",
-                      isEndingSoon && "text-red-500"
+                      "flex items-center gap-1.5 font-medium",
+                      isEndingSoon ? "text-red-500" : "text-muted-foreground"
                     )}
                   >
-                    <Clock className="h-3.5 w-3.5" />
+                    <Clock className="h-4 w-4" />
                     <span>{format(endTime, "MMM d")}</span>
                   </div>
                 )}

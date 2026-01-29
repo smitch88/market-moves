@@ -1,3 +1,7 @@
+// ============================================================================
+// CONFIGURATION
+// ============================================================================
+
 generator client {
   provider = "prisma-client-js"
   output   = "../src/generated/client"
@@ -8,24 +12,36 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ============================================================================
+// USER & AUTHENTICATION
+// ============================================================================
+
 model User {
-  id               String            @id @default(cuid())
-  privyUserId      String            @unique
-  email            String?
-  walletAddress    String?
-  twitterSubject   String?
-  handle           String?           @unique
-  name             String?
-  profileImageUrl  String?
-  role             UserRole          @default(USER)
-  balance          Decimal           @default(10000.00) @db.Decimal(19, 2)
-  balanceLocked    Boolean           @default(false)
-  referralCode     String            @unique @default(cuid())
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
-  realizedPnL      Decimal           @default(0.0000) @db.Decimal(19, 4)
-  totalVolume      Decimal           @default(0.00) @db.Decimal(19, 2)
-  xp               Int               @default(0) // Total XP earned
+  id              String   @id @default(cuid())
+  privyUserId     String   @unique
+  email           String?
+  walletAddress   String?
+  twitterSubject  String?
+  handle          String?  @unique // Custom username
+  name            String? // Display name
+  profileImageUrl String?
+  role            UserRole @default(USER)
+
+  // Financial tracking
+  balance       Decimal @default(10000.00) @db.Decimal(19, 2)
+  balanceLocked Boolean @default(false)
+  realizedPnL   Decimal @default(0.0000) @db.Decimal(19, 4)
+  totalVolume   Decimal @default(0.00) @db.Decimal(19, 2)
+
+  // Gamification
+  xp           Int    @default(0) // Total XP earned
+  referralCode String @unique @default(cuid())
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
   adminActions     AdminActionLog[]
   adminAdjustments BalanceLedger[]   @relation("AdminActor")
   balanceLedger    BalanceLedger[]
@@ -46,6 +62,11 @@ model User {
   @@index([handle])
 }
 
+// ============================================================================
+// FINANCIAL LEDGERS & TRACKING
+// ============================================================================
+
+/// Balance ledger for tracking all balance changes (deposits, withdrawals, bets, payouts)
 model BalanceLedger {
   id               String        @id @default(cuid())
   userId           String
@@ -53,59 +74,20 @@ model BalanceLedger {
   balanceBefore    Decimal       @db.Decimal(19, 2)
   balanceAfter     Decimal       @db.Decimal(19, 2)
   reason           BalanceReason
-  correlationId    String?
-  actorAdminUserId String?
+  correlationId    String? // Links to bet/trade/transaction ID
+  actorAdminUserId String? // If admin initiated
   createdAt        DateTime      @default(now())
-  actorAdmin       User?         @relation("AdminActor", fields: [actorAdminUserId], references: [id])
-  user             User          @relation(fields: [userId], references: [id])
+
+  // Relations
+  actorAdmin User? @relation("AdminActor", fields: [actorAdminUserId], references: [id])
+  user       User  @relation(fields: [userId], references: [id])
 
   @@index([userId])
   @@index([correlationId])
   @@index([createdAt])
 }
 
-model UserPnLSnapshot {
-  id            String   @id @default(cuid())
-  userId        String
-  realizedPnL   Decimal  @db.Decimal(19, 4)
-  unrealizedPnL Decimal  @db.Decimal(19, 4)
-  totalVolume   Decimal  @db.Decimal(19, 2)
-  createdAt     DateTime @default(now())
-  user          User     @relation(fields: [userId], references: [id])
-
-  @@index([userId, createdAt])
-}
-
-model XPLedger {
-  id            String   @id @default(cuid())
-  userId        String
-  delta         Int      // XP change (positive or negative)
-  xpBefore      Int
-  xpAfter       Int
-  reason        XPReason
-  correlationId String?  // Links to bet/trade ID
-  adminUserId   String?  // If admin adjustment
-  createdAt     DateTime @default(now())
-  user          User     @relation(fields: [userId], references: [id])
-  admin         User?    @relation("XPAdminActor", fields: [adminUserId], references: [id])
-
-  @@index([userId])
-  @@index([userId, createdAt]) // Compound index for user history queries
-  @@index([createdAt])
-  @@index([reason])
-  @@index([correlationId]) // For lookups by trade/bet ID
-}
-
-model XPConfig {
-  id          String   @id @default(cuid())
-  key         String   @unique
-  value       String   // JSON string for flexibility
-  description String?
-  updatedAt   DateTime @updatedAt
-  updatedBy   String?  // Admin ID who last updated
-}
-
-// PnL Ledger for audit trail of all PnL changes
+/// PnL ledger for audit trail of all profit/loss changes
 model PnLLedger {
   id            String    @id @default(cuid())
   userId        String
@@ -113,12 +95,14 @@ model PnLLedger {
   pnlBefore     Decimal   @db.Decimal(19, 4)
   pnlAfter      Decimal   @db.Decimal(19, 4)
   reason        PnLReason
-  correlationId String?   // Links to bet/position ID
-  marketId      String?   // Related market
-  metadata      Json?     // Additional details (shares, price, etc.)
+  correlationId String? // Links to bet/position ID
+  marketId      String? // Related market
+  metadata      Json? // Additional details (shares, price, etc.)
   createdAt     DateTime  @default(now())
-  user          User      @relation(fields: [userId], references: [id])
-  market        Market?   @relation(fields: [marketId], references: [id])
+
+  // Relations
+  user   User    @relation(fields: [userId], references: [id])
+  market Market? @relation(fields: [marketId], references: [id])
 
   @@index([userId])
   @@index([userId, createdAt])
@@ -128,15 +112,75 @@ model PnLLedger {
   @@index([marketId])
 }
 
+/// Snapshot of user's PnL at a point in time (for charts/history)
+model UserPnLSnapshot {
+  id            String   @id @default(cuid())
+  userId        String
+  realizedPnL   Decimal  @db.Decimal(19, 4)
+  unrealizedPnL Decimal  @db.Decimal(19, 4)
+  totalVolume   Decimal  @db.Decimal(19, 2)
+  createdAt     DateTime @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt])
+}
+
+// ============================================================================
+// XP & GAMIFICATION
+// ============================================================================
+
+/// XP ledger for tracking all XP changes
+model XPLedger {
+  id            String   @id @default(cuid())
+  userId        String
+  delta         Int // XP change (positive or negative)
+  xpBefore      Int
+  xpAfter       Int
+  reason        XPReason
+  correlationId String? // Links to bet/trade ID
+  adminUserId   String? // If admin adjustment
+  createdAt     DateTime @default(now())
+
+  // Relations
+  user  User  @relation(fields: [userId], references: [id])
+  admin User? @relation("XPAdminActor", fields: [adminUserId], references: [id])
+
+  @@index([userId])
+  @@index([userId, createdAt])
+  @@index([createdAt])
+  @@index([reason])
+  @@index([correlationId])
+}
+
+/// XP configuration (how much XP per dollar, etc.)
+model XPConfig {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  value       String // JSON string for flexibility
+  description String?
+  updatedAt   DateTime @updatedAt
+  updatedBy   String? // Admin ID who last updated
+}
+
+// ============================================================================
+// EVENTS & MARKETS
+// ============================================================================
+
+/// Tags for categorizing events
 model Tag {
   id        String   @id @default(cuid())
   slug      String   @unique
   label     String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  events    Event[]  @relation("EventToTag")
+
+  // Relations
+  events Event[] @relation("EventToTag")
 }
 
+/// Events are the top-level container for markets (e.g., "Super Bowl LX")
 model Event {
   id          String         @id @default(cuid())
   slug        String         @unique
@@ -150,22 +194,27 @@ model Event {
   endTime     DateTime?
   active      Boolean        @default(true)
   closed      Boolean        @default(false)
+  featured    Boolean        @default(false) // Show in featured carousel
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
-  markets     Market[]
-  tags        Tag[]          @relation("EventToTag")
+
+  // Relations
+  markets Market[]
+  tags    Tag[]    @relation("EventToTag")
 
   @@index([category])
   @@index([eventType])
   @@index([active])
   @@index([closed])
   @@index([startTime])
+  @@index([featured])
 }
 
+/// Markets are individual prediction questions within an event
 model Market {
-  id                  String          @id @default(cuid())
+  id                  String       @id @default(cuid())
   question            String
-  status              MarketStatus    @default(DRAFT)
+  status              MarketStatus @default(DRAFT)
   detailsMarkdown     String?
   resolutionSourceUrl String?
   publishedAt         DateTime?
@@ -173,32 +222,40 @@ model Market {
   closesAt            DateTime?
   resolvedAt          DateTime?
   settledAt           DateTime?
-  settlementRunId     String?         @unique
-  feeBps              Int             @default(100)
-  seed0               Decimal         @default(1000.00) @db.Decimal(19, 2)
-  seed1               Decimal         @default(1000.00) @db.Decimal(19, 2)
-  createdAt           DateTime        @default(now())
-  updatedAt           DateTime        @updatedAt
-  eventId             String
-  displayLabel        String?         // Short label for grouped display (e.g., "<116M", "Bad Bunny")
-  sortOrder           Int?            // Explicit sort order within event (lower = first)
-  outcomes            String          @default("[\"Yes\", \"No\"]")
-  outcomePrices       String          @default("[\"0.50\", \"0.50\"]")
-  outcomeColors       String?
-  resolvedOutcome     Int?
-  pool0               Decimal         @default(0.00) @db.Decimal(19, 2)
-  pool1               Decimal         @default(0.00) @db.Decimal(19, 2)
-  k                   Decimal?        @db.Decimal(38, 4)
-  pricingModel        PricingModel    @default(CPMM)
-  reserve0            Decimal         @default(1000) @db.Decimal(19, 2)
-  reserve1            Decimal         @default(1000) @db.Decimal(19, 2)
-  bets                Bet[]
-  event               Event           @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  positions           Position[]
-  priceSnapshots      PriceSnapshot[]
-  raffleEntries       RaffleEntry[]
-  tweetProofs         TweetProof[]
-  pnlLedger           PnLLedger[]
+  settlementRunId     String?      @unique
+  feeBps              Int          @default(100) // Fee in basis points (100 = 1%)
+
+  // Market configuration
+  eventId         String
+  displayLabel    String? // Short label for grouped display (e.g., "<116M", "Bad Bunny")
+  sortOrder       Int? // Explicit sort order within event (lower = first)
+  outcomes        String  @default("[\"Yes\", \"No\"]") // JSON array of outcome labels
+  outcomePrices   String  @default("[\"0.50\", \"0.50\"]") // JSON array of prices
+  outcomeColors   String? // JSON array of colors
+  resolvedOutcome Int? // Index of winning outcome
+
+  // AMM/CPMM fields
+  pool0        Decimal      @default(0.00) @db.Decimal(19, 2)
+  pool1        Decimal      @default(0.00) @db.Decimal(19, 2)
+  seed0        Decimal      @default(1000.00) @db.Decimal(19, 2)
+  seed1        Decimal      @default(1000.00) @db.Decimal(19, 2)
+  k            Decimal?     @db.Decimal(38, 4) // Constant product k = reserve0 * reserve1
+  pricingModel PricingModel @default(CPMM)
+  reserve0     Decimal      @default(1000) @db.Decimal(19, 2)
+  reserve1     Decimal      @default(1000) @db.Decimal(19, 2)
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  bets           Bet[]
+  event          Event           @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  positions      Position[]
+  priceSnapshots PriceSnapshot[]
+  raffleEntries  RaffleEntry[]
+  tweetProofs    TweetProof[]
+  pnlLedger      PnLLedger[]
 
   @@index([eventId])
   @@index([status])
@@ -207,6 +264,7 @@ model Market {
   @@index([pricingModel])
 }
 
+/// Price snapshots for historical price tracking
 model PriceSnapshot {
   id        String   @id @default(cuid())
   marketId  String
@@ -215,30 +273,41 @@ model PriceSnapshot {
   pool0     Decimal  @db.Decimal(19, 2)
   pool1     Decimal  @db.Decimal(19, 2)
   timestamp DateTime @default(now())
-  market    Market   @relation(fields: [marketId], references: [id], onDelete: Cascade)
+
+  // Relations
+  market Market @relation(fields: [marketId], references: [id], onDelete: Cascade)
 
   @@index([marketId, timestamp])
   @@index([timestamp])
 }
 
+// ============================================================================
+// BETTING & TRADING
+// ============================================================================
+
+/// Bets/trades represent user actions on markets
 model Bet {
-  id            String      @id @default(cuid())
-  userId        String
-  marketId      String
-  amount        Decimal     @db.Decimal(19, 2)
-  weight        Float       @default(1)
-  payout        Decimal?    @db.Decimal(19, 2)
-  status        BetStatus   @default(PENDING_TWEET)
-  tweetProofId  String?
-  createdAt     DateTime    @default(now())
-  confirmedAt   DateTime?
-  outcomeIndex  Int
-  pricePerShare Decimal?    @db.Decimal(10, 4)
-  shares        Decimal?    @db.Decimal(19, 4)
-  tradeType     TradeType   @default(BUY)
-  market        Market      @relation(fields: [marketId], references: [id])
-  tweetProof    TweetProof? @relation(fields: [tweetProofId], references: [id])
-  user          User        @relation(fields: [userId], references: [id])
+  id           String    @id @default(cuid())
+  userId       String
+  marketId     String
+  amount       Decimal   @db.Decimal(19, 2)
+  weight       Float     @default(1) // Raffle weight multiplier
+  payout       Decimal?  @db.Decimal(19, 2)
+  status       BetStatus @default(PENDING_TWEET)
+  tweetProofId String?
+  createdAt    DateTime  @default(now())
+  confirmedAt  DateTime?
+
+  // AMM/CPMM fields
+  outcomeIndex  Int // Which outcome (0 or 1)
+  pricePerShare Decimal?  @db.Decimal(10, 4) // Price per share at time of trade
+  shares        Decimal?  @db.Decimal(19, 4) // Number of shares bought/sold
+  tradeType     TradeType @default(BUY)
+
+  // Relations
+  market     Market      @relation(fields: [marketId], references: [id])
+  tweetProof TweetProof? @relation(fields: [tweetProofId], references: [id])
+  user       User        @relation(fields: [userId], references: [id])
 
   @@index([userId])
   @@index([marketId])
@@ -250,24 +319,33 @@ model Bet {
   @@index([userId, status, createdAt]) // For time-based PnL queries
 }
 
+/// Positions represent user's holdings in a market
 model Position {
-  id        String    @id @default(cuid())
-  userId    String
-  marketId  String
-  amount0   Decimal   @default(0.00) @db.Decimal(19, 2)
-  amount1   Decimal   @default(0.00) @db.Decimal(19, 2)
-  weighted0 Float     @default(0)
-  weighted1 Float     @default(0)
+  id       String @id @default(cuid())
+  userId   String
+  marketId String
+
+  // Pari-mutuel fields (legacy)
+  amount0   Decimal @default(0.00) @db.Decimal(19, 2)
+  amount1   Decimal @default(0.00) @db.Decimal(19, 2)
+  weighted0 Float   @default(0)
+  weighted1 Float   @default(0)
+
+  // AMM/CPMM fields
+  shares0  Decimal @default(0) @db.Decimal(19, 4)
+  shares1  Decimal @default(0) @db.Decimal(19, 4)
+  avgCost0 Decimal @default(0) @db.Decimal(10, 4) // Average cost per share
+  avgCost1 Decimal @default(0) @db.Decimal(10, 4)
+
+  // Metadata
   lastBetAt DateTime?
+  claimedAt DateTime? // When user claimed their payout for this position
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
-  avgCost0  Decimal   @default(0) @db.Decimal(10, 4)
-  avgCost1  Decimal   @default(0) @db.Decimal(10, 4)
-  shares0   Decimal   @default(0) @db.Decimal(19, 4)
-  shares1   Decimal   @default(0) @db.Decimal(19, 4)
-  claimedAt DateTime? // When user claimed their payout for this position
-  market    Market    @relation(fields: [marketId], references: [id])
-  user      User      @relation(fields: [userId], references: [id])
+
+  // Relations
+  market Market @relation(fields: [marketId], references: [id])
+  user   User   @relation(fields: [userId], references: [id])
 
   @@unique([userId, marketId])
   @@index([userId])
@@ -275,34 +353,11 @@ model Position {
   @@index([userId, claimedAt]) // For unclaimed positions queries
 }
 
-model Referral {
-  id                  String    @id @default(cuid())
-  referrerUserId      String
-  referredUserId      String    @unique
-  createdAt           DateTime  @default(now())
-  qualifiedAt         DateTime?
-  bonusEntriesAwarded Int       @default(0)
-  referred            User      @relation("ReferredUser", fields: [referredUserId], references: [id])
-  referrer            User      @relation("ReferrerUser", fields: [referrerUserId], references: [id])
+// ============================================================================
+// SOCIAL & VERIFICATION
+// ============================================================================
 
-  @@index([referrerUserId])
-}
-
-model RaffleEntry {
-  id        String       @id @default(cuid())
-  userId    String
-  marketId  String
-  entries   Int          @default(1)
-  reason    RaffleReason
-  createdAt DateTime     @default(now())
-  market    Market       @relation(fields: [marketId], references: [id])
-  user      User         @relation(fields: [userId], references: [id])
-
-  @@unique([userId, marketId, reason])
-  @@index([userId])
-  @@index([marketId])
-}
-
+/// Tweet proof for social verification of bets
 model TweetProof {
   id          String           @id @default(cuid())
   userId      String
@@ -312,32 +367,83 @@ model TweetProof {
   tweetId     String?
   verified    Boolean          @default(false)
   matchedText String?
-  raw         Json?
+  raw         Json? // Raw tweet data
   createdAt   DateTime         @default(now())
   verifiedAt  DateTime?
-  bets        Bet[]
-  market      Market           @relation(fields: [marketId], references: [id])
-  user        User             @relation(fields: [userId], references: [id])
+
+  // Relations
+  bets   Bet[]
+  market Market @relation(fields: [marketId], references: [id])
+  user   User   @relation(fields: [userId], references: [id])
 
   @@index([userId])
   @@index([marketId])
   @@index([verified])
 }
 
+// ============================================================================
+// REFERRALS & REWARDS
+// ============================================================================
+
+/// Referral tracking
+model Referral {
+  id                  String    @id @default(cuid())
+  referrerUserId      String
+  referredUserId      String    @unique
+  createdAt           DateTime  @default(now())
+  qualifiedAt         DateTime?
+  bonusEntriesAwarded Int       @default(0)
+
+  // Relations
+  referred User @relation("ReferredUser", fields: [referredUserId], references: [id])
+  referrer User @relation("ReferrerUser", fields: [referrerUserId], references: [id])
+
+  @@index([referrerUserId])
+}
+
+/// Raffle entries for giveaways/promotions
+model RaffleEntry {
+  id        String       @id @default(cuid())
+  userId    String
+  marketId  String
+  entries   Int          @default(1)
+  reason    RaffleReason
+  createdAt DateTime     @default(now())
+
+  // Relations
+  market Market @relation(fields: [marketId], references: [id])
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@unique([userId, marketId, reason])
+  @@index([userId])
+  @@index([marketId])
+}
+
+// ============================================================================
+// ADMIN & SYSTEM
+// ============================================================================
+
+/// Admin action log for audit trail
 model AdminActionLog {
   id          String      @id @default(cuid())
   adminUserId String
   action      AdminAction
-  targetType  String
-  targetId    String
-  metadata    Json?
+  targetType  String // Type of entity (e.g., "Market", "User")
+  targetId    String // ID of the entity
+  metadata    Json? // Additional context
   createdAt   DateTime    @default(now())
-  admin       User        @relation(fields: [adminUserId], references: [id])
+
+  // Relations
+  admin User @relation(fields: [adminUserId], references: [id])
 
   @@index([adminUserId])
   @@index([targetType, targetId])
   @@index([createdAt])
 }
+
+// ============================================================================
+// ENUMS
+// ============================================================================
 
 enum UserRole {
   USER
@@ -345,20 +451,20 @@ enum UserRole {
 }
 
 enum MarketStatus {
-  DRAFT
-  PUBLISHED
-  OPEN
-  CLOSED
-  RESOLVED
-  SETTLED
-  CANCELLED
+  DRAFT // Market created but not published
+  PUBLISHED // Published but not yet open for trading
+  OPEN // Currently accepting bets
+  CLOSED // Closed, awaiting resolution
+  RESOLVED // Outcome determined
+  SETTLED // Payouts distributed
+  CANCELLED // Market cancelled/voided
 }
 
 enum EventType {
-  MATCHUP      // Traditional head-to-head (e.g., Team A vs Team B)
-  PROP         // Multiple outcomes/props (e.g., MVP, Halftime performer)
-  TOURNAMENT   // Tournament/bracket style
-  FUTURES      // Long-term predictions
+  MATCHUP // Traditional head-to-head (e.g., Team A vs Team B)
+  PROP // Multiple outcomes/props (e.g., MVP, Halftime performer)
+  TOURNAMENT // Tournament/bracket style
+  FUTURES // Long-term predictions
 }
 
 enum MarketCategory {
@@ -379,40 +485,40 @@ enum MarketCategory {
 }
 
 enum BetStatus {
-  PENDING_TWEET
-  CONFIRMED
-  WON
-  LOST
-  REJECTED
-  CANCELLED
+  PENDING_TWEET // Awaiting tweet verification
+  CONFIRMED // Bet confirmed and active
+  WON // Position won
+  LOST // Position lost
+  REJECTED // Bet rejected (e.g., failed verification)
+  CANCELLED // Bet cancelled/refunded
 }
 
 enum BalanceReason {
-  INITIAL_CREDIT
-  BET_PLACED
-  SETTLEMENT_PAYOUT
-  SETTLEMENT_LOSS
-  ADMIN_ADJUST
-  REFERRAL_BONUS
-  OTHER
-  TRADE_SELL
+  INITIAL_CREDIT // Initial signup bonus
+  BET_PLACED // Funds locked for bet
+  SETTLEMENT_PAYOUT // Winnings from settled market
+  SETTLEMENT_LOSS // Loss recorded from settled market
+  ADMIN_ADJUST // Manual admin adjustment
+  REFERRAL_BONUS // Referral reward
+  OTHER // Other reasons
+  TRADE_SELL // Proceeds from selling shares
 }
 
 enum PnLReason {
-  TRADE_SELL        // Profit/loss from selling shares
-  REDEMPTION        // Profit/loss from redeeming settled position
-  ADMIN_ADJUST      // Admin adjustment
-  RECALCULATION     // System recalculation/correction
+  TRADE_SELL // Profit/loss from selling shares
+  REDEMPTION // Profit/loss from redeeming settled position
+  ADMIN_ADJUST // Manual admin adjustment
+  RECALCULATION // System recalculation/correction
 }
 
 enum TradeType {
-  BUY
-  SELL
+  BUY // Buying shares
+  SELL // Selling shares
 }
 
 enum PricingModel {
-  PARI_MUTUEL
-  CPMM
+  PARI_MUTUEL // Traditional pool betting (legacy)
+  CPMM // Constant Product Market Maker (AMM)
 }
 
 enum RaffleReason {
@@ -421,8 +527,8 @@ enum RaffleReason {
 }
 
 enum TweetProofMethod {
-  TIMELINE_SCAN
-  TWEET_URL
+  TIMELINE_SCAN // Scan user's timeline for proof
+  TWEET_URL // Specific tweet URL provided
 }
 
 enum AdminAction {
@@ -440,8 +546,12 @@ enum AdminAction {
 }
 
 enum XPReason {
-  TRADE_VOLUME  // XP from trading
-  ADMIN_ADJUST  // Manual admin adjustment
-  BONUS         // Promotional bonus
-  PENALTY       // Penalty/correction
+  TRADE_VOLUME // XP earned from trading volume
+  ADMIN_ADJUST // Manual admin adjustment
+  BONUS // Promotional bonus
+  PENALTY // Penalty/correction
 }
+
+// ============================================================================
+// USER & AUTHENTICATION
+// ============================================================================
