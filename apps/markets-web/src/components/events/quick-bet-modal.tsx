@@ -35,6 +35,8 @@ interface QuickBetModalProps {
     outcomePrices: string;
     outcomeColors: string | null;
     pricingModel?: string;
+    status?: string;
+    closesAt?: string | null;
   };
   selectedOutcomeIndex: number;
   onSuccess?: () => void;
@@ -120,6 +122,12 @@ export function QuickBetModal({
   
   // Check if CPMM market
   const isCPMM = market.pricingModel === "CPMM";
+  
+  // Check if market is open for betting
+  const canBet = 
+    !market.status || // If no status provided, assume open
+    market.status === "OPEN" ||
+    (market.status === "PUBLISHED" && (!market.closesAt || new Date(market.closesAt) > new Date()));
 
   // Fetch quote for CPMM markets
   const { data: quote } = useQuery({
@@ -276,7 +284,47 @@ export function QuickBetModal({
 
         <div className="p-4">
           <AnimatePresence mode="wait">
-            {step === "amount" && (
+            {!canBet ? (
+              <motion.div
+                key="closed"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="text-center py-6"
+              >
+                <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-muted/50 flex items-center justify-center">
+                  {market.status === "SETTLED" ? (
+                    <span className="text-2xl">🏆</span>
+                  ) : market.status === "RESOLVED" ? (
+                    <span className="text-2xl">✓</span>
+                  ) : (
+                    <span className="text-2xl">🔒</span>
+                  )}
+                </div>
+                <h3 className="font-semibold text-lg mb-1">
+                  {market.status === "SETTLED" 
+                    ? "Market Settled"
+                    : market.status === "RESOLVED"
+                      ? "Market Resolved"
+                      : "Trading Unavailable"
+                  }
+                </h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  {market.status === "SETTLED" 
+                    ? "This market has been settled."
+                    : market.status === "RESOLVED"
+                      ? "The outcome has been determined."
+                      : "This market is not open for trading."
+                  }
+                </p>
+                <Button
+                  variant="outline"
+                  onClick={() => onOpenChange(false)}
+                  className="w-full"
+                >
+                  Close
+                </Button>
+              </motion.div>
+            ) : step === "amount" ? (
               <motion.div
                 key="amount"
                 initial={{ opacity: 0, x: -20 }}
@@ -401,9 +449,7 @@ export function QuickBetModal({
                   )}
                 </Button>
               </motion.div>
-            )}
-
-            {step === "verify" && (
+            ) : step === "verify" ? (
               <motion.div
                 key="verify"
                 initial={{ opacity: 0, x: 20 }}
@@ -486,9 +532,7 @@ export function QuickBetModal({
                   Cancel
                 </Button>
               </motion.div>
-            )}
-
-            {step === "success" && (
+            ) : step === "success" ? (
               <motion.div
                 key="success"
                 initial={{ opacity: 0, scale: 0.95 }}
@@ -510,7 +554,7 @@ export function QuickBetModal({
                   </p>
                 </div>
               </motion.div>
-            )}
+            ) : null}
           </AnimatePresence>
         </div>
       </DialogContent>

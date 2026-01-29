@@ -4,10 +4,11 @@ import { useState } from "react";
 import Link from "next/link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, Skeleton } from "@vault/ui";
-import { ArrowUpRight, Target } from "lucide-react";
+import { ArrowUpRight, Target, Gift } from "lucide-react";
 import { cn } from "@vault/ui/lib/utils";
 import { getMarketUrl } from "@/lib/urls";
 import { SellPositionModal } from "./sell-position-modal";
+import { RedeemPositionsModal } from "./redeem-positions-modal";
 
 interface Position {
   id: string;
@@ -18,6 +19,7 @@ interface Position {
   amount0: number;
   amount1: number;
   updatedAt: string;
+  claimedAt: string | null;
   market: {
     id: string;
     question: string;
@@ -30,6 +32,11 @@ interface Position {
     reserve1: number;
     resolvedOutcome: number | null;
     settledAt: string | null;
+    feeBps: number;
+    pool0: number;
+    pool1: number;
+    seed0: number;
+    seed1: number;
     event?: {
       id: string;
       title: string;
@@ -92,29 +99,34 @@ function PositionRow({ position, outcomeIndex, shares, avgCost, onSellComplete }
 
   const isCPMM = market.pricingModel === "CPMM";
   const isOpen = market.status === "OPEN" || market.status === "PUBLISHED";
-  const isResolved = market.status === "RESOLVED";
   const isSettled = market.settledAt !== null;
+  const isClaimed = position.claimedAt !== null;
   
-  // Check if this position won
-  const didWin = isResolved && market.resolvedOutcome === outcomeIndex;
-  const didLose = isResolved && market.resolvedOutcome !== null && market.resolvedOutcome !== outcomeIndex;
+  // Check if this position won/lost (only meaningful when settled)
+  const didWin = isSettled && market.resolvedOutcome === outcomeIndex;
+  const didLose = isSettled && market.resolvedOutcome !== null && market.resolvedOutcome !== outcomeIndex;
   
-  // Calculate settled payout (1 share = $1 for winners, 0 for losers)
-  const settledValue = didWin ? shares : 0;
+  // Calculate payout for settled positions (1 share = $1 for winners, minus fee)
+  const fee = (market.feeBps || 100) / 10000;
+  const settledValue = didWin ? Math.floor(shares * (1 - fee)) : 0;
   const realizedPnL = settledValue - costBasis;
+  
+  // Can redeem if settled but not claimed and is a winner
+  const canRedeem = isSettled && !isClaimed && didWin;
 
   return (
     <>
       <div className={cn(
         "py-4 border-b border-border/50 last:border-0",
-        isSettled && "opacity-70"
+        isClaimed && "opacity-60"
       )}>
         <div className="flex items-center gap-4">
           {/* Outcome indicator */}
           <div
             className={cn(
               "w-2 h-8 rounded-full flex-shrink-0",
-              didWin && "ring-2 ring-green-500 ring-offset-2 ring-offset-background"
+              didWin && !isClaimed && "ring-2 ring-green-500 ring-offset-2 ring-offset-background",
+              canRedeem && "animate-pulse"
             )}
             style={{ backgroundColor: outcomeColor }}
           />
@@ -194,15 +206,45 @@ function PositionRow({ position, outcomeIndex, shares, avgCost, onSellComplete }
           </div>
 
           {/* Actions */}
-          {!isSettled && isCPMM && isOpen && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowSellModal(true)}
-              className="text-muted-foreground hover:text-foreground"
-            >
-              Sell
-            </Button>
+          {isSettled ? (
+            <div className="flex flex-col items-end gap-1">
+              {isClaimed ? (
+                // Already claimed
+                didWin ? (
+                  <div className="text-xs text-green-500 font-medium bg-green-500/10 px-2 py-1 rounded border border-green-500/20">
+                    ✓ Claimed
+                  </div>
+                ) : (
+                  <div className="text-xs text-muted-foreground bg-muted/50 px-2 py-1 rounded">
+                    Settled
+                  </div>
+                )
+              ) : (
+                // Not yet claimed
+                canRedeem ? (
+                  <div className="text-xs text-amber-500 font-medium bg-amber-500/10 px-2 py-1 rounded border border-amber-500/20">
+                    Pending claim
+                  </div>
+                ) : didLose ? (
+                  <div className="text-xs text-muted-foreground bg-muted/50 px-2 py-1 rounded">
+                    Lost
+                  </div>
+                ) : null
+              )}
+            </div>
+          ) : (
+            <>
+              {isCPMM && isOpen && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowSellModal(true)}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  Sell
+                </Button>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -225,12 +267,35 @@ function PositionRow({ position, outcomeIndex, shares, avgCost, onSellComplete }
   );
 }
 
+interface RedeemableSummary {
+  totalRedeemable: number;
+  positionsCount: number;
+  winnersCount: number;
+  losersCount: number;
+}
+
+async function fetchRedeemableSummary(): Promise<RedeemableSummary | null> {
+  try {
+    const res = await fetch("/api/me/redeem");
+    if (!res.ok) return null;
+    return res.json();
+  } catch {
+    return null;
+  }
+}
+
 export function ProfilePositions() {
   const queryClient = useQueryClient();
+  const [showRedeemModal, setShowRedeemModal] = useState(false);
 
   const { data: positions, isLoading, error } = useQuery({
     queryKey: ["positions"],
     queryFn: fetchPositions,
+  });
+
+  const { data: redeemableSummary } = useQuery({
+    queryKey: ["redeemable-positions"],
+    queryFn: fetchRedeemableSummary,
   });
 
   if (isLoading) {
@@ -306,6 +371,9 @@ export function ProfilePositions() {
     }
   });
 
+  // Get redeemable positions from API summary
+  const hasRedeemable = redeemableSummary && redeemableSummary.positionsCount > 0;
+
   if (positionRows.length === 0) {
     return (
       <div className="text-center py-16">
@@ -336,6 +404,43 @@ export function ProfilePositions() {
 
   return (
     <div>
+      {/* Redeemable positions banner */}
+      {hasRedeemable && redeemableSummary && (
+        <div className="mb-6 p-4 rounded-xl bg-gradient-to-r from-green-500/10 to-primary/10 border border-green-500/20">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-full bg-green-500/20 animate-pulse">
+                <Gift className="h-5 w-5 text-green-500" />
+              </div>
+              <div>
+                <h3 className="font-semibold">Winnings Ready to Claim</h3>
+                <p className="text-sm text-muted-foreground">
+                  {redeemableSummary.winnersCount} winning position{redeemableSummary.winnersCount !== 1 ? "s" : ""} from settled markets
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-4">
+              <p className="text-lg font-bold text-green-500">
+                +${redeemableSummary.totalRedeemable.toFixed(2)}
+              </p>
+              <Button 
+                onClick={() => setShowRedeemModal(true)}
+                className="bg-green-500 hover:bg-green-600"
+              >
+                <Gift className="h-4 w-4 mr-2" />
+                Redeem {redeemableSummary.winnersCount} Position{redeemableSummary.winnersCount !== 1 ? "s" : ""}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Redeem Modal */}
+      <RedeemPositionsModal
+        open={showRedeemModal}
+        onOpenChange={setShowRedeemModal}
+      />
+
       {/* Summary bar */}
       <div className="flex items-center gap-6 pb-4 mb-2 text-sm">
         <div>

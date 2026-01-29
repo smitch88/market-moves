@@ -47,22 +47,38 @@ export async function FeaturedEvents() {
   });
 
   // Filter to only events with markets and calculate aggregations
+  // Serialize data for client components
   const eventsWithData = events
     .filter((event) => event.markets.length > 0)
     .map((event) => {
-      // Calculate total volume across all markets (we only have 1 here, but structure for future)
+      // Calculate total volume across all markets (convert Decimals to numbers)
       const totalVolume = event.markets.reduce((sum, market) => {
         return (
           sum +
-          (market.seed0 || 0) +
-          (market.seed1 || 0) +
-          (market.pool0 || 0) +
-          (market.pool1 || 0)
+          Number(market.seed0 || 0) +
+          Number(market.seed1 || 0) +
+          Number(market.pool0 || 0) +
+          Number(market.pool1 || 0)
         );
       }, 0);
 
+      // Serialize markets
+      const serializedMarkets = event.markets.map((market) => ({
+        ...market,
+        pool0: Number(market.pool0),
+        pool1: Number(market.pool1),
+        seed0: Number(market.seed0),
+        seed1: Number(market.seed1),
+        closesAt: market.closesAt?.toISOString() ?? null,
+      }));
+
       return {
         ...event,
+        startTime: event.startTime?.toISOString() ?? null,
+        endTime: event.endTime?.toISOString() ?? null,
+        createdAt: event.createdAt?.toISOString() ?? null,
+        updatedAt: event.updatedAt?.toISOString() ?? null,
+        markets: serializedMarkets,
         _aggregations: {
           totalVolume,
         },

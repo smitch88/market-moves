@@ -55,89 +55,53 @@ export async function POST(
       const isCPMM = market.pricingModel === PricingModel.CPMM;
 
       // Calculate pools from seed + confirmed positions (for pari-mutuel)
-      const pool0 = market.seed0 + market.pool0;
-      const pool1 = market.seed1 + market.pool1;
+      // Convert Decimals to numbers
+      const pool0 = Number(market.seed0) + Number(market.pool0);
+      const pool1 = Number(market.seed1) + Number(market.pool1);
       const totalPool = pool0 + pool1;
       const winningPool = isOutcome0 ? pool0 : pool1;
       const fee = market.feeBps / 10000;
       const netPool = totalPool * (1 - fee);
 
-      // Calculate and distribute payouts based on pricing model
-      // Also track cost basis for PnL calculation
-      const payouts: { userId: string; amount: number; costBasis: number }[] = [];
-
+      // NOTE: Payouts are NOT automatically distributed here.
+      // Users must manually redeem their positions via /api/me/redeem
+      // This settlement just marks the market and bets with the correct status.
+      
+      // Track affected users for PnL snapshots
+      const affectedUserIds: string[] = [];
+      
+      // Calculate potential payouts for logging purposes only
+      let potentialTotalPayout = 0;
+      let winnersCount = 0;
+      
       for (const position of market.positions) {
-        let payout = 0;
-        let costBasis = 0;
-
         if (isCPMM) {
-          // CPMM: 1 winning share = 100 cents (after fees)
           const userShares = isOutcome0 ? position.shares0 : position.shares1;
-          const avgCost = isOutcome0 ? position.avgCost0 : position.avgCost1;
-          
-          if (userShares > 0) {
-            // Each winning share is worth $1
-            const grossPayout = userShares; // Already in dollars (Decimal)
-            payout = Math.floor(grossPayout * (1 - fee));
-            // Cost basis = shares * avgCost (both already in dollars)
-            costBasis = Math.floor(userShares * avgCost);
+          if (Number(userShares) > 0) {
+            potentialTotalPayout += Math.floor(Number(userShares) * (1 - fee));
+            winnersCount++;
           }
         } else {
-          // PARI_MUTUEL: Pro-rata payout from pool
-          const userStake = isOutcome0 ? position.amount0 : position.amount1;
-
-          if (userStake > 0 && winningPool > 0) {
-            payout = Math.floor((userStake / winningPool) * netPool);
-            costBasis = userStake;
+          const userStake = isOutcome0 ? Number(position.amount0) : Number(position.amount1);
+          if (userStake > 0 && Number(winningPool) > 0) {
+            potentialTotalPayout += Math.floor((userStake / Number(winningPool)) * Number(netPool));
+            winnersCount++;
           }
         }
-
-        if (payout > 0) {
-          payouts.push({ userId: position.userId, amount: payout, costBasis });
-        }
       }
-
-      // Track users who received payouts for PnL snapshots
-      const affectedUserIds: string[] = [];
-
-      // Apply payouts
-      for (const { userId, amount, costBasis } of payouts) {
-        const user = await tx.user.findUnique({
-          where: { id: userId },
-          select: { balance: true, realizedPnL: true },
-        });
-
-        if (user) {
-          const newBalance = user.balance + amount;
-          // Realized PnL = payout - cost basis
-          const pnlDelta = amount - costBasis;
-
-          await tx.user.update({
-            where: { id: userId },
-            data: { 
-              balance: newBalance,
-              realizedPnL: { increment: pnlDelta },
-            },
-          });
-          
-          affectedUserIds.push(userId);
-
-          await tx.balanceLedger.create({
-            data: {
-              userId,
-              delta: amount,
-              balanceBefore: user.balance,
-              balanceAfter: newBalance,
-              reason: BalanceReason.SETTLEMENT_PAYOUT,
-              correlationId: settlementRunId,
-            },
-          });
-
-          // Create raffle entry for correct prediction
+      
+      // Create raffle entries for winners (still automatic as it's a reward, not payment)
+      for (const position of market.positions) {
+        const userShares = isOutcome0 ? Number(position.shares0) : Number(position.shares1);
+        const userStake = isOutcome0 ? Number(position.amount0) : Number(position.amount1);
+        
+        const isWinner = isCPMM ? userShares > 0 : userStake > 0;
+        
+        if (isWinner) {
           await tx.raffleEntry.upsert({
             where: {
               userId_marketId_reason: {
-                userId,
+                userId: position.userId,
                 marketId: market.id,
                 reason: RaffleReason.CORRECT_PREDICTION,
               },
@@ -146,12 +110,14 @@ export async function POST(
               entries: { increment: 1 },
             },
             create: {
-              userId,
+              userId: position.userId,
               marketId: market.id,
               entries: 1,
               reason: RaffleReason.CORRECT_PREDICTION,
             },
           });
+          
+          affectedUserIds.push(position.userId);
         }
       }
 
@@ -167,11 +133,11 @@ export async function POST(
 
           if (isCPMM && bet.shares) {
             // CPMM: payout based on shares (1 share = $1, minus fee)
-            const grossPayout = bet.shares; // Already in dollars (Decimal)
+            const grossPayout = Number(bet.shares); // Convert Decimal to number
             betPayout = Math.floor(grossPayout * (1 - fee));
           } else if (!isCPMM && winningPool > 0) {
             // PARI_MUTUEL: pro-rata from pool
-            betPayout = Math.floor((bet.amount / winningPool) * netPool);
+            betPayout = Math.floor((Number(bet.amount) / winningPool) * netPool);
           }
 
           if (betPayout > 0) {
@@ -193,33 +159,11 @@ export async function POST(
           },
         });
 
-        // Create SETTLEMENT_LOSS ledger entry for losing bets and update realized PnL
-        if (!isWinner) {
-          await tx.balanceLedger.create({
-            data: {
-              userId: bet.userId,
-              delta: 0,
-              balanceBefore: bet.user.balance,
-              balanceAfter: bet.user.balance,
-              reason: BalanceReason.SETTLEMENT_LOSS,
-              correlationId: bet.id,
-            },
-          });
-          
-          // Update realized PnL for losing bets (loss = -bet amount)
-          // Only for BUY trades (sells already realized their PnL)
-          if (bet.tradeType === "BUY") {
-            await tx.user.update({
-              where: { id: bet.userId },
-              data: {
-                realizedPnL: { decrement: bet.amount },
-              },
-            });
-            
-            if (!affectedUserIds.includes(bet.userId)) {
-              affectedUserIds.push(bet.userId);
-            }
-          }
+        // Note: We no longer create SETTLEMENT_LOSS ledger entries here
+        // or update realizedPnL. This happens during redemption.
+        // The bet status (WON/LOST) is sufficient for tracking.
+        if (!isWinner && !affectedUserIds.includes(bet.userId)) {
+          affectedUserIds.push(bet.userId);
         }
       }
 
@@ -289,12 +233,13 @@ export async function POST(
           metadata: {
             settlementRunId,
             pricingModel: market.pricingModel,
-            totalPool,
-            netPool,
+            totalPool: Number(totalPool),
+            netPool: Number(netPool),
             winningOutcome: winningOutcomeLabel,
             winningIndex: market.resolvedOutcome,
-            payoutsCount: payouts.length,
-            totalPaidOut: payouts.reduce((sum, p) => sum + p.amount, 0),
+            winnersCount,
+            potentialTotalPayout,
+            payoutsDistributed: false, // Payouts require manual redemption
           },
         },
       });
@@ -305,8 +250,9 @@ export async function POST(
       return {
         market: updatedMarket,
         settlementRunId,
-        payoutsCount: payouts.length,
-        totalPaidOut: payouts.reduce((sum, p) => sum + p.amount, 0),
+        winnersCount,
+        potentialTotalPayout,
+        payoutsDistributed: false, // Users must redeem manually
         betsUpdated: {
           won: winningBetsCount,
           lost: losingBetsCount,

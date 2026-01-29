@@ -400,6 +400,7 @@ export function ProfileContent({ userId }: ProfileContentProps) {
         <TabsContent value="activity" className="mt-0">
           <ProfileActivity
             bets={activity?.bets || []}
+            redemptions={activity?.redemptions || []}
             isLoading={activityLoading}
           />
         </TabsContent>

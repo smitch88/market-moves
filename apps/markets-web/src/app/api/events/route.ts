@@ -134,14 +134,19 @@ export async function GET(request: NextRequest) {
       let eventLiquidity = 0;
 
       const markets = event.markets.map((market) => {
-        // Calculate prices from pools
-        const pool0 = market.seed0 + market.pool0;
-        const pool1 = market.seed1 + market.pool1;
+        // Calculate prices from pools (convert Decimals to numbers)
+        const s0 = Number(market.seed0);
+        const s1 = Number(market.seed1);
+        const p0 = Number(market.pool0);
+        const p1 = Number(market.pool1);
+        
+        const pool0 = s0 + p0;
+        const pool1 = s1 + p1;
         const totalPool = pool0 + pool1;
         const price0 = totalPool > 0 ? (pool0 / totalPool).toFixed(4) : "0.5000";
         const price1 = totalPool > 0 ? (pool1 / totalPool).toFixed(4) : "0.5000";
         
-        const volume = market.pool0 + market.pool1;
+        const volume = p0 + p1;
         const liquidity = totalPool;
         
         eventVolume += volume;

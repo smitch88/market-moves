@@ -19,6 +19,40 @@ const SPORTS_CATEGORIES: MarketCategory[] = [
   "GOLF",
 ];
 
+// Helper to serialize market data for client components
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function serializeMarket(market: any) {
+  return {
+    ...market,
+    seed0: Number(market.seed0),
+    seed1: Number(market.seed1),
+    pool0: Number(market.pool0),
+    pool1: Number(market.pool1),
+    k: market.k ? Number(market.k) : null,
+    reserve0: Number(market.reserve0),
+    reserve1: Number(market.reserve1),
+    publishedAt: market.publishedAt?.toISOString() ?? null,
+    opensAt: market.opensAt?.toISOString() ?? null,
+    closesAt: market.closesAt?.toISOString() ?? null,
+    resolvedAt: market.resolvedAt?.toISOString() ?? null,
+    settledAt: market.settledAt?.toISOString() ?? null,
+    createdAt: market.createdAt?.toISOString() ?? null,
+    updatedAt: market.updatedAt?.toISOString() ?? null,
+  };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function serializeEvent(event: any) {
+  return {
+    ...event,
+    startTime: event.startTime?.toISOString() ?? null,
+    endTime: event.endTime?.toISOString() ?? null,
+    createdAt: event.createdAt?.toISOString() ?? null,
+    updatedAt: event.updatedAt?.toISOString() ?? null,
+    markets: event.markets?.map(serializeMarket) ?? [],
+  };
+}
+
 interface PageProps {
   params: Promise<{ slug: string }>;
 }
@@ -71,6 +105,9 @@ export default async function MarketPage({ params }: PageProps) {
     notFound();
   }
 
+  // Serialize event data to convert Decimals to numbers for client components
+  const serializedEvent = serializeEvent(event);
+
   // Determine if this is a sports event
   const isSportsEvent = SPORTS_CATEGORIES.includes(event.category as MarketCategory);
 
@@ -80,9 +117,9 @@ export default async function MarketPage({ params }: PageProps) {
       <main className="container mx-auto px-4 py-6">
         <Suspense fallback={<MarketDetailSkeleton />}>
           {isSportsEvent ? (
-            <SportsEventView event={event} />
+            <SportsEventView event={serializedEvent} />
           ) : (
-            <MarketDetail event={event} />
+            <MarketDetail event={serializedEvent} />
           )}
         </Suspense>
       </main>

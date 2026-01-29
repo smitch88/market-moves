@@ -65,13 +65,34 @@ export async function GET(
       return NextResponse.json({ error: "Market not found" }, { status: 404 });
     }
 
-    // Calculate stats
-    const pool0 = market.seed0 + market.pool0;
-    const pool1 = market.seed1 + market.pool1;
+    // Calculate stats (convert Decimals to numbers)
+    const pool0 = Number(market.seed0) + Number(market.pool0);
+    const pool1 = Number(market.seed1) + Number(market.pool1);
     const totalPool = pool0 + pool1;
 
+    // Serialize market to convert Decimals
+    const serializedMarket = {
+      ...market,
+      seed0: Number(market.seed0),
+      seed1: Number(market.seed1),
+      pool0: Number(market.pool0),
+      pool1: Number(market.pool1),
+      k: Number(market.k),
+      reserve0: Number(market.reserve0),
+      reserve1: Number(market.reserve1),
+      positions: market.positions.map((pos) => ({
+        ...pos,
+        amount0: Number(pos.amount0),
+        amount1: Number(pos.amount1),
+        shares0: Number(pos.shares0),
+        shares1: Number(pos.shares1),
+        avgCost0: Number(pos.avgCost0),
+        avgCost1: Number(pos.avgCost1),
+      })),
+    };
+
     return NextResponse.json({ 
-      market,
+      market: serializedMarket,
       stats: {
         pool0,
         pool1,

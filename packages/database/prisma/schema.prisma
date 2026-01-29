@@ -201,6 +201,7 @@ model Position {
   avgCost1  Decimal   @default(0) @db.Decimal(10, 4)
   shares0   Decimal   @default(0) @db.Decimal(19, 4)
   shares1   Decimal   @default(0) @db.Decimal(19, 4)
+  claimedAt DateTime? // When user claimed their payout for this position
   market    Market    @relation(fields: [marketId], references: [id])
   user      User      @relation(fields: [userId], references: [id])
 

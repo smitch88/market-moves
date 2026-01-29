@@ -504,7 +504,69 @@ export function SportsBettingSidebar({
 
         <div className="p-4 space-y-4">
           <AnimatePresence mode="wait">
-            {step === "bet" ? (
+            {/* Show market closed state instead of betting UI */}
+            {!canBet ? (
+              <motion.div
+                key="closed"
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 10 }}
+                className="space-y-4"
+              >
+                <div className="text-center py-6">
+                  <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-muted/50 flex items-center justify-center">
+                    {selectedMarket.status === "SETTLED" ? (
+                      <span className="text-2xl">🏆</span>
+                    ) : selectedMarket.status === "RESOLVED" ? (
+                      <span className="text-2xl">✓</span>
+                    ) : (
+                      <span className="text-2xl">🔒</span>
+                    )}
+                  </div>
+                  <h3 className="font-semibold text-lg mb-1">
+                    {selectedMarket.status === "SETTLED" 
+                      ? "Market Settled"
+                      : selectedMarket.status === "RESOLVED"
+                        ? "Market Resolved"
+                        : selectedMarket.status === "CLOSED" || (selectedMarket.closesAt && new Date(selectedMarket.closesAt) < new Date())
+                          ? "Market Closed"
+                          : "Trading Unavailable"
+                    }
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    {selectedMarket.status === "SETTLED" 
+                      ? "This market has been settled. Check your positions for any payouts."
+                      : selectedMarket.status === "RESOLVED"
+                        ? `Outcome: ${(() => {
+                            try {
+                              const outcomes = JSON.parse(selectedMarket.outcomes);
+                              return outcomes[selectedMarket.resolvedOutcome ?? 0] || "Unknown";
+                            } catch {
+                              return "Unknown";
+                            }
+                          })()}`
+                        : selectedMarket.closesAt && new Date(selectedMarket.closesAt) < new Date()
+                          ? "This market has closed for betting."
+                          : "This market is not currently open for trading."
+                    }
+                  </p>
+                  
+                  {/* Show user's position if they have one */}
+                  {isCPMM && userShares > 0 && (
+                    <div className="mt-4 p-3 rounded-lg bg-muted/30 border border-border/50">
+                      <p className="text-xs text-muted-foreground mb-1">Your position</p>
+                      <p className="font-bold text-lg">{userShares.toFixed(2)} shares</p>
+                      <p className="text-xs text-muted-foreground">
+                        {selectedMarket.status === "SETTLED" 
+                          ? "Redeem your winnings from your profile"
+                          : "Awaiting market settlement"
+                        }
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            ) : step === "bet" ? (
               <motion.div
                 key="bet"
                 initial={{ opacity: 0, x: -10 }}

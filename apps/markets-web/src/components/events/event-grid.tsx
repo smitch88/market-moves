@@ -45,10 +45,10 @@ export async function EventGrid({ sort = "trending", category, query }: EventGri
     take: 20,
   });
 
-  // Transform to include aggregations
+  // Transform to include aggregations (convert Decimals to numbers)
   const eventsWithAggregations = events.map((event) => {
     const totalVolume = event.markets.reduce((sum, market) => {
-      return sum + (market.seed0 || 0) + (market.seed1 || 0) + (market.pool0 || 0) + (market.pool1 || 0);
+      return sum + Number(market.seed0 || 0) + Number(market.seed1 || 0) + Number(market.pool0 || 0) + Number(market.pool1 || 0);
     }, 0);
 
     const totalBets = event.markets.reduce((sum, market) => {
@@ -56,10 +56,15 @@ export async function EventGrid({ sort = "trending", category, query }: EventGri
     }, 0);
 
     // Remove the markets array from the result, keep only aggregations
+    // Serialize dates for client component
     const { markets, ...eventData } = event;
 
     return {
       ...eventData,
+      startTime: event.startTime?.toISOString() ?? null,
+      endTime: event.endTime?.toISOString() ?? null,
+      createdAt: event.createdAt?.toISOString() ?? null,
+      updatedAt: event.updatedAt?.toISOString() ?? null,
       _aggregations: {
         totalVolume,
         totalBets,

@@ -69,8 +69,14 @@ export async function GET(
         return NextResponse.json({ error: "Market not found" }, { status: 404 });
       }
 
-      const totalPool0 = market.seed0 + market.pool0;
-      const totalPool1 = market.seed1 + market.pool1;
+      // Convert Decimals to numbers
+      const s0 = Number(market.seed0);
+      const s1 = Number(market.seed1);
+      const p0 = Number(market.pool0);
+      const p1 = Number(market.pool1);
+      
+      const totalPool0 = s0 + p0;
+      const totalPool1 = s1 + p1;
       const total = totalPool0 + totalPool1;
       const price0 = total > 0 ? totalPool0 / total : 0.5;
       const price1 = total > 0 ? totalPool1 / total : 0.5;

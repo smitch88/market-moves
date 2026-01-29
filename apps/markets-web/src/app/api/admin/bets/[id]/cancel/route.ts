@@ -115,7 +115,7 @@ export async function POST(
           bet.marketId,
           bet.market.eventId,
           [price0, price1],
-          [updatedMarket.seed0 + updatedMarket.pool0, updatedMarket.seed1 + updatedMarket.pool1]
+          [seed0Num + pool0Num, seed1Num + pool1Num]
         );
 
         // Also update the position

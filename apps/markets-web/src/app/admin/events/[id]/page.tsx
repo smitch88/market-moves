@@ -55,10 +55,10 @@ export default async function AdminEventDetailPage({ params }: PageProps) {
     notFound();
   }
 
-  // Calculate totals
+  // Calculate totals (convert Decimals to numbers)
   const totalBets = event.markets.reduce((sum, m) => sum + m._count.bets, 0);
   const totalVolume = event.markets.reduce(
-    (sum, m) => sum + m.pool0 + m.pool1,
+    (sum, m) => sum + Number(m.pool0) + Number(m.pool1),
     0
   );
 
@@ -134,7 +134,7 @@ export default async function AdminEventDetailPage({ params }: PageProps) {
                   <tbody>
                     {event.markets.map((market) => {
                       const outcomes = parseOutcomes(market.outcomes);
-                      const pool = market.seed0 + market.seed1 + market.pool0 + market.pool1;
+                      const pool = Number(market.seed0) + Number(market.seed1) + Number(market.pool0) + Number(market.pool1);
 
                       return (
                         <tr

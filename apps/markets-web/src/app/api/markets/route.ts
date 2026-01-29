@@ -116,13 +116,19 @@ export async function GET(request: NextRequest) {
 
     // Transform to Polymarket-style response
     const response = markets.map((market) => {
-      const pool0 = market.seed0 + market.pool0;
-      const pool1 = market.seed1 + market.pool1;
+      // Convert Decimals to numbers
+      const seed0 = Number(market.seed0);
+      const seed1 = Number(market.seed1);
+      const poolVal0 = Number(market.pool0);
+      const poolVal1 = Number(market.pool1);
+      
+      const pool0 = seed0 + poolVal0;
+      const pool1 = seed1 + poolVal1;
       const totalPool = pool0 + pool1;
       const price0 = totalPool > 0 ? (pool0 / totalPool).toFixed(4) : "0.5000";
       const price1 = totalPool > 0 ? (pool1 / totalPool).toFixed(4) : "0.5000";
       
-      const volume = market.pool0 + market.pool1;
+      const volume = poolVal0 + poolVal1;
       const liquidity = totalPool;
 
       const isNew = Date.now() - new Date(market.createdAt).getTime() < 24 * 60 * 60 * 1000;
