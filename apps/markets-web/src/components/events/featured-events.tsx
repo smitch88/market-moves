@@ -23,7 +23,6 @@ export async function FeaturedEvents() {
           question: true,
           outcomes: true,
           outcomePrices: true,
-          outcomeColors: true,
           pool0: true,
           pool1: true,
           seed0: true,

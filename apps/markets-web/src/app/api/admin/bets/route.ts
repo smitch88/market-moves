@@ -39,7 +39,6 @@ export async function GET(request: NextRequest) {
               id: true,
               question: true,
               outcomes: true,
-              outcomeColors: true,
               event: {
                 select: {
                   id: true,

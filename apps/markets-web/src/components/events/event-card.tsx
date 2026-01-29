@@ -60,7 +60,8 @@ export function EventCard({ event, index = 0 }: EventCardProps) {
                 fill
                 className="object-cover transition-transform duration-300 group-hover:scale-105"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-background/50 to-transparent" />
+              {/* Very subtle gradient only at the bottom edge for text readability */}
+              <div className="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-black/20 to-transparent" />
 
               {/* Category badge */}
               <div className="absolute top-3 right-3">

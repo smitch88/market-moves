@@ -24,7 +24,6 @@ interface SellPositionModalProps {
       question: string;
       outcomes: string;
       outcomePrices: string;
-      outcomeColors?: string;
       event?: {
         title: string;
       };

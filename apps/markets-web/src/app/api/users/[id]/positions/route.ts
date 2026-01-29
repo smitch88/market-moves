@@ -53,7 +53,6 @@ export async function GET(
             question: true,
             status: true,
             outcomes: true,
-            outcomeColors: true,
             outcomePrices: true,
             resolvedOutcome: true,
             event: {

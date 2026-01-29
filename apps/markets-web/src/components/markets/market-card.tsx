@@ -8,6 +8,7 @@ import { motion } from "framer-motion";
 import type { Market, Event } from "@vault/database";
 import { cn } from "@vault/ui/lib/utils";
 import { getMarketUrl } from "@/lib/urls";
+import { getOutcomeColors } from "@/lib/outcome-colors";
 
 interface MarketCardProps {
   market: Market & {
@@ -32,16 +33,6 @@ function parseOutcomePrices(outcomePrices: string): string[] {
     return JSON.parse(outcomePrices);
   } catch {
     return ["0.50", "0.50"];
-  }
-}
-
-// Parse outcome colors from JSON string
-function parseOutcomeColors(outcomeColors: string | null): string[] | null {
-  if (!outcomeColors) return null;
-  try {
-    return JSON.parse(outcomeColors);
-  } catch {
-    return null;
   }
 }
 

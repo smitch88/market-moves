@@ -13,6 +13,7 @@ import {
   toast,
 } from "@vault/ui";
 import { cn } from "@vault/ui/lib/utils";
+import { getOutcomeColors } from "@/lib/outcome-colors";
 import {
   Loader2,
   ChevronRight,
@@ -33,7 +34,6 @@ interface QuickBetModalProps {
     question: string;
     outcomes: string;
     outcomePrices: string;
-    outcomeColors: string | null;
     pricingModel?: string;
     status?: string;
     closesAt?: string | null;
@@ -58,14 +58,6 @@ function parseOutcomePrices(outcomePrices: string): string[] {
   }
 }
 
-function parseOutcomeColors(outcomeColors: string | null): string[] {
-  if (!outcomeColors) return ["#22C55E", "#EF4444"];
-  try {
-    return JSON.parse(outcomeColors);
-  } catch {
-    return ["#22C55E", "#EF4444"];
-  }
-}
 
 const QUICK_AMOUNTS = [10, 50, 100, 500];
 
@@ -89,12 +81,12 @@ export function QuickBetModal({
 
   const outcomes = parseOutcomes(market.outcomes);
   const outcomePrices = parseOutcomePrices(market.outcomePrices);
-  const outcomeColors = parseOutcomeColors(market.outcomeColors);
+  const outcomeColors = getOutcomeColors(outcomes);
 
   const selectedOutcome = outcomes[selectedOutcomeIndex] || "Yes";
   const selectedPrice = parseFloat(outcomePrices[selectedOutcomeIndex] || "0.50");
   const selectedPercent = Math.round(selectedPrice * 100);
-  const selectedColor = outcomeColors[selectedOutcomeIndex] || "#22C55E";
+  const selectedColor = outcomeColors[selectedOutcomeIndex] || outcomeColors[0];
 
   // Reset state when modal opens
   useEffect(() => {

@@ -25,7 +25,6 @@ interface Position {
     question: string;
     outcomes: string;
     outcomePrices: string;
-    outcomeColors?: string;
     status: string;
     pricingModel: string;
     reserve0: number;

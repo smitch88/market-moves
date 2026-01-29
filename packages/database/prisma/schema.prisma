@@ -231,7 +231,6 @@ model Market {
   sortOrder       Int? // Explicit sort order within event (lower = first)
   outcomes        String  @default("[\"Yes\", \"No\"]") // JSON array of outcome labels
   outcomePrices   String  @default("[\"0.50\", \"0.50\"]") // JSON array of prices
-  outcomeColors   String? // JSON array of colors
   resolvedOutcome Int? // Index of winning outcome
 
   // AMM/CPMM fields

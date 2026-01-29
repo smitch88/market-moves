@@ -13,6 +13,7 @@ import {
 } from "recharts";
 import type { Market } from "@vault/database";
 import { cn } from "@vault/ui/lib/utils";
+import { getOutcomeColors } from "@/lib/outcome-colors";
 
 interface MarketChartProps {
   market: Market & { event?: { slug: string } };
@@ -50,15 +51,6 @@ function parseOutcomePrices(outcomePrices: string): string[] {
     return JSON.parse(outcomePrices);
   } catch {
     return ["0.50", "0.50"];
-  }
-}
-
-function parseOutcomeColors(outcomeColors: string | null): string[] {
-  if (!outcomeColors) return ["#3B82F6", "#EF4444"]; // Blue and red defaults
-  try {
-    return JSON.parse(outcomeColors);
-  } catch {
-    return ["#3B82F6", "#EF4444"];
   }
 }
 
@@ -180,7 +172,7 @@ export function MarketChart({ market, selectedOutcome }: MarketChartProps) {
 
   const outcomes = parseOutcomes(market.outcomes);
   const outcomePrices = parseOutcomePrices(market.outcomePrices);
-  const outcomeColors = parseOutcomeColors(market.outcomeColors);
+  const outcomeColors = getOutcomeColors(outcomes);
 
   const price0 = parseFloat(outcomePrices[0] || "0.50");
   const price1 = parseFloat(outcomePrices[1] || "0.50");

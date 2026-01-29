@@ -16,7 +16,6 @@ export const createMarketSchema = z.object({
   eventId: z.string().min(1),
   question: z.string().min(10).max(500),
   outcomes: z.array(z.string().min(1)).length(2),
-  outcomeColors: z.array(z.string()).length(2).optional(),
   detailsMarkdown: z.string().optional(),
   closesAt: z.string().datetime().optional(),
   seed0: z.number().int().min(0).optional(),
@@ -32,7 +31,6 @@ export type CreateMarketInput = z.infer<typeof createMarketSchema>;
 export const updateMarketSchema = z.object({
   question: z.string().min(10).max(500).optional(),
   outcomes: z.array(z.string().min(1)).length(2).optional(),
-  outcomeColors: z.array(z.string()).length(2).optional(),
   detailsMarkdown: z.string().optional(),
   closesAt: z.string().datetime().optional(),
   seed0: z.number().int().min(0).optional(),

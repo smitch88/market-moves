@@ -6,6 +6,7 @@ import { Button, Skeleton } from "@vault/ui";
 import { ArrowUpRight, Activity, Gift } from "lucide-react";
 import { cn } from "@vault/ui/lib/utils";
 import { getMarketUrl } from "@/lib/urls";
+import { getOutcomeColors } from "@/lib/outcome-colors";
 
 interface BetEntry {
   id: string;
@@ -20,7 +21,6 @@ interface BetEntry {
     slug?: string;
     question?: string;
     outcomes?: string;
-    outcomeColors?: string;
     event?: {
       slug: string;
       title: string;
@@ -62,14 +62,6 @@ function parseOutcomes(outcomes: string | undefined): string[] {
   }
 }
 
-function parseOutcomeColors(colors: string | undefined): string[] {
-  if (!colors) return ["#22c55e", "#ef4444"];
-  try {
-    return JSON.parse(colors);
-  } catch {
-    return ["#22c55e", "#ef4444"];
-  }
-}
 
 type ActivityEntry = 
   | (BetEntry & { entryType: "bet" })
@@ -125,7 +117,7 @@ export function ProfileActivity({ bets, redemptions = [], isLoading }: ProfileAc
 
 function BetRow({ bet }: { bet: BetEntry }) {
   const outcomes = parseOutcomes(bet.market.outcomes);
-  const colors = parseOutcomeColors(bet.market.outcomeColors);
+  const colors = getOutcomeColors(outcomes);
   const outcomeLabel = bet.outcomeLabel || outcomes[bet.outcomeIndex] || "Unknown";
   const outcomeColor = colors[bet.outcomeIndex];
   const eventSlug = bet.market.event?.slug || bet.market.slug || "";
@@ -192,7 +184,7 @@ function BetRow({ bet }: { bet: BetEntry }) {
 
 function RedemptionRow({ redemption }: { redemption: RedemptionEntry }) {
   const outcomes = parseOutcomes(redemption.market?.outcomes);
-  const colors = parseOutcomeColors(redemption.market?.outcomeColors);
+  const colors = getOutcomeColors(outcomes);
   const outcomeLabel = redemption.outcomeLabel || outcomes[redemption.outcomeIndex] || "Unknown";
   const outcomeColor = redemption.outcomeColor || colors[redemption.outcomeIndex];
   const eventSlug = redemption.market?.event?.slug || "";

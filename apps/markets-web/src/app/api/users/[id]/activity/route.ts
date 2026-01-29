@@ -41,7 +41,6 @@ export async function GET(
             select: { 
               question: true,
               outcomes: true,
-              outcomeColors: true,
               event: {
                 select: {
                   slug: true,
@@ -76,7 +75,6 @@ export async function GET(
                 id: true,
                 question: true,
                 outcomes: true,
-                outcomeColors: true,
                 resolvedOutcome: true,
                 event: {
                   select: {

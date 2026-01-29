@@ -23,7 +23,6 @@ export async function GET(request: NextRequest) {
         market: {
           select: {
             outcomes: true,
-            outcomeColors: true,
           },
         },
       },

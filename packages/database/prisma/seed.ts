@@ -98,7 +98,6 @@ async function main() {
         {
           question: "Who will win Super Bowl LIX?",
           outcomes: ["Kansas City Chiefs", "Philadelphia Eagles"],
-          outcomeColors: ["#E31837", "#004C54"],
           closesAt: new Date("2025-02-09T18:00:00Z"),
           seed0: 15000,
           seed1: 12000,
@@ -107,7 +106,6 @@ async function main() {
         {
           question: "Will the Super Bowl MVP be a quarterback?",
           outcomes: ["Yes (QB)", "No (Other)"],
-          outcomeColors: ["#22C55E", "#EF4444"],
           closesAt: new Date("2025-02-09T23:00:00Z"),
           seed0: 8000,
           seed1: 5000,
@@ -116,7 +114,6 @@ async function main() {
         {
           question: "Will the total points be over 49.5?",
           outcomes: ["Over 49.5", "Under 49.5"],
-          outcomeColors: ["#22C55E", "#EF4444"],
           closesAt: new Date("2025-02-09T23:00:00Z"),
           seed0: 6000,
           seed1: 6500,
@@ -125,7 +122,6 @@ async function main() {
         {
           question: "Will Patrick Mahomes throw for 300+ yards?",
           outcomes: ["Yes (300+)", "No (Under 300)"],
-          outcomeColors: ["#22C55E", "#EF4444"],
           closesAt: new Date("2025-02-09T23:00:00Z"),
           seed0: 4500,
           seed1: 5500,
@@ -147,7 +143,6 @@ async function main() {
         {
           question: "Who will win the 2025 NBA Finals?",
           outcomes: ["Boston Celtics", "Denver Nuggets"],
-          outcomeColors: ["#007A33", "#0E2240"],
           closesAt: new Date("2025-06-15T00:00:00Z"),
           seed0: 20000,
           seed1: 18000,
@@ -156,7 +151,6 @@ async function main() {
         {
           question: "Who will win the 2024-25 NBA MVP award?",
           outcomes: ["Luka Dončić", "Nikola Jokić"],
-          outcomeColors: ["#00538C", "#0E2240"],
           closesAt: new Date("2025-04-15T00:00:00Z"),
           seed0: 12000,
           seed1: 10000,
@@ -165,7 +159,6 @@ async function main() {
         {
           question: "Will LeBron score 40,000 career points this season?",
           outcomes: ["Yes", "No"],
-          outcomeColors: ["#22C55E", "#EF4444"],
           closesAt: new Date("2025-04-13T00:00:00Z"),
           seed0: 9000,
           seed1: 3000,
@@ -187,7 +180,6 @@ async function main() {
         {
           question: "Who wins the UFC 310 main event?",
           outcomes: ["Champion", "Challenger"],
-          outcomeColors: ["#FFD700", "#C0C0C0"],
           closesAt: new Date("2025-03-15T04:00:00Z"),
           seed0: 7000,
           seed1: 8000,
@@ -205,7 +197,6 @@ async function main() {
         {
           question: "Will Jon Jones retire in 2025?",
           outcomes: ["Yes", "No"],
-          outcomeColors: ["#22C55E", "#EF4444"],
           closesAt: new Date("2025-12-31T23:59:00Z"),
           seed0: 4000,
           seed1: 8000,
@@ -226,7 +217,6 @@ async function main() {
         {
           question: "Who will win the 2024-25 Champions League?",
           outcomes: ["Real Madrid", "Manchester City"],
-          outcomeColors: ["#FEBE10", "#6CABDD"],
           closesAt: new Date("2025-05-31T21:00:00Z"),
           seed0: 15000,
           seed1: 14000,
@@ -244,7 +234,6 @@ async function main() {
         {
           question: "Who wins the Premier League title?",
           outcomes: ["Arsenal", "Manchester City"],
-          outcomeColors: ["#EF0107", "#6CABDD"],
           closesAt: new Date("2025-05-25T16:00:00Z"),
           seed0: 11000,
           seed1: 13000,
@@ -266,7 +255,6 @@ async function main() {
         {
           question: "Will the Fed cut rates in March 2025?",
           outcomes: ["Rate Cut", "No Cut"],
-          outcomeColors: ["#22C55E", "#EF4444"],
           closesAt: new Date("2025-03-19T18:00:00Z"),
           seed0: 6000,
           seed1: 9000,
@@ -284,7 +272,6 @@ async function main() {
         {
           question: "Will there be a UK general election before July 2025?",
           outcomes: ["Yes", "No"],
-          outcomeColors: ["#22C55E", "#EF4444"],
           closesAt: new Date("2025-07-01T00:00:00Z"),
           seed0: 3500,
           seed1: 5500,
@@ -306,7 +293,6 @@ async function main() {
         {
           question: "Will Bitcoin reach $100,000 by end of Q1 2025?",
           outcomes: ["Yes ($100K+)", "No"],
-          outcomeColors: ["#F7931A", "#EF4444"],
           closesAt: new Date("2025-03-31T23:59:00Z"),
           seed0: 18000,
           seed1: 12000,
@@ -325,7 +311,6 @@ async function main() {
         {
           question: "Will spot ETH ETF be approved by SEC in 2025?",
           outcomes: ["Approved", "Not Approved"],
-          outcomeColors: ["#627EEA", "#EF4444"],
           closesAt: new Date("2025-12-31T23:59:00Z"),
           seed0: 14000,
           seed1: 8000,
@@ -343,7 +328,6 @@ async function main() {
         {
           question: "Will Solana's market cap exceed Ethereum's in 2025?",
           outcomes: ["Yes (SOL > ETH)", "No"],
-          outcomeColors: ["#9945FF", "#627EEA"],
           closesAt: new Date("2025-12-31T23:59:00Z"),
           seed0: 3000,
           seed1: 15000,
@@ -365,7 +349,6 @@ async function main() {
         {
           question: "Will 'Oppenheimer' win Best Picture?",
           outcomes: ["Oppenheimer Wins", "Other Film Wins"],
-          outcomeColors: ["#FFD700", "#C0C0C0"],
           closesAt: new Date("2025-03-02T04:00:00Z"),
           seed0: 11000,
           seed1: 5000,
@@ -384,7 +367,6 @@ async function main() {
         {
           question: "Will Taylor Swift win Album of the Year again?",
           outcomes: ["Yes", "No"],
-          outcomeColors: ["#22C55E", "#EF4444"],
           closesAt: new Date("2025-02-02T04:00:00Z"),
           seed0: 7000,
           seed1: 6000,
@@ -403,7 +385,6 @@ async function main() {
         {
           question: "Will GTA 6 release in 2025?",
           outcomes: ["Releases 2025", "Delayed"],
-          outcomeColors: ["#22C55E", "#EF4444"],
           closesAt: new Date("2025-12-31T23:59:00Z"),
           seed0: 8000,
           seed1: 10000,
@@ -424,7 +405,6 @@ async function main() {
         {
           question: "Will Starship complete a full orbital flight in Q1 2025?",
           outcomes: ["Yes", "No"],
-          outcomeColors: ["#22C55E", "#EF4444"],
           closesAt: new Date("2025-03-31T23:59:00Z"),
           seed0: 9000,
           seed1: 7000,
@@ -491,7 +471,6 @@ async function main() {
             const p1 = (s1 / total).toFixed(4);
             return JSON.stringify([p0, p1]);
           })(),
-          outcomeColors: outcomeColors ? JSON.stringify(outcomeColors) : null,
           status: MarketStatus.OPEN,
           publishedAt: new Date(),
           opensAt: new Date(),

@@ -152,7 +152,7 @@ export function Header() {
             <div className="hidden sm:flex items-center gap-5 mr-2">
               <div className="flex flex-col items-center">
                 <span className="text-[11px] text-muted-foreground font-medium tracking-wide">XP</span>
-                <span className="text-base font-semibold text-white/80">{xp.toLocaleString()}</span>
+                <span className="text-base font-semibold text-foreground">{xp.toLocaleString()}</span>
               </div>
               <div className="flex flex-col items-center">
                 <span className="text-[11px] text-muted-foreground font-medium tracking-wide">Balance</span>

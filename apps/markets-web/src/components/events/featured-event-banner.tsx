@@ -24,6 +24,7 @@ import { cn } from "@vault/ui/lib/utils";
 import { getMarketUrl } from "@/lib/urls";
 import { useMarketUpdates, type PriceUpdate } from "@/hooks/use-market-updates";
 import { QuickBetModal } from "./quick-bet-modal";
+import { getOutcomeColors } from "@/lib/outcome-colors";
 
 // Partial market data that we receive from the featured events query
 interface FeaturedMarket {
@@ -31,7 +32,6 @@ interface FeaturedMarket {
   question: string;
   outcomes: string;
   outcomePrices: string;
-  outcomeColors: string | null;
   pool0: number;
   pool1: number;
   seed0: number;
@@ -63,15 +63,6 @@ function parseOutcomePrices(outcomePrices: string): string[] {
     return JSON.parse(outcomePrices);
   } catch {
     return ["0.50", "0.50"];
-  }
-}
-
-function parseOutcomeColors(outcomeColors: string | null): string[] {
-  if (!outcomeColors) return ["#22C55E", "#EF4444"]; // Green and red
-  try {
-    return JSON.parse(outcomeColors);
-  } catch {
-    return ["#22C55E", "#EF4444"];
   }
 }
 
@@ -236,7 +227,7 @@ export function FeaturedEventBanner({ events }: FeaturedEventBannerProps) {
 
   const outcomes = parseOutcomes(primaryMarket.outcomes);
   const outcomePrices = parseOutcomePrices(primaryMarket.outcomePrices);
-  const outcomeColors = parseOutcomeColors(primaryMarket.outcomeColors);
+  const outcomeColors = getOutcomeColors(outcomes);
 
   // Use live prices if available, otherwise use static prices
   const livePrice = livePrices.get(primaryMarket.id);
@@ -301,51 +292,49 @@ export function FeaturedEventBanner({ events }: FeaturedEventBannerProps) {
                   </div>
 
                   {/* Title */}
-                  <h2 className="text-xl font-bold leading-tight group-hover:text-primary transition-colors">
+                  <h2 className="text-xl font-bold leading-tight">
                     {currentEvent.title}
                   </h2>
                 </div>
 
                 {/* Outcome Buttons */}
-                <div className="flex items-stretch gap-2 mb-4">
+                <div className="flex items-stretch gap-3 mb-4">
                   {outcomes.slice(0, 2).map((outcome, index) => {
                     const percent = index === 0 ? percent0 : percent1;
+                    const price = index === 0 ? price0 : price1;
                     const payout = index === 0 ? estimatedPayout0 : estimatedPayout1;
-                    const color = outcomeColors[index] || "#888";
 
                     return (
-                      <motion.button
-                        key={index}
-                        onClick={(e) => handleOutcomeClick(e, index)}
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                        className={cn(
-                          "flex-1 px-4 py-3 rounded-lg border-2 transition-colors",
-                          index === 0
-                            ? "bg-outcome-yes/10 border-outcome-yes/50 hover:border-outcome-yes hover:bg-outcome-yes/20"
-                            : "bg-outcome-no/10 border-outcome-no/50 hover:border-outcome-no hover:bg-outcome-no/20"
-                        )}
-                      >
-                        <div className="flex items-center justify-center gap-2">
-                          <span className="font-medium text-sm truncate">
-                            {outcome.length > 6
-                              ? outcome.substring(0, 3).toUpperCase()
-                              : outcome}
+                      <div key={index} className="flex-1 flex flex-col gap-2">
+                        <motion.button
+                          onClick={(e) => handleOutcomeClick(e, index)}
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
+                          className={cn(
+                            "w-full px-4 py-3 rounded-xl font-semibold transition-all",
+                            index === 0
+                              ? "bg-primary text-primary-foreground hover:bg-primary/90"
+                              : "bg-card text-foreground border-2 border-border hover:bg-muted"
+                          )}
+                        >
+                          <div className="flex items-center justify-center gap-2">
+                            <span className="text-base truncate">
+                              {outcome.length > 8
+                                ? outcome.substring(0, 6) + "..."
+                                : outcome}
+                            </span>
+                            <span className="text-lg font-bold tabular-nums">
+                              {Math.round(price * 100)}¢
+                            </span>
+                          </div>
+                        </motion.button>
+                        <div className="text-center text-sm">
+                          <span className="text-muted-foreground">$100 → </span>
+                          <span className="font-semibold text-primary">
+                            ${payout}
                           </span>
-                          <motion.span
-                            key={`${index}-${percent}`}
-                            initial={{ scale: 1.1, color: "#fff" }}
-                            animate={{ scale: 1, color }}
-                            className="text-lg font-bold tabular-nums"
-                            style={{ color }}
-                          >
-                            {percent}%
-                          </motion.span>
                         </div>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          $100 → <span className="text-foreground font-medium">${payout}</span>
-                        </p>
-                      </motion.button>
+                      </div>
                     );
                   })}
                 </div>

@@ -168,7 +168,7 @@ export function ProfileCard() {
           </div>
           <div className="hidden sm:block text-left">
             <p className="text-sm font-medium">{displayName}</p>
-            <p className="text-xs text-white/80 font-semibold">Lvl {level}</p>
+            <p className="text-xs text-foreground font-semibold">Lvl {level}</p>
           </div>
           <ChevronDown className="h-4 w-4 text-muted-foreground" />
         </button>

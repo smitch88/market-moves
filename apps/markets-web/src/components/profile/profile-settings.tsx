@@ -172,6 +172,19 @@ export function ProfileSettings({ profile }: ProfileSettingsProps) {
     (!handle || handle.length >= 3) &&
     (handle === (profile.handle || "") || (handleCheck?.available ?? true));
 
+  // Validate if the profile image URL is valid
+  const isValidImageUrl = (url: string): boolean => {
+    if (!url) return false;
+    try {
+      new URL(url);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const shouldShowImage = profileImageUrl && isValidImageUrl(profileImageUrl);
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 max-w-6xl">
       {/* Profile Section */}
@@ -182,7 +195,7 @@ export function ProfileSettings({ profile }: ProfileSettingsProps) {
           {/* Profile Picture Preview */}
           <div className="flex items-center gap-4">
             <div className="relative h-16 w-16 rounded-full overflow-hidden bg-gradient-to-br from-orange-400 via-green-400 to-blue-400 flex-shrink-0">
-              {profileImageUrl ? (
+              {shouldShowImage ? (
                 <Image
                   src={profileImageUrl}
                   alt="Profile"
@@ -214,6 +227,9 @@ export function ProfileSettings({ profile }: ProfileSettingsProps) {
               placeholder="https://example.com/your-photo.jpg"
               className="bg-muted/50 border-border"
             />
+            {profileImageUrl && !isValidImageUrl(profileImageUrl) && (
+              <p className="text-xs text-destructive">Please enter a valid URL</p>
+            )}
           </div>
 
           {/* Username */}

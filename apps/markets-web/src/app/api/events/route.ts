@@ -102,7 +102,6 @@ export async function GET(request: NextRequest) {
               question: true,
               outcomes: true,
               outcomePrices: true,
-              outcomeColors: true,
               status: true,
               closesAt: true,
               resolvedOutcome: true,
