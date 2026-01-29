@@ -41,6 +41,7 @@ export {
   UserRole,
   MarketStatus,
   MarketCategory,
+  EventType,
   BetStatus,
   BalanceReason,
   RaffleReason,

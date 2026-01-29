@@ -90,14 +90,14 @@ export function SportsEventHeader({ event }: SportsEventHeaderProps) {
 
   const [team0, team1] = extractTeams(primaryMarket);
 
-  // Calculate odds from primary market
+  // Calculate odds from primary market (capped at 1-99%)
   let percent0 = 50;
   let percent1 = 50;
 
   if (primaryMarket) {
     const prices = parseOutcomePrices(primaryMarket.outcomePrices);
-    percent0 = Math.round(parseFloat(prices[0] || "0.50") * 100);
-    percent1 = Math.round(parseFloat(prices[1] || "0.50") * 100);
+    percent0 = Math.min(99, Math.max(1, Math.round(parseFloat(prices[0] || "0.50") * 100)));
+    percent1 = Math.min(99, Math.max(1, Math.round(parseFloat(prices[1] || "0.50") * 100)));
   }
 
   // Calculate total volume

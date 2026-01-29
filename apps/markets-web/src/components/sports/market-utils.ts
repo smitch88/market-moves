@@ -24,6 +24,112 @@ export function parseOutcomePrices(outcomePrices: string): string[] {
   }
 }
 
+// Convert price to percentage, capped at 1-99%
+export function priceToPercent(priceStr: string): number {
+  const price = parseFloat(priceStr || "0.50");
+  const percent = Math.round(price * 100);
+  return Math.min(99, Math.max(1, percent));
+}
+
+// =============================================================================
+// MARKET QUESTION DISPLAY HELPERS
+// =============================================================================
+
+/**
+ * Detect if a market question is a "performer" type
+ * e.g., "Will Bad Bunny perform during the Super Bowl LX halftime show?"
+ */
+export function isPerformerMarket(question: string): boolean {
+  return /will .+ perform/i.test(question);
+}
+
+/**
+ * Extract performer name from a market question
+ * e.g., "Will Bad Bunny perform during the Super Bowl LX halftime show?" -> "Bad Bunny"
+ */
+export function extractPerformerName(question: string): string | null {
+  const match = question.match(/^will\s+(.+?)\s+perform/i);
+  return match ? match[1] : null;
+}
+
+/**
+ * Detect if a market question is a numeric range/threshold type
+ * e.g., "Will Super Bowl LX have less than 116M viewers?"
+ */
+export function isNumericRangeMarket(question: string): boolean {
+  return /less than|between .+ and|at least|more than|over|under/i.test(question) &&
+         /\d+[MKBmkb]?\s*(viewers?|million|billion|people)?/i.test(question);
+}
+
+/**
+ * Extract numeric range/threshold for display
+ * e.g., "Will Super Bowl LX have less than 116M viewers?" -> "< 116M"
+ * e.g., "Will Super Bowl LX have between 116M and 120M viewers?" -> "116M - 120M"
+ * e.g., "Will Super Bowl LX have at least 140M viewers?" -> "≥ 140M"
+ */
+export function extractNumericRange(question: string): string | null {
+  // "less than X" -> "< X"
+  const lessThan = question.match(/less than\s+(\d+[MKBmkb]?)/i);
+  if (lessThan) return `< ${lessThan[1].toUpperCase()}`;
+  
+  // "more than X" or "over X" -> "> X"
+  const moreThan = question.match(/(?:more than|over)\s+(\d+[MKBmkb]?)/i);
+  if (moreThan) return `> ${moreThan[1].toUpperCase()}`;
+  
+  // "under X" -> "< X"
+  const under = question.match(/under\s+(\d+[MKBmkb]?)/i);
+  if (under) return `< ${under[1].toUpperCase()}`;
+  
+  // "at least X" -> "≥ X"
+  const atLeast = question.match(/at least\s+(\d+[MKBmkb]?)/i);
+  if (atLeast) return `≥ ${atLeast[1].toUpperCase()}`;
+  
+  // "between X and Y" -> "X - Y"
+  const between = question.match(/between\s+(\d+[MKBmkb]?)\s+and\s+(\d+[MKBmkb]?)/i);
+  if (between) return `${between[1].toUpperCase()} - ${between[2].toUpperCase()}`;
+  
+  return null;
+}
+
+/**
+ * Extract the first numeric value from a range for sorting purposes
+ * e.g., "< 116M" -> 0 (sorts first), "116M - 120M" -> 116, "≥ 140M" -> 140
+ */
+export function getNumericRangeSortValue(question: string): number {
+  // "less than" or "under" should sort first (use the value - 1)
+  const lessThan = question.match(/(?:less than|under)\s+(\d+)/i);
+  if (lessThan) return parseInt(lessThan[1], 10) - 1;
+  
+  // "between X and Y" - use X for sorting
+  const between = question.match(/between\s+(\d+)/i);
+  if (between) return parseInt(between[1], 10);
+  
+  // "at least" or "more than" or "over" - use the value
+  const atLeast = question.match(/(?:at least|more than|over)\s+(\d+)/i);
+  if (atLeast) return parseInt(atLeast[1], 10);
+  
+  // Fallback: extract any number
+  const anyNum = question.match(/(\d+)/);
+  return anyNum ? parseInt(anyNum[1], 10) : 0;
+}
+
+/**
+ * Get a short display label for a market question
+ * Extracts performer names, numeric ranges, or falls back to original question
+ */
+export function getMarketDisplayLabel(question: string): string {
+  // Try performer name extraction
+  const performer = extractPerformerName(question);
+  if (performer) return performer;
+  
+  // Try numeric range extraction
+  const range = extractNumericRange(question);
+  if (range) return range;
+  
+  // Fallback to original question
+  return question;
+}
+
 // Format volume for display
 export function formatVolume(v: number): string {
   if (v >= 1000000) return `$${(v / 1000000).toFixed(1)}m`;

@@ -774,7 +774,6 @@ async function seedDatabase() {
   const mvpMarkets = [
     {
       question: "Will Sam Darnold win the Super Bowl LX MVP?",
-      displayLabel: "Sam Darnold",
       outcomes: ["Yes", "No"],
       outcomeColors: ["#22C55E", "#EF4444"],
       seed0: 202222,
@@ -783,7 +782,6 @@ async function seedDatabase() {
     },
     {
       question: "Will Drake Maye win the Super Bowl LX MVP?",
-      displayLabel: "Drake Maye",
       outcomes: ["Yes", "No"],
       outcomeColors: ["#22C55E", "#EF4444"],
       seed0: 176985,
@@ -792,7 +790,6 @@ async function seedDatabase() {
     },
     {
       question: "Will Jaxon Smith-Njigba win the Super Bowl LX MVP?",
-      displayLabel: "Jaxon Smith-Njigba",
       outcomes: ["Yes", "No"],
       outcomeColors: ["#22C55E", "#EF4444"],
       seed0: 131635,
@@ -801,7 +798,6 @@ async function seedDatabase() {
     },
     {
       question: "Will Kenneth Walker III win the Super Bowl LX MVP?",
-      displayLabel: "Kenneth Walker III",
       outcomes: ["Yes", "No"],
       outcomeColors: ["#22C55E", "#EF4444"],
       seed0: 19315,
@@ -810,7 +806,6 @@ async function seedDatabase() {
     },
     {
       question: "Will Rhamondre Stevenson win the Super Bowl LX MVP?",
-      displayLabel: "Rhamondre Stevenson",
       outcomes: ["Yes", "No"],
       outcomeColors: ["#22C55E", "#EF4444"],
       seed0: 16247,
@@ -819,7 +814,6 @@ async function seedDatabase() {
     },
     {
       question: "Will Rashid Shaheed win the Super Bowl LX MVP?",
-      displayLabel: "Rashid Shaheed",
       outcomes: ["Yes", "No"],
       outcomeColors: ["#22C55E", "#EF4444"],
       seed0: 36766,
@@ -828,7 +822,6 @@ async function seedDatabase() {
     },
     {
       question: "Will Stefon Diggs win the Super Bowl LX MVP?",
-      displayLabel: "Stefon Diggs",
       outcomes: ["Yes", "No"],
       outcomeColors: ["#22C55E", "#EF4444"],
       seed0: 43663,
@@ -837,7 +830,6 @@ async function seedDatabase() {
     },
     {
       question: "Will Nick Emmanwori win the Super Bowl LX MVP?",
-      displayLabel: "Nick Emmanwori",
       outcomes: ["Yes", "No"],
       outcomeColors: ["#22C55E", "#EF4444"],
       seed0: 25211,
@@ -846,7 +838,6 @@ async function seedDatabase() {
     },
     {
       question: "Will Jason Myers win the Super Bowl LX MVP?",
-      displayLabel: "Jason Myers",
       outcomes: ["Yes", "No"],
       outcomeColors: ["#22C55E", "#EF4444"],
       seed0: 32163,
@@ -855,7 +846,6 @@ async function seedDatabase() {
     },
     {
       question: "Will DeMarcus Lawrence win the Super Bowl LX MVP?",
-      displayLabel: "DeMarcus Lawrence",
       outcomes: ["Yes", "No"],
       outcomeColors: ["#22C55E", "#EF4444"],
       seed0: 21577,
@@ -864,7 +854,6 @@ async function seedDatabase() {
     },
     {
       question: "Will Cooper Kupp win the Super Bowl LX MVP?",
-      displayLabel: "Cooper Kupp",
       outcomes: ["Yes", "No"],
       outcomeColors: ["#22C55E", "#EF4444"],
       seed0: 24811,
@@ -873,7 +862,6 @@ async function seedDatabase() {
     },
     {
       question: "Will Leonard Williams win the Super Bowl LX MVP?",
-      displayLabel: "Leonard Williams",
       outcomes: ["Yes", "No"],
       outcomeColors: ["#22C55E", "#EF4444"],
       seed0: 25350,
@@ -882,7 +870,6 @@ async function seedDatabase() {
     },
     {
       question: "Will Marcus Jones win the Super Bowl LX MVP?",
-      displayLabel: "Marcus Jones",
       outcomes: ["Yes", "No"],
       outcomeColors: ["#22C55E", "#EF4444"],
       seed0: 43457,
@@ -891,7 +878,6 @@ async function seedDatabase() {
     },
     {
       question: "Will Kayshon Boutte win the Super Bowl LX MVP?",
-      displayLabel: "Kayshon Boutte",
       outcomes: ["Yes", "No"],
       outcomeColors: ["#22C55E", "#EF4444"],
       seed0: 22680,
@@ -900,7 +886,6 @@ async function seedDatabase() {
     },
     {
       question: "Will Byron Murphy win the Super Bowl LX MVP?",
-      displayLabel: "Byron Murphy",
       outcomes: ["Yes", "No"],
       outcomeColors: ["#22C55E", "#EF4444"],
       seed0: 28542,
@@ -909,7 +894,6 @@ async function seedDatabase() {
     },
     {
       question: "Will Devon Witherspoon win the Super Bowl LX MVP?",
-      displayLabel: "Devon Witherspoon",
       outcomes: ["Yes", "No"],
       outcomeColors: ["#22C55E", "#EF4444"],
       seed0: 23839,
@@ -918,7 +902,6 @@ async function seedDatabase() {
     },
     {
       question: "Will Hunter Henry win the Super Bowl LX MVP?",
-      displayLabel: "Hunter Henry",
       outcomes: ["Yes", "No"],
       outcomeColors: ["#22C55E", "#EF4444"],
       seed0: 9871,
@@ -927,7 +910,6 @@ async function seedDatabase() {
     },
     {
       question: "Will Coby Bryant win the Super Bowl LX MVP?",
-      displayLabel: "Coby Bryant",
       outcomes: ["Yes", "No"],
       outcomeColors: ["#22C55E", "#EF4444"],
       seed0: 26164,
@@ -936,7 +918,6 @@ async function seedDatabase() {
     },
     {
       question: "Will Ernest Jones win the Super Bowl LX MVP?",
-      displayLabel: "Ernest Jones",
       outcomes: ["Yes", "No"],
       outcomeColors: ["#22C55E", "#EF4444"],
       seed0: 25251,
@@ -945,7 +926,6 @@ async function seedDatabase() {
     },
     {
       question: "Will Mack Hollins win the Super Bowl LX MVP?",
-      displayLabel: "Mack Hollins",
       outcomes: ["Yes", "No"],
       outcomeColors: ["#22C55E", "#EF4444"],
       seed0: 25493,
@@ -954,7 +934,6 @@ async function seedDatabase() {
     },
     {
       question: "Will AJ Barner win the Super Bowl LX MVP?",
-      displayLabel: "AJ Barner",
       outcomes: ["Yes", "No"],
       outcomeColors: ["#22C55E", "#EF4444"],
       seed0: 42670,
@@ -963,7 +942,6 @@ async function seedDatabase() {
     },
     {
       question: "Will TreVeyon Henderson win the Super Bowl LX MVP?",
-      displayLabel: "TreVeyon Henderson",
       outcomes: ["Yes", "No"],
       outcomeColors: ["#22C55E", "#EF4444"],
       seed0: 25829,
@@ -972,7 +950,6 @@ async function seedDatabase() {
     },
     {
       question: "Will Jake Bobo win the Super Bowl LX MVP?",
-      displayLabel: "Jake Bobo",
       outcomes: ["Yes", "No"],
       outcomeColors: ["#22C55E", "#EF4444"],
       seed0: 29914,
@@ -981,7 +958,6 @@ async function seedDatabase() {
     },
     {
       question: "Will Milton Williams win the Super Bowl LX MVP?",
-      displayLabel: "Milton Williams",
       outcomes: ["Yes", "No"],
       outcomeColors: ["#22C55E", "#EF4444"],
       seed0: 30132,
@@ -990,7 +966,6 @@ async function seedDatabase() {
     },
     {
       question: "Will Christian Gonzalez win the Super Bowl LX MVP?",
-      displayLabel: "Christian Gonzalez",
       outcomes: ["Yes", "No"],
       outcomeColors: ["#22C55E", "#EF4444"],
       seed0: 40812,
@@ -999,7 +974,6 @@ async function seedDatabase() {
     },
     {
       question: "Will Andres Borregales win the Super Bowl LX MVP?",
-      displayLabel: "Andres Borregales",
       outcomes: ["Yes", "No"],
       outcomeColors: ["#22C55E", "#EF4444"],
       seed0: 32076,
@@ -1008,7 +982,6 @@ async function seedDatabase() {
     },
     {
       question: "Will Uchenna Nwosu win the Super Bowl LX MVP?",
-      displayLabel: "Uchenna Nwosu",
       outcomes: ["Yes", "No"],
       outcomeColors: ["#22C55E", "#EF4444"],
       seed0: 37893,
@@ -1017,7 +990,6 @@ async function seedDatabase() {
     },
     {
       question: "Will Other Player win the Super Bowl LX MVP?",
-      displayLabel: "Other Player",
       outcomes: ["Yes", "No"],
       outcomeColors: ["#22C55E", "#EF4444"],
       seed0: 5000,

@@ -1,58 +1,28 @@
 "use client";
 
-import { useState } from "react";
-import Image from "next/image";
+import { useState, useMemo, useCallback } from "react";
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
-import { format } from "date-fns";
-import ReactMarkdown from "react-markdown";
-import { ArrowLeft, ExternalLink, Clock, Users, ChevronRight, TrendingUp } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { motion } from "framer-motion";
+import { ArrowLeft, TrendingUp, Users, Wifi, WifiOff } from "lucide-react";
+import type { Market, Event } from "@vault/database";
 import {
-  GlassCard,
-  GlassCardContent,
-  GlassCardHeader,
-  MarketTimeline,
-  Tabs,
-  TabsList,
-  TabsTrigger,
-  TabsContent,
-  Badge,
-} from "@vault/ui";
-import type { Market, Event, MarketStatus } from "@vault/database";
-import { cn } from "@vault/ui/lib/utils";
-import { BettingPanel } from "./betting-panel";
-import { ActivityFeed } from "./activity-feed";
-import { TopBettors } from "./top-bettors";
+  PropEventHeader,
+  GenericMarketRow,
+  SportsBettingSidebar,
+  MarketCategoryTabs,
+} from "@/components/sports";
+import { useMarketUpdates, type PriceUpdate } from "@/hooks/use-market-updates";
 
-// Helper functions to parse JSON fields
-function parseOutcomes(outcomes: string): string[] {
-  try {
-    return JSON.parse(outcomes);
-  } catch {
-    return ["Yes", "No"];
-  }
-}
-
-function parseOutcomePrices(outcomePrices: string): string[] {
-  try {
-    return JSON.parse(outcomePrices);
-  } catch {
-    return ["0.50", "0.50"];
-  }
-}
-
-function parseOutcomeColors(outcomeColors: string | null): string[] | null {
-  if (!outcomeColors) return null;
-  try {
-    return JSON.parse(outcomeColors);
-  } catch {
-    return null;
-  }
-}
+// Extended market type with display fields
+type MarketWithDisplay = Market & {
+  displayLabel?: string | null;
+  sortOrder?: number | null;
+};
 
 interface MarketDetailProps {
-  event: Event & { 
-    markets: Market[];
+  event: Event & {
+    markets: MarketWithDisplay[];
     tags?: { id: string; slug: string; label: string }[];
   };
 }
@@ -63,336 +33,286 @@ async function fetchEventData(slug: string) {
   return res.json();
 }
 
-// Market row component for the market list
-function MarketRow({ 
-  market, 
-  isSelected, 
-  onClick 
-}: { 
-  market: Market; 
-  isSelected: boolean;
-  onClick: () => void;
-}) {
-  const outcomes = parseOutcomes(market.outcomes);
-  const outcomePrices = parseOutcomePrices(market.outcomePrices);
-  const percent0 = Math.round(parseFloat(outcomePrices[0] || "0.50") * 100);
-  const percent1 = Math.round(parseFloat(outcomePrices[1] || "0.50") * 100);
+// Helper to parse outcome prices
+function parseOutcomePrices(outcomePrices: string): number[] {
+  try {
+    return JSON.parse(outcomePrices).map((p: string) => parseFloat(p));
+  } catch {
+    return [0.5, 0.5];
+  }
+}
 
-  return (
-    <button
-      onClick={onClick}
-      className={cn(
-        "w-full text-left p-4 rounded-lg border transition-all",
-        isSelected 
-          ? "bg-primary/10 border-primary/30" 
-          : "bg-muted/30 border-transparent hover:bg-muted/50 hover:border-border"
-      )}
-    >
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex-1 min-w-0">
-          <h3 className="font-medium text-sm truncate">{market.question}</h3>
-          <div className="flex items-center gap-2 mt-1.5">
-            <span className="text-xs font-medium text-outcome-yes">{outcomes[0]}: {percent0}%</span>
-            <span className="text-muted-foreground">•</span>
-            <span className="text-xs font-medium text-outcome-no">{outcomes[1]}: {percent1}%</span>
-          </div>
-        </div>
-        <ChevronRight className={cn(
-          "h-4 w-4 transition-transform",
-          isSelected ? "text-primary rotate-90" : "text-muted-foreground"
-        )} />
-      </div>
-    </button>
-  );
+// Get the highest probability for a market (for sorting)
+function getMaxProbability(market: MarketWithDisplay): number {
+  const prices = parseOutcomePrices(market.outcomePrices);
+  return Math.max(...prices);
+}
+
+// Define category configurations for prop events
+interface CategoryConfig {
+  id: string;
+  label: string;
+  filter: (m: MarketWithDisplay) => boolean;
+}
+
+function getCategoriesForEvent(markets: MarketWithDisplay[]): CategoryConfig[] {
+  // For prop events, create a simple "All Markets" category
+  // Could be extended to group by question patterns
+  return [
+    {
+      id: "all",
+      label: "All Markets",
+      filter: () => true,
+    },
+  ];
 }
 
 export function MarketDetail({ event }: MarketDetailProps) {
-  const [selectedMarketId, setSelectedMarketId] = useState<string>(event.markets[0]?.id || "");
+  const queryClient = useQueryClient();
 
-  const { data, isLoading } = useQuery({
+  // State
+  const [activeCategory, setActiveCategory] = useState("all");
+  const [selectedMarketId, setSelectedMarketId] = useState<string | null>(null);
+  const [selectedOutcome, setSelectedOutcome] = useState<number | null>(null);
+  const [expandedMarketId, setExpandedMarketId] = useState<string | null>(null);
+
+  // Fetch live data (polling as fallback)
+  const { data } = useQuery({
     queryKey: ["market", event.slug],
     queryFn: () => fetchEventData(event.slug),
-    placeholderData: { 
-      event, 
-      stats: { percent0: 50, percent1: 50, percentA: 50, percentB: 50, totalBets: 0, totalPool: 0 } 
-    },
+    placeholderData: { event },
     staleTime: 0,
-    refetchInterval: 10000,
+    refetchInterval: 30000,
     refetchOnWindowFocus: true,
-    refetchOnMount: true,
-    gcTime: 0,
   });
 
-  // Get the selected market (or first if none selected)
-  const selectedMarket = event.markets.find(m => m.id === selectedMarketId) || event.markets[0];
-  
-  if (!selectedMarket) {
-    return <div>No markets found for this event</div>;
-  }
+  // Real-time price updates via SSE
+  const handlePriceUpdate = useCallback(
+    (update: PriceUpdate) => {
+      queryClient.setQueryData(
+        ["market", event.slug],
+        (oldData: { event: Event & { markets: MarketWithDisplay[] } } | undefined) => {
+          if (!oldData?.event?.markets) return oldData;
 
-  const outcomes = parseOutcomes(selectedMarket.outcomes);
-  const outcomeColors = parseOutcomeColors(selectedMarket.outcomeColors);
-  const outcomePrices = parseOutcomePrices(selectedMarket.outcomePrices);
-  
-  // Calculate stats from prices or use fetched data
-  const stats = data?.stats || { percent0: 50, percent1: 50, percentA: 50, percentB: 50, totalBets: 0, totalPool: 0 };
-  const percent0 = Math.round(parseFloat(outcomePrices[0] || "0.50") * 100);
-  const percent1 = Math.round(parseFloat(outcomePrices[1] || "0.50") * 100);
+          return {
+            ...oldData,
+            event: {
+              ...oldData.event,
+              markets: oldData.event.markets.map((market: MarketWithDisplay) => {
+                if (market.id === update.marketId) {
+                  return {
+                    ...market,
+                    outcomePrices: JSON.stringify(
+                      update.prices.map((p) => p.toFixed(4))
+                    ),
+                    pool0: update.pools[0] - (market.seed0 || 1000),
+                    pool1: update.pools[1] - (market.seed1 || 1000),
+                  };
+                }
+                return market;
+              }),
+            },
+          };
+        }
+      );
+    },
+    [queryClient, event.slug]
+  );
 
-  // Calculate total volume for event
-  const totalVolume = event.markets.reduce((sum, m) => {
-    return sum + (m.seed0 || 0) + (m.seed1 || 0) + (m.pool0 || 0) + (m.pool1 || 0);
-  }, 0);
+  const { isConnected } = useMarketUpdates({
+    eventId: event.id,
+    onPriceUpdate: handlePriceUpdate,
+  });
+
+  const markets = data?.event?.markets || event.markets;
+
+  // Get categories for this event
+  const categories = useMemo(() => getCategoriesForEvent(markets), [markets]);
+
+  // Get category counts
+  const categoryCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    categories.forEach((cat) => {
+      counts[cat.id] = markets.filter(cat.filter).length;
+    });
+    return counts;
+  }, [markets, categories]);
+
+  // Get markets for active category
+  const activeCategory_obj = useMemo(
+    () => categories.find((c) => c.id === activeCategory),
+    [categories, activeCategory]
+  );
+
+  const activeMarkets = useMemo(() => {
+    const filtered = activeCategory_obj ? markets.filter(activeCategory_obj.filter) : markets;
+    
+    // Check if markets have explicit sortOrder (from database)
+    const hasSortOrder = filtered.some((m) => m.sortOrder !== null && m.sortOrder !== undefined);
+    
+    if (hasSortOrder) {
+      // Sort by explicit sortOrder (lower = first), then by probability as fallback
+      return [...filtered].sort((a, b) => {
+        const orderA = a.sortOrder ?? Number.MAX_SAFE_INTEGER;
+        const orderB = b.sortOrder ?? Number.MAX_SAFE_INTEGER;
+        if (orderA !== orderB) return orderA - orderB;
+        return getMaxProbability(b) - getMaxProbability(a);
+      });
+    }
+    
+    // Default: Sort by highest probability (most likely first)
+    return [...filtered].sort((a, b) => getMaxProbability(b) - getMaxProbability(a));
+  }, [markets, activeCategory_obj]);
+
+  // Find selected market
+  const selectedMarket = selectedMarketId
+    ? markets.find((m: MarketWithDisplay) => m.id === selectedMarketId) || null
+    : null;
+
+  // Handle outcome selection
+  const handleSelectOutcome = (marketId: string, outcomeIndex: number) => {
+    if (selectedMarketId === marketId && selectedOutcome === outcomeIndex) {
+      setSelectedMarketId(null);
+      setSelectedOutcome(null);
+    } else {
+      setSelectedMarketId(marketId);
+      setSelectedOutcome(outcomeIndex);
+    }
+  };
+
+  const handleClearSelection = () => {
+    setSelectedMarketId(null);
+    setSelectedOutcome(null);
+  };
+
+  const handleToggleExpand = (marketId: string) => {
+    setExpandedMarketId(expandedMarketId === marketId ? null : marketId);
+  };
+
+  // Calculate stats
+  const totalBets = markets.reduce(
+    (sum: number, m: MarketWithDisplay & { _count?: { bets?: number } }) => {
+      return sum + (m._count?.bets || 0);
+    },
+    0
+  );
 
   return (
     <div className="max-w-7xl mx-auto">
       {/* Back navigation */}
-      <Link
-        href="/"
-        className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground mb-6 transition-colors"
+      <motion.div
+        initial={{ opacity: 0, x: -10 }}
+        animate={{ opacity: 1, x: 0 }}
       >
-        <ArrowLeft className="h-4 w-4" />
-        <span>Back to Events</span>
-      </Link>
+        <Link
+          href="/"
+          className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground mb-6 transition-colors group"
+        >
+          <ArrowLeft className="h-4 w-4 group-hover:-translate-x-1 transition-transform" />
+          <span>Back to Events</span>
+        </Link>
+      </motion.div>
 
-      {/* Event Header */}
-      <GlassCard className="mb-6">
-        {/* Banner */}
-        {event.bannerUrl && (
-          <div className="relative h-48 w-full">
-            <Image
-              src={event.bannerUrl}
-              alt={event.title}
-              fill
-              className="object-cover rounded-t-lg"
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-background/40 to-transparent" />
-          </div>
-        )}
+      {/* Main grid layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left column: Header + Markets */}
+        <div className="lg:col-span-2 space-y-6">
+          {/* Prop Event Header */}
+          <PropEventHeader event={event} />
 
-        <GlassCardHeader className={event.bannerUrl ? "-mt-16 relative z-10" : ""}>
-          <div className="flex items-start gap-4">
-            {event.logoUrl && (
-              <div className="h-20 w-20 rounded-xl overflow-hidden bg-muted border-2 border-background shadow-lg shrink-0">
-                <Image
-                  src={event.logoUrl}
-                  alt=""
-                  width={80}
-                  height={80}
-                  className="object-cover"
-                />
-              </div>
-            )}
-            <div className="flex-1">
-              <div className="flex items-center gap-2 mb-2">
-                <Badge variant="secondary">{event.category}</Badge>
-                {event.tags?.map(tag => (
-                  <Badge key={tag.id} variant="outline">{tag.label}</Badge>
-                ))}
-              </div>
-              <h1 className="text-2xl md:text-3xl font-bold">{event.title}</h1>
-              {event.description && (
-                <p className="text-muted-foreground mt-2 line-clamp-2">{event.description}</p>
+          {/* Quick stats bar */}
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="flex items-center gap-6"
+          >
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <TrendingUp className="h-4 w-4" />
+              <span>{markets.length} markets</span>
+            </div>
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Users className="h-4 w-4" />
+              <span>{totalBets} predictions</span>
+            </div>
+            {/* Real-time connection indicator */}
+            <div className="flex items-center gap-1.5 text-xs">
+              {isConnected ? (
+                <>
+                  <Wifi className="h-3 w-3 text-green-500" />
+                  <span className="text-green-500">Live</span>
+                </>
+              ) : (
+                <>
+                  <WifiOff className="h-3 w-3 text-muted-foreground" />
+                  <span className="text-muted-foreground">Offline</span>
+                </>
               )}
             </div>
-          </div>
-        </GlassCardHeader>
+          </motion.div>
 
-        <GlassCardContent>
-          {/* Event stats row */}
-          <div className="flex items-center gap-6 text-sm text-muted-foreground">
-            <div className="flex items-center gap-1.5">
-              <TrendingUp className="h-4 w-4" />
-              <span className="font-medium text-foreground">
-                ${totalVolume.toLocaleString()}
-              </span>
-              <span>total volume</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="font-medium text-foreground">{event.markets.length}</span>
-              <span>markets</span>
-            </div>
-            {event.endTime && (
-              <div className="flex items-center gap-1.5">
-                <Clock className="h-4 w-4" />
-                <span>Ends {format(new Date(event.endTime), "MMM d, yyyy")}</span>
-              </div>
-            )}
-          </div>
-        </GlassCardContent>
-      </GlassCard>
+          {/* Category tabs (if more than one category) */}
+          {categories.length > 1 && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.15 }}
+            >
+              <MarketCategoryTabs
+                categories={categories}
+                activeCategory={activeCategory}
+                onCategoryChange={setActiveCategory}
+                marketCounts={categoryCounts}
+              />
+            </motion.div>
+          )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Main content - Markets List */}
-        <div className="lg:col-span-2 space-y-6">
           {/* Markets list */}
-          <GlassCard>
-            <GlassCardHeader>
-              <h2 className="text-lg font-semibold">Markets ({event.markets.length})</h2>
-            </GlassCardHeader>
-            <GlassCardContent>
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+          >
+            {activeMarkets.length === 0 ? (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="bg-card/40 border border-border/30 rounded-2xl p-12 text-center"
+              >
+                <p className="text-muted-foreground">
+                  No markets available in this category
+                </p>
+              </motion.div>
+            ) : (
               <div className="space-y-2">
-                {event.markets.map((market) => (
-                  <MarketRow
+                {activeMarkets.map((market, index) => (
+                  <GenericMarketRow
                     key={market.id}
                     market={market}
-                    isSelected={market.id === selectedMarketId}
-                    onClick={() => setSelectedMarketId(market.id)}
+                    selectedMarketId={selectedMarketId ?? undefined}
+                    selectedOutcome={selectedOutcome}
+                    onSelectOutcome={handleSelectOutcome}
+                    expandedMarketId={expandedMarketId ?? undefined}
+                    onToggleExpand={handleToggleExpand}
+                    eventSlug={event.slug}
+                    delay={index * 0.03}
                   />
                 ))}
               </div>
-            </GlassCardContent>
-          </GlassCard>
-
-          {/* Selected Market Details */}
-          <GlassCard>
-            <GlassCardHeader>
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold">{selectedMarket.question}</h2>
-                <Badge
-                  variant={
-                    selectedMarket.status === "OPEN"
-                      ? "success"
-                      : selectedMarket.status === "CLOSED"
-                      ? "warning"
-                      : "secondary"
-                  }
-                >
-                  {selectedMarket.status}
-                </Badge>
-              </div>
-            </GlassCardHeader>
-            <GlassCardContent>
-              {/* Outcome percentages */}
-              <div className="flex items-center gap-4 mb-6">
-                <div className="flex-1 text-center">
-                  <p className="text-3xl font-bold text-outcome-yes">{percent0}%</p>
-                  <p className="text-sm text-muted-foreground">{outcomes[0]}</p>
-                </div>
-                <div className="flex-1 h-2.5 bg-muted/30 rounded-full overflow-hidden flex">
-                  <div
-                    className="h-full bg-outcome-yes/80 transition-all duration-500"
-                    style={{ width: `${percent0}%` }}
-                  />
-                  <div
-                    className="h-full bg-outcome-no/80 transition-all duration-500"
-                    style={{ width: `${percent1}%` }}
-                  />
-                </div>
-                <div className="flex-1 text-center">
-                  <p className="text-3xl font-bold text-outcome-no">{percent1}%</p>
-                  <p className="text-sm text-muted-foreground">{outcomes[1]}</p>
-                </div>
-              </div>
-
-              {/* Stats row */}
-              <div className="flex items-center gap-6 text-sm text-muted-foreground">
-                <div className="flex items-center gap-1">
-                  <Users className="h-4 w-4" />
-                  <span>{stats.totalBets || 0} bets</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <span className="font-medium text-foreground">
-                    ${((selectedMarket.pool0 || 0) + (selectedMarket.pool1 || 0) + (selectedMarket.seed0 || 0) + (selectedMarket.seed1 || 0)).toLocaleString()}
-                  </span>
-                  <span>pool</span>
-                </div>
-                {selectedMarket.closesAt && (
-                  <div className="flex items-center gap-1">
-                    <Clock className="h-4 w-4" />
-                    <span>Closes {format(new Date(selectedMarket.closesAt), "MMM d, yyyy")}</span>
-                  </div>
-                )}
-              </div>
-            </GlassCardContent>
-          </GlassCard>
-
-          {/* Rules / Details */}
-          {selectedMarket.detailsMarkdown && (
-            <GlassCard>
-              <GlassCardHeader>
-                <h2 className="text-lg font-semibold">Rules</h2>
-              </GlassCardHeader>
-              <GlassCardContent>
-                <div className="prose prose-sm prose-invert max-w-none">
-                  <ReactMarkdown>{selectedMarket.detailsMarkdown}</ReactMarkdown>
-                </div>
-              </GlassCardContent>
-            </GlassCard>
-          )}
-
-          {/* Activity tabs */}
-          <Tabs defaultValue="activity" className="w-full">
-            <TabsList className="w-full justify-start">
-              <TabsTrigger value="activity">Activity</TabsTrigger>
-              <TabsTrigger value="top-bettors">Top Bettors</TabsTrigger>
-            </TabsList>
-            <TabsContent value="activity">
-              <GlassCard>
-                <GlassCardContent className="pt-6">
-                  <ActivityFeed 
-                    marketId={selectedMarket.id} 
-                    bets={data?.market?.bets || data?.event?.markets?.[0]?.bets || []}
-                    outcomes={outcomes}
-                  />
-                </GlassCardContent>
-              </GlassCard>
-            </TabsContent>
-            <TabsContent value="top-bettors">
-              <GlassCard>
-                <GlassCardContent className="pt-6">
-                  <TopBettors
-                    positions={data?.market?.positions || data?.event?.markets?.[0]?.positions || []}
-                    outcomes={outcomes}
-                  />
-                </GlassCardContent>
-              </GlassCard>
-            </TabsContent>
-          </Tabs>
+            )}
+          </motion.div>
         </div>
 
-        {/* Sidebar */}
-        <div className="space-y-6">
-          {/* Betting panel */}
-          <BettingPanel 
-            market={selectedMarket} 
-            event={event}
-            stats={stats} 
-          />
-
-          {/* Timeline */}
-          <GlassCard>
-            <GlassCardContent className="pt-6">
-              <MarketTimeline
-                currentStatus={selectedMarket.status as MarketStatus}
-                publishedAt={selectedMarket.publishedAt}
-                opensAt={selectedMarket.opensAt}
-                closesAt={selectedMarket.closesAt}
-                resolvedAt={selectedMarket.resolvedAt}
-                settledAt={selectedMarket.settledAt}
-              />
-            </GlassCardContent>
-          </GlassCard>
-
-          {/* Resolution source */}
-          {selectedMarket.resolutionSourceUrl && (
-            <GlassCard>
-              <GlassCardHeader>
-                <h3 className="text-sm font-semibold">Resolution Source</h3>
-              </GlassCardHeader>
-              <GlassCardContent>
-                <a
-                  href={selectedMarket.resolutionSourceUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 text-primary hover:underline text-sm"
-                >
-                  <ExternalLink className="h-4 w-4" />
-                  View source
-                </a>
-              </GlassCardContent>
-            </GlassCard>
-          )}
+        {/* Right column: Betting Sidebar (sticky) */}
+        <div className="lg:col-span-1">
+          <div className="lg:sticky lg:top-20">
+            <SportsBettingSidebar
+              event={event}
+              selectedMarket={selectedMarket}
+              selectedOutcome={selectedOutcome}
+              onClearSelection={handleClearSelection}
+            />
+          </div>
         </div>
       </div>
     </div>

@@ -438,8 +438,9 @@ export function SportsBettingSidebar({
 
   const outcomes = parseOutcomes(selectedMarket.outcomes);
   const outcomePrices = parseOutcomePrices(selectedMarket.outcomePrices);
+  // Cap price at 1-99%
   const selectedPrice = selectedOutcome !== null
-    ? Math.round(parseFloat(outcomePrices[selectedOutcome] || "0.50") * 100)
+    ? Math.min(99, Math.max(1, Math.round(parseFloat(outcomePrices[selectedOutcome] || "0.50") * 100)))
     : 50;
 
   const canBet =
@@ -626,31 +627,55 @@ export function SportsBettingSidebar({
 
                 {/* Amount input */}
                 <div className="relative">
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-2xl font-light text-muted-foreground">
-                    $
-                  </span>
+                  {tradeMode === "sell" ? (
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-medium text-muted-foreground">
+                      Shares
+                    </span>
+                  ) : (
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-2xl font-light text-muted-foreground">
+                      $
+                    </span>
+                  )}
                   <Input
                     type="number"
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
                     placeholder="0"
-                    className="text-right text-2xl font-bold h-14 pr-4 pl-10 bg-muted/30 border-border/50"
-                    min={1}
-                    max={balance}
+                    className={cn(
+                      "text-right text-2xl font-bold h-14 pr-4 bg-muted/30 border-border/50",
+                      tradeMode === "sell" ? "pl-16" : "pl-10"
+                    )}
+                    min={tradeMode === "sell" ? 0.01 : 1}
+                    max={tradeMode === "sell" ? userShares : balance}
+                    step={tradeMode === "sell" ? "0.01" : "1"}
                   />
                 </div>
 
-                {/* Quick amount buttons */}
+                {/* Quick amount buttons - percentages for sell, dollars for buy */}
                 <div className="grid grid-cols-4 gap-2">
-                  {[1, 10, 50, 100].map((val) => (
-                    <button
-                      key={val}
-                      onClick={() => setAmount((prev) => String((parseInt(prev, 10) || 0) + val))}
-                      className="py-2 text-sm font-medium bg-muted/40 hover:bg-muted rounded-lg transition-colors"
-                    >
-                      +${val}
-                    </button>
-                  ))}
+                  {tradeMode === "sell" ? (
+                    // Percentage buttons for selling shares
+                    [25, 50, 75, 100].map((pct) => (
+                      <button
+                        key={pct}
+                        onClick={() => setAmount(String((userShares * pct / 100).toFixed(2)))}
+                        className="py-2 text-sm font-medium bg-muted/40 hover:bg-muted rounded-lg transition-colors"
+                      >
+                        {pct}%
+                      </button>
+                    ))
+                  ) : (
+                    // Dollar buttons for buying
+                    [1, 10, 50, 100].map((val) => (
+                      <button
+                        key={val}
+                        onClick={() => setAmount((prev) => String((parseInt(prev, 10) || 0) + val))}
+                        className="py-2 text-sm font-medium bg-muted/40 hover:bg-muted rounded-lg transition-colors"
+                      >
+                        +${val}
+                      </button>
+                    ))
+                  )}
                 </div>
 
                 {/* Estimated return / shares info */}

@@ -143,6 +143,7 @@ model Event {
   title       String
   description String?
   category    MarketCategory @default(OTHER)
+  eventType   EventType      @default(MATCHUP)
   bannerUrl   String?
   logoUrl     String?
   startTime   DateTime?
@@ -155,6 +156,7 @@ model Event {
   tags        Tag[]          @relation("EventToTag")
 
   @@index([category])
+  @@index([eventType])
   @@index([active])
   @@index([closed])
   @@index([startTime])
@@ -178,6 +180,8 @@ model Market {
   createdAt           DateTime        @default(now())
   updatedAt           DateTime        @updatedAt
   eventId             String
+  displayLabel        String?         // Short label for grouped display (e.g., "<116M", "Bad Bunny")
+  sortOrder           Int?            // Explicit sort order within event (lower = first)
   outcomes            String          @default("[\"Yes\", \"No\"]")
   outcomePrices       String          @default("[\"0.50\", \"0.50\"]")
   outcomeColors       String?
@@ -348,6 +352,13 @@ enum MarketStatus {
   RESOLVED
   SETTLED
   CANCELLED
+}
+
+enum EventType {
+  MATCHUP      // Traditional head-to-head (e.g., Team A vs Team B)
+  PROP         // Multiple outcomes/props (e.g., MVP, Halftime performer)
+  TOURNAMENT   // Tournament/bracket style
+  FUTURES      // Long-term predictions
 }
 
 enum MarketCategory {

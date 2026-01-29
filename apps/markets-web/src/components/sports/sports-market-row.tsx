@@ -9,6 +9,7 @@ import { MarketChart } from "./market-chart";
 import {
   parseOutcomes,
   parseOutcomePrices,
+  priceToPercent,
   formatVolume,
   getMarketVolume,
   extractLine,
@@ -33,14 +34,14 @@ interface BaseMarketRowProps {
 // OUTCOME BUTTON - Unified button style for all market types
 // =============================================================================
 
-interface OutcomeButtonProps {
+export interface OutcomeButtonProps {
   label: string;
   price: number;
   isSelected: boolean;
   onClick: () => void;
 }
 
-function OutcomeButton({
+export function OutcomeButton({
   label,
   price,
   isSelected,
@@ -93,7 +94,7 @@ export function SectionHeader({ title, subtitle, className }: SectionHeaderProps
 // EXPANDABLE MARKET CARD WRAPPER
 // =============================================================================
 
-interface ExpandableMarketCardProps {
+export interface ExpandableMarketCardProps {
   market: Market;
   children: React.ReactNode;
   expandedMarketId?: string;
@@ -102,7 +103,7 @@ interface ExpandableMarketCardProps {
   eventSlug?: string;
 }
 
-function ExpandableMarketCard({
+export function ExpandableMarketCard({
   market,
   children,
   expandedMarketId,
@@ -146,12 +147,12 @@ function ExpandableMarketCard({
 // MARKET CARD WRAPPER
 // =============================================================================
 
-interface MarketCardProps {
+export interface MarketCardProps {
   children: React.ReactNode;
   delay?: number;
 }
 
-function MarketCard({ children, delay = 0 }: MarketCardProps) {
+export function MarketCard({ children, delay = 0 }: MarketCardProps) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
@@ -183,8 +184,8 @@ export function MoneylineRow({
 }: MoneylineRowProps) {
   const outcomes = parseOutcomes(market.outcomes);
   const outcomePrices = parseOutcomePrices(market.outcomePrices);
-  const price0 = Math.round(parseFloat(outcomePrices[0] || "0.50") * 100);
-  const price1 = Math.round(parseFloat(outcomePrices[1] || "0.50") * 100);
+  const price0 = priceToPercent(outcomePrices[0]);
+  const price1 = priceToPercent(outcomePrices[1]);
   const volume = getMarketVolume(market);
 
   const isSelected = selectedMarketId === market.id;
@@ -254,8 +255,8 @@ export function SpreadRow({
 
   const outcomes = parseOutcomes(activeMarket.outcomes);
   const outcomePrices = parseOutcomePrices(activeMarket.outcomePrices);
-  const price0 = Math.round(parseFloat(outcomePrices[0] || "0.50") * 100);
-  const price1 = Math.round(parseFloat(outcomePrices[1] || "0.50") * 100);
+  const price0 = priceToPercent(outcomePrices[0]);
+  const price1 = priceToPercent(outcomePrices[1]);
   const totalVolume = markets.reduce((sum, m) => sum + getMarketVolume(m), 0);
 
   const isSelected = selectedMarketId === activeMarket.id;
@@ -334,8 +335,8 @@ export function TotalsRow({
   if (!activeMarket) return null;
 
   const outcomePrices = parseOutcomePrices(activeMarket.outcomePrices);
-  const price0 = Math.round(parseFloat(outcomePrices[0] || "0.50") * 100);
-  const price1 = Math.round(parseFloat(outcomePrices[1] || "0.50") * 100);
+  const price0 = priceToPercent(outcomePrices[0]);
+  const price1 = priceToPercent(outcomePrices[1]);
   const totalVolume = markets.reduce((sum, m) => sum + getMarketVolume(m), 0);
 
   const isSelected = selectedMarketId === activeMarket.id;
@@ -413,8 +414,8 @@ export function TeamTotalRow({
   if (!activeMarket) return null;
 
   const outcomePrices = parseOutcomePrices(activeMarket.outcomePrices);
-  const price0 = Math.round(parseFloat(outcomePrices[0] || "0.50") * 100);
-  const price1 = Math.round(parseFloat(outcomePrices[1] || "0.50") * 100);
+  const price0 = priceToPercent(outcomePrices[0]);
+  const price1 = priceToPercent(outcomePrices[1]);
   const totalVolume = markets.reduce((sum, m) => sum + getMarketVolume(m), 0);
 
   const isSelected = selectedMarketId === activeMarket.id;
@@ -486,8 +487,8 @@ export function PlayerPropRow({
 }: PlayerPropRowProps) {
   const outcomes = parseOutcomes(market.outcomes);
   const outcomePrices = parseOutcomePrices(market.outcomePrices);
-  const price0 = Math.round(parseFloat(outcomePrices[0] || "0.50") * 100);
-  const price1 = Math.round(parseFloat(outcomePrices[1] || "0.50") * 100);
+  const price0 = priceToPercent(outcomePrices[0]);
+  const price1 = priceToPercent(outcomePrices[1]);
   const volume = getMarketVolume(market);
 
   const isSelected = selectedMarketId === market.id;

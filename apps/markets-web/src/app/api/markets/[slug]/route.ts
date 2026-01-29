@@ -85,6 +85,8 @@ function serializeMarket(market: any) {
   return {
     id: market.id,
     question: market.question,
+    displayLabel: market.displayLabel ?? null,
+    sortOrder: market.sortOrder ?? null,
     status: market.status,
     detailsMarkdown: market.detailsMarkdown,
     resolutionSourceUrl: market.resolutionSourceUrl,

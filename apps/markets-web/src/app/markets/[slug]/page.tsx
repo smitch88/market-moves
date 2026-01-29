@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
-import { prisma, MarketCategory } from "@vault/database";
+import { prisma, MarketCategory, EventType } from "@vault/database";
 import { Header } from "@/components/layout/header";
 import { MarketDetail } from "@/components/markets/market-detail";
 import { MarketDetailSkeleton } from "@/components/markets/market-detail-skeleton";
@@ -18,6 +18,9 @@ const SPORTS_CATEGORIES: MarketCategory[] = [
   "TENNIS",
   "GOLF",
 ];
+
+// Event types that use the sports matchup view
+const MATCHUP_EVENT_TYPES: EventType[] = ["MATCHUP"];
 
 // Helper to serialize market data for client components
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -108,15 +111,17 @@ export default async function MarketPage({ params }: PageProps) {
   // Serialize event data to convert Decimals to numbers for client components
   const serializedEvent = serializeEvent(event);
 
-  // Determine if this is a sports event
-  const isSportsEvent = SPORTS_CATEGORIES.includes(event.category as MarketCategory);
+  // Determine view type based on category and event type
+  const isSportsCategory = SPORTS_CATEGORIES.includes(event.category as MarketCategory);
+  const isMatchupType = MATCHUP_EVENT_TYPES.includes(event.eventType as EventType);
+  const useSportsView = isSportsCategory && isMatchupType;
 
   return (
     <div className="min-h-screen">
       <Header />
       <main className="container mx-auto px-4 py-6">
         <Suspense fallback={<MarketDetailSkeleton />}>
-          {isSportsEvent ? (
+          {useSportsView ? (
             <SportsEventView event={serializedEvent} />
           ) : (
             <MarketDetail event={serializedEvent} />
