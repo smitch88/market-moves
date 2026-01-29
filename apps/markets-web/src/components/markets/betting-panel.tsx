@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -14,8 +14,8 @@ import type { Market, Event } from "@vault/database";
 import { BettingTicket } from "./betting-ticket";
 import { SelectOutcomeStep } from "./betting-panel/select-outcome-step";
 import { AmountStep } from "./betting-panel/amount-step";
-import { VerifyStep } from "./betting-panel/verify-step";
 import { SuccessModal } from "./betting-panel/success-modal";
+import { useAuthFetch } from "@/lib/auth/auth-fetch";
 
 // Helper to parse outcomes from JSON
 function parseOutcomes(outcomes: string): string[] {
@@ -38,11 +38,12 @@ interface BettingPanelProps {
   };
 }
 
-type BettingStep = "select" | "amount" | "verify";
+type BettingStep = "select" | "amount";
 
 export function BettingPanel({ market, event, stats }: BettingPanelProps) {
   const { login, authenticated } = usePrivy();
   const queryClient = useQueryClient();
+  const authFetch = useAuthFetch();
 
   // Parse outcomes from market
   const outcomes = parseOutcomes(market.outcomes);
@@ -52,7 +53,6 @@ export function BettingPanel({ market, event, stats }: BettingPanelProps) {
   const [selectedOutcome, setSelectedOutcome] = useState<number | null>(null);
   const [amount, setAmount] = useState("");
   const [betId, setBetId] = useState<string | null>(null);
-  const [tweetUrl, setTweetUrl] = useState("");
 
   // Success modal state
   const [showSuccessModal, setShowSuccessModal] = useState(false);
@@ -66,18 +66,7 @@ export function BettingPanel({ market, event, stats }: BettingPanelProps) {
   const { data: profile } = useQuery({
     queryKey: ["profile"],
     queryFn: async () => {
-      const res = await fetch("/api/me");
-      if (!res.ok) return null;
-      return res.json();
-    },
-    enabled: authenticated,
-  });
-
-  // Check for pending bets
-  const { data: pendingBetData } = useQuery({
-    queryKey: ["pendingBet", market.id],
-    queryFn: async () => {
-      const res = await fetch(`/api/bets/pending?marketId=${market.id}`);
+      const res = await authFetch("/api/me");
       if (!res.ok) return null;
       return res.json();
     },
@@ -89,21 +78,10 @@ export function BettingPanel({ market, event, stats }: BettingPanelProps) {
     market.status === "OPEN" ||
     (market.status === "PUBLISHED" && (!market.closesAt || new Date(market.closesAt) > new Date()));
 
-  // Initialize pending bet if found
-  useEffect(() => {
-    if (pendingBetData?.pendingBet && !betId && step === "select") {
-      const pendingBet = pendingBetData.pendingBet;
-      setBetId(pendingBet.id);
-      setSelectedOutcome(pendingBet.outcomeIndex);
-      setAmount(String(pendingBet.amount));
-      setStep("verify");
-    }
-  }, [pendingBetData, betId, step]);
-
-  // Place bet mutation
+  // Place bet mutation - bet is confirmed immediately (no tweet required)
   const placeBetMutation = useMutation({
     mutationFn: async () => {
-      const res = await fetch("/api/bets", {
+      const res = await authFetch("/api/bets", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -118,87 +96,30 @@ export function BettingPanel({ market, event, stats }: BettingPanelProps) {
       }
       return res.json();
     },
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
+      // Store bet ID for potential share-for-XP
       setBetId(data.bet.id);
-      setStep("verify");
-      queryClient.invalidateQueries({ queryKey: ["pendingBet", market.id] });
-      toast.info("Bet reserved! Now share your prediction on X to confirm.");
+      
+      // Invalidate and refetch queries
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["profile"] }),
+        queryClient.refetchQueries({ queryKey: ["market", event.slug] }),
+      ]);
+      
+      // Show success modal immediately
+      setConfirmedBetAmount(parseInt(amount, 10));
+      setConfirmedOutcome(selectedOutcome);
+      setShowSuccessModal(true);
+      
+      // Reset betting flow
+      setStep("select");
+      setSelectedOutcome(null);
+      setAmount("");
+      
+      toast.success("Bet confirmed!");
     },
     onError: (error: Error) => {
       toast.error(error.message || "Failed to place bet");
-    },
-  });
-
-  // Tweet intent mutation
-  const tweetIntentMutation = useMutation({
-    mutationFn: async () => {
-      const res = await fetch("/api/tweet/intent", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          marketId: market.id,
-          betId,
-        }),
-      });
-      if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.error || "Failed to create tweet intent");
-      }
-      return res.json();
-    },
-    onSuccess: (data) => {
-      window.open(data.intentUrl, "_blank", "width=550,height=420");
-    },
-    onError: (error: Error) => {
-      toast.error(error.message || "Failed to create tweet. Please try again.");
-    },
-  });
-
-  // Verify tweet mutation
-  const verifyTweetMutation = useMutation({
-    mutationFn: async (method: "timeline" | "url") => {
-      const res = await fetch("/api/tweet/verify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          marketId: market.id,
-          betId,
-          method,
-          tweetUrl: method === "url" ? tweetUrl : undefined,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to verify tweet");
-      }
-      return data;
-    },
-    onSuccess: async (data) => {
-      if (data.verified) {
-        // Reset state immediately to prevent re-initialization
-        setBetId(null);
-        setStep("select");
-        setSelectedOutcome(null);
-        setAmount("");
-        setTweetUrl("");
-        
-        // Invalidate and refetch queries
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ["profile"] }),
-          queryClient.refetchQueries({ queryKey: ["market", event.slug] }),
-          queryClient.refetchQueries({ queryKey: ["pendingBet", market.id] }),
-        ]);
-        
-        // Show success modal
-        handleBetSuccess();
-      } else {
-        toast.warning(
-          data.message || "Tweet verification failed. Please make sure you posted the tweet and try again."
-        );
-      }
-    },
-    onError: (error: Error) => {
-      toast.error(error.message || "Failed to verify tweet. Please try again.");
     },
   });
 
@@ -215,27 +136,6 @@ export function BettingPanel({ market, event, stats }: BettingPanelProps) {
   const handlePlaceBet = () => {
     if (!amount || parseInt(amount, 10) <= 0) return;
     placeBetMutation.mutate();
-  };
-
-  const handleOpenTweetIntent = () => {
-    if (!betId) return;
-    tweetIntentMutation.mutate();
-  };
-
-  const handleVerify = (method: "timeline" | "url") => {
-    verifyTweetMutation.mutate(method);
-  };
-
-  const handleBetSuccess = () => {
-    setConfirmedBetAmount(parseInt(amount, 10));
-    setConfirmedOutcome(selectedOutcome);
-    setShowSuccessModal(true);
-    // Reset betting flow
-    setStep("select");
-    setSelectedOutcome(null);
-    setAmount("");
-    setBetId(null);
-    setTweetUrl("");
   };
 
   const generateTicketImage = useCallback(async (): Promise<string | null> => {
@@ -376,17 +276,6 @@ export function BettingPanel({ market, event, stats }: BettingPanelProps) {
               onContinue={handlePlaceBet}
               isLoading={placeBetMutation.isPending}
             />
-          ) : step === "verify" ? (
-            <VerifyStep
-              pendingBet={pendingBetData?.pendingBet}
-              selectedOutcome={selectedOutcome}
-              outcomes={outcomes}
-              tweetUrl={tweetUrl}
-              onTweetUrlChange={setTweetUrl}
-              onOpenTweetIntent={handleOpenTweetIntent}
-              onVerify={handleVerify}
-              isLoading={verifyTweetMutation.isPending}
-            />
           ) : null}
         </GlassCardContent>
       </GlassCard>
@@ -399,6 +288,7 @@ export function BettingPanel({ market, event, stats }: BettingPanelProps) {
         outcomes={outcomes}
         confirmedOutcome={confirmedOutcome}
         confirmedBetAmount={confirmedBetAmount}
+        betId={betId}
         profile={profile}
         ticketRef={ticketRef}
         isGeneratingImage={isGeneratingImage}

@@ -9,6 +9,7 @@ import { cn } from "@vault/ui/lib/utils";
 import { getMarketUrl } from "@/lib/urls";
 import { SellPositionModal } from "./sell-position-modal";
 import { RedeemPositionsModal } from "./redeem-positions-modal";
+import { useAuthFetch } from "@/lib/auth/auth-fetch";
 
 interface Position {
   id: string;
@@ -62,11 +63,6 @@ function parseNumericArray(json: string | undefined): number[] {
   }
 }
 
-async function fetchPositions(): Promise<Position[]> {
-  const res = await fetch("/api/me/positions");
-  if (!res.ok) throw new Error("Failed to fetch positions");
-  return res.json();
-}
 
 interface PositionRowProps {
   position: Position;
@@ -261,28 +257,31 @@ interface RedeemableSummary {
   losersCount: number;
 }
 
-async function fetchRedeemableSummary(): Promise<RedeemableSummary | null> {
-  try {
-    const res = await fetch("/api/me/redeem");
-    if (!res.ok) return null;
-    return res.json();
-  } catch {
-    return null;
-  }
-}
-
 export function ProfilePositions() {
   const queryClient = useQueryClient();
   const [showRedeemModal, setShowRedeemModal] = useState(false);
+  const authFetch = useAuthFetch();
 
   const { data: positions, isLoading, error } = useQuery({
     queryKey: ["positions"],
-    queryFn: fetchPositions,
+    queryFn: async (): Promise<Position[]> => {
+      const res = await authFetch("/api/me/positions");
+      if (!res.ok) throw new Error("Failed to fetch positions");
+      return res.json();
+    },
   });
 
   const { data: redeemableSummary } = useQuery({
     queryKey: ["redeemable-positions"],
-    queryFn: fetchRedeemableSummary,
+    queryFn: async (): Promise<RedeemableSummary | null> => {
+      try {
+        const res = await authFetch("/api/me/redeem");
+        if (!res.ok) return null;
+        return res.json();
+      } catch {
+        return null;
+      }
+    },
   });
 
   if (isLoading) {
@@ -348,7 +347,6 @@ export function ProfilePositions() {
   if (positionRows.length === 0) {
     return (
       <div className="text-center py-16">
-        <Target className="h-12 w-12 text-muted-foreground/30 mx-auto mb-4" />
         <p className="text-muted-foreground mb-4">No open positions</p>
         <Link href="/">
           <Button variant="outline">Browse markets</Button>

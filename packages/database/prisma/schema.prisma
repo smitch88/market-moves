@@ -37,6 +37,9 @@ model User {
   xp           Int    @default(0) // Total XP earned
   referralCode String @unique @default(cuid())
 
+  // UI state
+  hasSeenWelcomeModal Boolean @default(false)
+
   // Timestamps
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -548,6 +551,7 @@ enum XPReason {
   ADMIN_ADJUST // Manual admin adjustment
   BONUS // Promotional bonus
   PENALTY // Penalty/correction
+  SHARE_TWEET // XP earned from sharing bet on X
 }
 
 // ============================================================================

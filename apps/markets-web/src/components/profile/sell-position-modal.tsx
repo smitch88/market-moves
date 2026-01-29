@@ -14,6 +14,7 @@ import {
 import { Loader2, TrendingDown, AlertTriangle } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { cn } from "@vault/ui/lib/utils";
+import { useAuthFetch } from "@/lib/auth/auth-fetch";
 
 interface SellPositionModalProps {
   open: boolean;
@@ -43,37 +44,6 @@ interface SellQuote {
   priceImpact: number;
 }
 
-async function fetchSellQuote(
-  marketId: string,
-  outcomeIndex: number,
-  shares: number
-): Promise<SellQuote> {
-  const res = await fetch("/api/trades/quote", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ marketId, outcomeIndex, side: "sell", amount: shares }),
-  });
-  if (!res.ok) throw new Error("Failed to fetch quote");
-  return res.json();
-}
-
-async function executeSell(params: {
-  marketId: string;
-  outcomeIndex: number;
-  shares: number;
-}): Promise<{ success: boolean; proceeds: number; message: string }> {
-  const res = await fetch("/api/trades/sell", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(params),
-  });
-  if (!res.ok) {
-    const error = await res.json();
-    throw new Error(error.error || "Failed to sell shares");
-  }
-  return res.json();
-}
-
 export function SellPositionModal({
   open,
   onOpenChange,
@@ -89,6 +59,7 @@ export function SellPositionModal({
   const [quote, setQuote] = useState<SellQuote | null>(null);
   const [loadingQuote, setLoadingQuote] = useState(false);
   const queryClient = useQueryClient();
+  const authFetch = useAuthFetch();
 
   const { market } = position;
   const title = market.event?.title || market.question;
@@ -102,7 +73,22 @@ export function SellPositionModal({
   }, [open]);
 
   const sellMutation = useMutation({
-    mutationFn: executeSell,
+    mutationFn: async (params: {
+      marketId: string;
+      outcomeIndex: number;
+      shares: number;
+    }): Promise<{ success: boolean; proceeds: number; message: string }> => {
+      const res = await authFetch("/api/trades/sell", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(params),
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || "Failed to sell shares");
+      }
+      return res.json();
+    },
     onSuccess: (data) => {
       toast.success(data.message);
       queryClient.invalidateQueries({ queryKey: ["positions"] });
@@ -135,7 +121,13 @@ export function SellPositionModal({
     try {
       // Use the actual maxShares value if they're effectively equal
       const actualShares = sharesToSellRounded >= maxSharesRounded ? maxShares : sharesToSell;
-      const q = await fetchSellQuote(market.id, outcomeIndex, actualShares);
+      const res = await authFetch("/api/trades/quote", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ marketId: market.id, outcomeIndex, side: "sell", amount: actualShares }),
+      });
+      if (!res.ok) throw new Error("Failed to fetch quote");
+      const q = await res.json();
       setQuote(q);
     } catch {
       setQuote(null);

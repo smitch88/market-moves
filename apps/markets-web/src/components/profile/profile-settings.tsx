@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { cn } from "@vault/ui/lib/utils";
 import Image from "next/image";
+import { useAuthFetch } from "@/lib/auth/auth-fetch";
 
 interface ProfileSettingsProps {
   profile: {
@@ -44,6 +45,7 @@ export function ProfileSettings({ profile, showReferrals = true, onlyReferrals =
   const { logout, linkTwitter, user } = usePrivy();
   const queryClient = useQueryClient();
   const [copied, setCopied] = useState(false);
+  const authFetch = useAuthFetch();
 
   // Profile editing state
   const [handle, setHandle] = useState(profile.handle || "");
@@ -73,7 +75,7 @@ export function ProfileSettings({ profile, showReferrals = true, onlyReferrals =
 
     setIsCheckingHandle(true);
     try {
-      const res = await fetch(`/api/me/check-handle?handle=${encodeURIComponent(value)}`);
+      const res = await authFetch(`/api/me/check-handle?handle=${encodeURIComponent(value)}`);
       if (res.ok) {
         const data = await res.json();
         setHandleCheck(data);
@@ -101,7 +103,7 @@ export function ProfileSettings({ profile, showReferrals = true, onlyReferrals =
   // Save profile mutation
   const saveMutation = useMutation({
     mutationFn: async (data: { handle?: string | null; name?: string | null; profileImageUrl?: string | null }) => {
-      const res = await fetch("/api/me", {
+      const res = await authFetch("/api/me", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),

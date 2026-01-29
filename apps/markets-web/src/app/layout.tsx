@@ -15,6 +15,7 @@ import { PrivyProvider } from "@/components/providers/privy-provider";
 import { QueryProvider } from "@/components/providers/query-provider";
 import { DevTools } from "@/components/dev/dev-tools";
 import { MobileNav } from "@/components/layout/mobile-nav";
+import { WelcomeModal } from "@/components/welcome/welcome-modal";
 import { Toaster } from "@vault/ui";
 import "./globals.css";
 
@@ -51,6 +52,7 @@ export default function RootLayout({
                 {children}
               </div>
               <MobileNav />
+              <WelcomeModal />
               <DevTools />
               <Toaster position="top-right" richColors closeButton />
             </PrivyProvider>

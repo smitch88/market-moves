@@ -308,6 +308,108 @@ export class TradeService {
   }
 
   /**
+   * Buy shares immediately (no tweet required)
+   * 
+   * This creates a CONFIRMED bet and executes the trade atomically.
+   * Used for immediate bet confirmation without tweet verification.
+   */
+  async buyShares(params: BuySharesParams): Promise<{
+    bet: Bet;
+    quote: QuoteResult;
+    tradeResult: TradeResult;
+  }> {
+    const { userId, marketId, outcomeIndex, amount, maxSlippage = 0.05 } = params;
+
+    // Validate
+    const validation = await this.validateTrade(params, "buy");
+    if (!validation.valid) {
+      throw new Error(validation.error);
+    }
+
+    // Get market
+    const market = await prisma.market.findUnique({
+      where: { id: marketId },
+    });
+
+    if (!market) {
+      throw new Error("Market not found");
+    }
+
+    // Get quote
+    const quote = await this.getQuote({
+      marketId,
+      outcomeIndex,
+      side: "buy",
+      amount,
+    });
+
+    // Dynamic slippage based on market liquidity
+    const totalLiquidity = currency.toNumber(currency.add(market.reserve0, market.reserve1));
+    const recommendedMaxSlippage = this.getRecommendedSlippage(totalLiquidity);
+    const effectiveMaxSlippage = Math.max(maxSlippage, recommendedMaxSlippage);
+    
+    // Check slippage with dynamic limit
+    const priceImpactNum = currency.toNumber(quote.priceImpact);
+    if (priceImpactNum > effectiveMaxSlippage) {
+      throw new Error(`Price impact ${(priceImpactNum * 100).toFixed(2)}% exceeds max slippage ${(effectiveMaxSlippage * 100).toFixed(2)}%`);
+    }
+
+    // Get user for balance
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { balance: true },
+    });
+
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    // Execute everything in one atomic transaction
+    const result = await prisma.$transaction(async (tx) => {
+      // Create the bet (confirmed immediately)
+      const bet = await tx.bet.create({
+        data: {
+          userId,
+          marketId,
+          outcomeIndex,
+          tradeType: TradeType.BUY,
+          amount,
+          shares: quote.outputAmount,
+          pricePerShare: quote.avgPrice,
+          status: BetStatus.CONFIRMED,
+          confirmedAt: new Date(),
+        },
+      });
+
+      // Debit user balance
+      const newBalance = currency.subtract(user.balance, amount);
+      await tx.user.update({
+        where: { id: userId },
+        data: { balance: newBalance },
+      });
+
+      // Create balance ledger entry
+      await tx.balanceLedger.create({
+        data: {
+          userId,
+          delta: currency.multiply(amount, currency.decimal("-1")),
+          balanceBefore: user.balance,
+          balanceAfter: newBalance,
+          reason: BalanceReason.BET_PLACED,
+          correlationId: bet.id,
+        },
+      });
+
+      // Execute the trade (update reserves, positions, prices)
+      const tradeResult = await this.executeBuy(tx, bet, market);
+
+      return { bet, tradeResult };
+    });
+
+    return { bet: result.bet, quote, tradeResult: result.tradeResult };
+  }
+
+  /**
    * Execute a confirmed buy (called after tweet verification)
    * 
    * This updates the market reserves and user position.

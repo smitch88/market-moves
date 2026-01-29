@@ -93,7 +93,6 @@ export function ProfileActivity({ bets, redemptions = [], isLoading }: ProfileAc
   if (allActivity.length === 0) {
     return (
       <div className="text-center py-16">
-        <Activity className="h-12 w-12 text-muted-foreground/30 mx-auto mb-4" />
         <p className="text-muted-foreground mb-4">No trading activity yet</p>
         <Link href="/">
           <Button variant="outline">Browse markets</Button>

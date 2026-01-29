@@ -14,8 +14,7 @@ const buySchema = z.object({
 /**
  * POST /api/trades/buy
  * 
- * Create a pending buy order for shares.
- * The order requires tweet verification before execution.
+ * Buy shares immediately (no tweet verification required).
  * 
  * Request body:
  * - marketId: string
@@ -24,7 +23,7 @@ const buySchema = z.object({
  * - maxSlippage?: number (0-1, default 0.05)
  * 
  * Response:
- * - bet: The created pending bet
+ * - bet: The confirmed bet
  * - quote: The trade quote with shares, price, etc.
  */
 export async function POST(request: NextRequest) {
@@ -34,7 +33,7 @@ export async function POST(request: NextRequest) {
 
     const { marketId, outcomeIndex, amount, maxSlippage } = buySchema.parse(body);
 
-    const result = await tradeService.createBuyOrder({
+    const result = await tradeService.buyShares({
       userId: user.id,
       marketId,
       outcomeIndex: outcomeIndex as 0 | 1,
@@ -56,7 +55,7 @@ export async function POST(request: NextRequest) {
           price1: currency.toNumber(result.quote.newPrices.price1),
         },
       },
-      message: "Buy order created. Please verify with a tweet to complete.",
+      message: "Trade executed successfully!",
     });
   } catch (error) {
     if (error instanceof z.ZodError) {

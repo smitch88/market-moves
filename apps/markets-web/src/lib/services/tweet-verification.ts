@@ -89,7 +89,23 @@ export function verifyTweetContent(
 // ============================================================================
 
 /**
+ * Check if a tweet has already been used for XP
+ */
+async function isTweetAlreadyUsedForXP(tweetId: string): Promise<boolean> {
+  const existing = await prisma.xPLedger.findFirst({
+    where: {
+      reason: "SHARE_TWEET",
+      correlationId: {
+        endsWith: `-tweet-${tweetId}`,
+      },
+    },
+  });
+  return !!existing;
+}
+
+/**
  * Verify tweet by scanning user's timeline
+ * Skips tweets that have already been used for XP to find an unused one
  */
 export async function verifyTweetByTimeline(
   userId: string,
@@ -100,6 +116,7 @@ export async function verifyTweetByTimeline(
 ): Promise<TweetVerificationResult> {
   try {
     const tweets = await twitterService.getUserTweets(twitterUserId, 30);
+    let foundUsedTweet = false;
 
     for (const tweet of tweets) {
       const { matches, hasContent, hasLink } = verifyTweetContent(
@@ -109,6 +126,13 @@ export async function verifyTweetByTimeline(
       );
 
       if (matches) {
+        // Check if this tweet was already used for XP
+        const alreadyUsed = await isTweetAlreadyUsedForXP(tweet.tweetId);
+        if (alreadyUsed) {
+          foundUsedTweet = true;
+          continue; // Skip this tweet and look for another one
+        }
+
         // Store proof in database
         await prisma.tweetProof.create({
           data: {
@@ -132,9 +156,17 @@ export async function verifyTweetByTimeline(
       }
     }
 
+    // Provide a more helpful error message
+    if (foundUsedTweet) {
+      return {
+        verified: false,
+        error: "Found a matching tweet but it was already used for XP. Please share a new tweet!",
+      };
+    }
+
     return {
       verified: false,
-      error: "Could not find matching tweet in user timeline",
+      error: "No matching tweet found in user timeline",
     };
   } catch (error) {
     console.error("[TweetVerification] Timeline scan failed:", error);
@@ -161,6 +193,15 @@ export async function verifyTweetByUrl(
       return {
         verified: false,
         error: "Invalid tweet URL",
+      };
+    }
+
+    // Check if this tweet was already used for XP (before fetching tweet details)
+    const alreadyUsed = await isTweetAlreadyUsedForXP(tweetId);
+    if (alreadyUsed) {
+      return {
+        verified: false,
+        error: "This tweet has already been used for XP. Please share a new tweet!",
       };
     }
 

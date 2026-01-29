@@ -14,6 +14,7 @@ import {
 } from "@vault/ui";
 import { Gift, Check, TrendingUp, TrendingDown, Loader2 } from "lucide-react";
 import { cn } from "@vault/ui/lib/utils";
+import { useAuthFetch } from "@/lib/auth/auth-fetch";
 
 interface RedeemablePosition {
   positionId: string;
@@ -37,43 +38,40 @@ interface RedeemPositionsModalProps {
   onOpenChange: (open: boolean) => void;
 }
 
-async function fetchRedeemable(): Promise<RedeemableSummary> {
-  const res = await fetch("/api/me/redeem");
-  if (!res.ok) throw new Error("Failed to fetch redeemable positions");
-  return res.json();
-}
-
-async function redeemPositions(): Promise<{
-  success: boolean;
-  totalRedeemed: number;
-  totalProfit: number;
-  positionsRedeemed: number;
-}> {
-  const res = await fetch("/api/me/redeem", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({}),
-  });
-  if (!res.ok) {
-    const error = await res.json();
-    throw new Error(error.error || "Redemption failed");
-  }
-  return res.json();
-}
-
 export function RedeemPositionsModal({ open, onOpenChange }: RedeemPositionsModalProps) {
   const queryClient = useQueryClient();
   const [redeemed, setRedeemed] = useState(false);
   const [redeemedAmount, setRedeemedAmount] = useState(0);
+  const authFetch = useAuthFetch();
 
   const { data: summary, isLoading, error } = useQuery({
     queryKey: ["redeemable-positions"],
-    queryFn: fetchRedeemable,
+    queryFn: async (): Promise<RedeemableSummary> => {
+      const res = await authFetch("/api/me/redeem");
+      if (!res.ok) throw new Error("Failed to fetch redeemable positions");
+      return res.json();
+    },
     enabled: open,
   });
 
   const redeemMutation = useMutation({
-    mutationFn: redeemPositions,
+    mutationFn: async (): Promise<{
+      success: boolean;
+      totalRedeemed: number;
+      totalProfit: number;
+      positionsRedeemed: number;
+    }> => {
+      const res = await authFetch("/api/me/redeem", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || "Redemption failed");
+      }
+      return res.json();
+    },
     onSuccess: (data) => {
       setRedeemed(true);
       setRedeemedAmount(data.totalRedeemed);

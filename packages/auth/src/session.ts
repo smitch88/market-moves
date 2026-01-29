@@ -15,6 +15,7 @@ export interface SessionUser {
   role: UserRole;
   balance: number;
   referralCode: string;
+  hasSeenWelcomeModal: boolean;
   _count?: {
     referralsGiven: number;
   };
@@ -63,6 +64,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
         role: true,
         balance: true,
         referralCode: true,
+        hasSeenWelcomeModal: true,
         _count: {
           select: { referralsGiven: true },
         },
@@ -88,6 +90,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
             role: true,
             balance: true,
             referralCode: true,
+            hasSeenWelcomeModal: true,
             _count: {
               select: { referralsGiven: true },
             },
@@ -109,14 +112,44 @@ export async function getSessionUser(): Promise<SessionUser | null> {
         (account) => account.type === "email"
       );
 
-      user = await provisionUser({
-        privyUserId: claims.userId,
-        email: emailAccount && 'address' in emailAccount ? emailAccount.address : null,
-        twitterSubject: twitterAccount && 'subject' in twitterAccount ? twitterAccount.subject : null,
-        handle: twitterAccount && 'username' in twitterAccount ? twitterAccount.username : null,
-        name: twitterAccount && 'name' in twitterAccount ? (twitterAccount.name as string) : null,
-        profileImageUrl: twitterAccount && 'profilePictureUrl' in twitterAccount ? (twitterAccount.profilePictureUrl as string) : null,
-      });
+      try {
+        user = await provisionUser({
+          privyUserId: claims.userId,
+          email: emailAccount && 'address' in emailAccount ? emailAccount.address : null,
+          twitterSubject: twitterAccount && 'subject' in twitterAccount ? twitterAccount.subject : null,
+          handle: twitterAccount && 'username' in twitterAccount ? twitterAccount.username : null,
+          name: twitterAccount && 'name' in twitterAccount ? (twitterAccount.name as string) : null,
+          profileImageUrl: twitterAccount && 'profilePictureUrl' in twitterAccount ? (twitterAccount.profilePictureUrl as string) : null,
+        });
+      } catch (err) {
+        // Handle race condition: if another request created the user, fetch them
+        if (err && typeof err === 'object' && 'code' in err && err.code === 'P2002') {
+          user = await prisma.user.findUnique({
+            where: { privyUserId: claims.userId },
+            select: {
+              id: true,
+              privyUserId: true,
+              email: true,
+              twitterSubject: true,
+              handle: true,
+              name: true,
+              profileImageUrl: true,
+              role: true,
+              balance: true,
+              referralCode: true,
+              hasSeenWelcomeModal: true,
+              _count: {
+                select: { referralsGiven: true },
+              },
+            },
+          });
+          if (!user) {
+            throw err; // Re-throw if still not found
+          }
+        } else {
+          throw err;
+        }
+      }
     }
 
     return user;

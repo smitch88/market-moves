@@ -1,15 +1,17 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
+import { toPng } from "html-to-image";
 import {
   Button,
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
+  Input,
   toast,
 } from "@vault/ui";
 import { cn } from "@vault/ui/lib/utils";
@@ -17,13 +19,15 @@ import { getOutcomeColors } from "@/lib/outcome-colors";
 import {
   Loader2,
   ChevronRight,
-  ExternalLink,
   Check,
-  X,
-  TrendingUp,
-  TrendingDown,
+  Download,
+  Copy,
+  Sparkles,
 } from "lucide-react";
-import type { Event } from "@vault/database";
+import { XIcon } from "../markets/x-icon";
+import { BettingTicket } from "../markets/betting-ticket";
+import type { Event, Market } from "@vault/database";
+import { useAuthFetch } from "@/lib/auth/auth-fetch";
 
 interface QuickBetModalProps {
   open: boolean;
@@ -57,10 +61,10 @@ function parseOutcomePrices(outcomePrices: string): string[] {
   }
 }
 
-
 const QUICK_AMOUNTS = [10, 50, 100, 500];
+const SHARE_XP_BONUS = 50;
 
-type BetStep = "amount" | "verify" | "success";
+type BetStep = "amount" | "success";
 
 export function QuickBetModal({
   open,
@@ -72,11 +76,23 @@ export function QuickBetModal({
 }: QuickBetModalProps) {
   const { login, authenticated } = usePrivy();
   const queryClient = useQueryClient();
+  const authFetch = useAuthFetch();
 
   const [step, setStep] = useState<BetStep>("amount");
   const [amount, setAmount] = useState("");
   const [betId, setBetId] = useState<string | null>(null);
+  const [confirmedAmount, setConfirmedAmount] = useState(0);
+  
+  // Share state
+  const [copied, setCopied] = useState(false);
+  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+  const [xpClaimed, setXpClaimed] = useState(false);
   const [tweetUrl, setTweetUrl] = useState("");
+  const [showManualEntry, setShowManualEntry] = useState(false);
+  const ticketRef = useRef<HTMLDivElement>(null);
+
+  const { user } = usePrivy();
+  const hasTwitter = !!user?.twitter;
 
   const outcomes = parseOutcomes(market.outcomes);
   const outcomePrices = parseOutcomePrices(market.outcomePrices);
@@ -93,6 +109,9 @@ export function QuickBetModal({
       setStep("amount");
       setAmount("");
       setBetId(null);
+      setConfirmedAmount(0);
+      setCopied(false);
+      setXpClaimed(false);
       setTweetUrl("");
     }
   }, [open]);
@@ -101,7 +120,7 @@ export function QuickBetModal({
   const { data: profile } = useQuery({
     queryKey: ["profile"],
     queryFn: async () => {
-      const res = await fetch("/api/me");
+      const res = await authFetch("/api/me");
       if (!res.ok) return null;
       return res.json();
     },
@@ -135,13 +154,13 @@ export function QuickBetModal({
   const sharesDisplay = quote ? quote.outputAmount?.toFixed(2) : null;
   const estimatedPayout = quote?.outputAmount ? Math.round(quote.outputAmount) : 0;
 
-  // Place bet mutation
+  // Place bet mutation - bet is confirmed immediately (no tweet required)
   const placeBetMutation = useMutation({
     mutationFn: async () => {
       // Use CPMM trade endpoint
       const endpoint = "/api/trades/buy";
-      const amountToSend = amountNum; // Now in dollars for both
-      const res = await fetch(endpoint, {
+      const amountToSend = amountNum;
+      const res = await authFetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -157,75 +176,60 @@ export function QuickBetModal({
       }
       return res.json();
     },
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       setBetId(data.bet.id);
-      setStep("verify");
-      toast.info(`Order for ~${sharesDisplay || "?"} shares reserved! Share on X to confirm.`);
+      setConfirmedAmount(amountNum);
+      setStep("success");
+      await queryClient.invalidateQueries({ queryKey: ["profile"] });
+      onSuccess?.();
+      toast.success("Bet confirmed!");
     },
     onError: (error: Error) => {
       toast.error(error.message || "Failed to place bet");
     },
   });
 
-  // Tweet intent mutation
-  const tweetIntentMutation = useMutation({
-    mutationFn: async () => {
-      const res = await fetch("/api/tweet/intent", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          marketId: market.id,
-          betId,
-        }),
-      });
-      if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.error || "Failed to create tweet intent");
-      }
-      return res.json();
-    },
-    onSuccess: (data) => {
-      window.open(data.intentUrl, "_blank", "width=550,height=420");
-    },
-    onError: (error: Error) => {
-      toast.error(error.message || "Failed to create tweet");
-    },
-  });
-
-  // Verify tweet mutation
-  const verifyTweetMutation = useMutation({
+  // Share for XP mutation
+  const shareXPMutation = useMutation({
     mutationFn: async (method: "timeline" | "url") => {
-      const res = await fetch("/api/tweet/verify", {
+      if (!betId) throw new Error("No bet ID");
+      const res = await authFetch(`/api/bets/${betId}/share-xp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          marketId: market.id,
-          betId,
+        body: JSON.stringify({ 
           method,
           tweetUrl: method === "url" ? tweetUrl : undefined,
         }),
       });
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || "Failed to verify tweet");
+        throw new Error(data.error || "Failed to verify share");
       }
       return data;
     },
     onSuccess: async (data) => {
       if (data.verified) {
-        setStep("success");
+        setXpClaimed(true);
+        toast.success(`+${SHARE_XP_BONUS} XP earned for sharing!`);
         await queryClient.invalidateQueries({ queryKey: ["profile"] });
-        onSuccess?.();
-        // Close modal after short delay
-        setTimeout(() => {
-          onOpenChange(false);
-        }, 2000);
+        await queryClient.invalidateQueries({ queryKey: ["xp"] });
       } else {
-        toast.warning("Tweet not found. Make sure you posted the tweet and try again.");
+        // Auto-verify failed, show manual entry option
+        setShowManualEntry(true);
+        toast.warning(data.message || "Could not find your tweet. Try pasting the URL below.");
       }
     },
     onError: (error: Error) => {
-      toast.error(error.message || "Failed to verify tweet");
+      if (error.message.includes("already claimed")) {
+        setXpClaimed(true);
+        toast.info("XP already claimed for this bet!");
+      } else if (error.message.includes("already been used")) {
+        toast.warning("This tweet was already used for XP. Please share a new tweet!");
+      } else {
+        // Show manual entry on error
+        setShowManualEntry(true);
+        toast.error(error.message || "Failed to verify share");
+      }
     },
   });
 
@@ -238,23 +242,83 @@ export function QuickBetModal({
     placeBetMutation.mutate();
   };
 
-  const handleOpenTweetIntent = () => {
-    if (!betId) return;
-    tweetIntentMutation.mutate();
+  const generateTicketImage = useCallback(async (): Promise<string | null> => {
+    if (!ticketRef.current) return null;
+    try {
+      const dataUrl = await toPng(ticketRef.current, {
+        quality: 1.0,
+        pixelRatio: 2,
+        backgroundColor: "#0a0a0f",
+      });
+      return dataUrl;
+    } catch (error) {
+      console.error("Failed to generate ticket image:", error);
+      return null;
+    }
+  }, []);
+
+  const handleShareOnX = useCallback(async () => {
+    setIsGeneratingImage(true);
+    try {
+      const dataUrl = await generateTicketImage();
+      if (dataUrl) {
+        const response = await fetch(dataUrl);
+        const blob = await response.blob();
+        await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+
+        setTimeout(() => {
+          const tweetText = encodeURIComponent(
+            `🎯 I just bet $${confirmedAmount.toLocaleString()} on "${selectedOutcome}" for "${event.title}" on @VaultMarkets!\n\nMake your prediction 👇\n${window.location.origin}/markets/${event.slug}`
+          );
+          window.open(`https://x.com/intent/tweet?text=${tweetText}`, "_blank");
+        }, 500);
+
+        toast.success("Ticket copied to clipboard! Paste it in your tweet.", { duration: 4000 });
+      }
+    } catch (error) {
+      console.error("Failed to copy ticket:", error);
+      toast.error("Failed to copy ticket to clipboard");
+    } finally {
+      setIsGeneratingImage(false);
+    }
+  }, [generateTicketImage, event.title, event.slug, confirmedAmount, selectedOutcome]);
+
+  const handleDownload = useCallback(async () => {
+    setIsGeneratingImage(true);
+    try {
+      const dataUrl = await generateTicketImage();
+      if (dataUrl) {
+        const link = document.createElement("a");
+        link.download = `vault-bet-${event.slug}-${Date.now()}.png`;
+        link.href = dataUrl;
+        link.click();
+        toast.success("Ticket downloaded!");
+      } else {
+        toast.error("Failed to generate ticket");
+      }
+    } catch {
+      toast.error("Failed to download ticket");
+    } finally {
+      setIsGeneratingImage(false);
+    }
+  }, [generateTicketImage, event.slug]);
+
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(`${window.location.origin}/markets/${event.slug}`);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+      toast.success("Link copied!");
+    } catch {
+      toast.error("Failed to copy link");
+    }
   };
 
-  const handleVerify = (method: "timeline" | "url") => {
-    verifyTweetMutation.mutate(method);
-  };
-
-  const isLoading =
-    placeBetMutation.isPending ||
-    tweetIntentMutation.isPending ||
-    verifyTweetMutation.isPending;
+  const isLoading = placeBetMutation.isPending;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md p-0 overflow-hidden">
+      <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md p-0 overflow-hidden">
         {/* Header */}
         <div className="px-4 py-3 border-b border-border/50 bg-muted/20">
           <DialogHeader>
@@ -420,110 +484,114 @@ export function QuickBetModal({
                   )}
                 </Button>
               </motion.div>
-            ) : step === "verify" ? (
-              <motion.div
-                key="verify"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                className="space-y-3"
-              >
-                <div className="text-center p-3 rounded-lg bg-muted/30 border border-border/50">
-                  <p className="font-medium text-sm mb-1">Share your prediction on X</p>
-                  <p className="text-xs text-muted-foreground">
-                    Post the tweet to confirm your ${amountNum} bet on {selectedOutcome}
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <Button
-                    onClick={handleOpenTweetIntent}
-                    disabled={isLoading}
-                    className="w-full h-10"
-                  >
-                    {tweetIntentMutation.isPending ? (
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    ) : (
-                      <ExternalLink className="h-4 w-4 mr-2" />
-                    )}
-                    Open X to Post
-                  </Button>
-
-                  <div className="relative">
-                    <div className="absolute inset-0 flex items-center">
-                      <span className="w-full border-t border-border/50" />
-                    </div>
-                    <div className="relative flex justify-center text-xs">
-                      <span className="bg-background px-2 text-muted-foreground">
-                        Already posted?
-                      </span>
-                    </div>
-                  </div>
-
-                  <Button
-                    variant="outline"
-                    onClick={() => handleVerify("timeline")}
-                    disabled={isLoading}
-                    className="w-full"
-                  >
-                    {verifyTweetMutation.isPending ? (
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    ) : (
-                      <Check className="h-4 w-4 mr-2" />
-                    )}
-                    Verify from my timeline
-                  </Button>
-
-                  <div className="flex gap-2">
-                    <input
-                      type="url"
-                      value={tweetUrl}
-                      onChange={(e) => setTweetUrl(e.target.value)}
-                      placeholder="Or paste tweet URL..."
-                      className="flex-1 px-3 py-2 rounded-lg bg-background border border-border text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                    />
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleVerify("url")}
-                      disabled={!tweetUrl || isLoading}
-                    >
-                      Verify
-                    </Button>
-                  </div>
-                </div>
-
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setStep("amount")}
-                  className="w-full text-muted-foreground"
-                >
-                  <X className="h-4 w-4 mr-2" />
-                  Cancel
-                </Button>
-              </motion.div>
             ) : step === "success" ? (
               <motion.div
                 key="success"
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="text-center py-4 space-y-3"
+                className="space-y-4"
               >
-                <motion.div
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  transition={{ type: "spring", duration: 0.5 }}
-                  className="h-14 w-14 rounded-full bg-outcome-yes/20 flex items-center justify-center mx-auto"
-                >
-                  <Check className="h-7 w-7 text-outcome-yes" />
-                </motion.div>
-                <div>
-                  <p className="text-lg font-bold">Bet Confirmed!</p>
-                  <p className="text-sm text-muted-foreground">
-                    ${amountNum.toLocaleString()} on {selectedOutcome}
-                  </p>
+                {/* Ticket Preview */}
+                <div className="flex justify-center">
+                  <BettingTicket
+                    ref={ticketRef}
+                    market={market as Market}
+                    event={event}
+                    outcomeLabel={selectedOutcome}
+                    outcomeIndex={selectedOutcomeIndex}
+                    amount={confirmedAmount}
+                    userName={profile?.name}
+                    userHandle={profile?.handle}
+                    userAvatar={profile?.profileImageUrl}
+                  />
                 </div>
+
+                {/* Share buttons */}
+                <div className="space-y-2">
+                  <p className="text-xs text-muted-foreground text-center">Share your betting ticket</p>
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={handleShareOnX}
+                      disabled={isGeneratingImage}
+                      className="flex-1 gap-2 bg-black hover:bg-black/80 text-white"
+                      size="sm"
+                    >
+                      {isGeneratingImage ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <XIcon className="h-3 w-3" />
+                      )}
+                      Share on X
+                    </Button>
+                    <Button onClick={handleDownload} disabled={isGeneratingImage} variant="outline" size="sm">
+                      {isGeneratingImage ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
+                    </Button>
+                    <Button onClick={handleCopyLink} variant="outline" size="sm">
+                      {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Claim XP Section */}
+                {betId && !xpClaimed && (
+                  <div className="space-y-2 pt-3 border-t border-border/50">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-medium">Claim +{SHARE_XP_BONUS} XP for sharing on X</span>
+                      </div>
+                      {hasTwitter && (
+                        <Button
+                          onClick={() => shareXPMutation.mutate("timeline")}
+                          disabled={shareXPMutation.isPending}
+                          variant="outline"
+                          size="sm"
+                          className="gap-1 h-7 text-xs"
+                        >
+                          {shareXPMutation.isPending ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <Check className="h-3 w-3" />
+                          )}
+                          Verify Tweet
+                        </Button>
+                      )}
+                    </div>
+                    {/* Manual URL entry: show always if no Twitter, or on auto-verify fail */}
+                    {(!hasTwitter || showManualEntry) && (
+                      <div className="flex gap-2">
+                        <Input
+                          type="url"
+                          value={tweetUrl}
+                          onChange={(e) => setTweetUrl(e.target.value)}
+                          placeholder="Paste tweet URL..."
+                          className="flex-1 h-7 text-xs"
+                        />
+                        <Button
+                          onClick={() => shareXPMutation.mutate("url")}
+                          disabled={!tweetUrl || shareXPMutation.isPending}
+                          variant="secondary"
+                          size="sm"
+                          className="h-7 text-xs"
+                        >
+                          Verify
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* XP Claimed Success */}
+                {xpClaimed && (
+                  <div className="flex items-center justify-center gap-2 text-green-500 pt-3 border-t border-border/50">
+                    <Check className="h-3 w-3" />
+                    <span className="text-xs font-medium">+{SHARE_XP_BONUS} XP Claimed!</span>
+                  </div>
+                )}
+
+                {/* Close button */}
+                <Button onClick={() => onOpenChange(false)} variant="ghost" className="w-full text-muted-foreground" size="sm">
+                  Continue Browsing
+                </Button>
               </motion.div>
             ) : null}
           </AnimatePresence>

@@ -70,7 +70,7 @@ export function MarketCategoryTabs({
         onScroll={checkScroll}
         className="flex-1 overflow-x-auto scrollbar-hide"
       >
-        <div className="flex items-center gap-1 p-1 bg-muted/30 rounded-xl">
+        <div className="flex items-center gap-0.5 sm:gap-1 p-0.5 sm:p-1 bg-muted/30 rounded-lg sm:rounded-xl">
           {visibleCategories.map((category) => {
             const isActive = activeCategory === category.id;
             const count = marketCounts?.[category.id];
@@ -80,7 +80,7 @@ export function MarketCategoryTabs({
                 key={category.id}
                 onClick={() => onCategoryChange(category.id)}
                 className={cn(
-                  "relative px-4 py-2 text-sm font-medium rounded-lg transition-all whitespace-nowrap",
+                  "relative px-2.5 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium rounded-md sm:rounded-lg transition-all whitespace-nowrap",
                   isActive
                     ? "text-foreground"
                     : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
@@ -89,16 +89,16 @@ export function MarketCategoryTabs({
                 {isActive && (
                   <motion.div
                     layoutId="activeCategoryTab"
-                    className="absolute inset-0 bg-background rounded-lg shadow-sm border border-border/50"
+                    className="absolute inset-0 bg-background rounded-md sm:rounded-lg shadow-sm border border-border/50"
                     transition={{ type: "spring", stiffness: 400, damping: 30 }}
                   />
                 )}
-                <span className="relative z-10 flex items-center gap-2">
+                <span className="relative z-10 flex items-center gap-1 sm:gap-2">
                   {category.label}
                   {count !== undefined && count > 0 && (
                     <span
                       className={cn(
-                        "text-xs tabular-nums",
+                        "text-[10px] sm:text-xs tabular-nums",
                         isActive ? "text-primary" : "text-muted-foreground"
                       )}
                     >

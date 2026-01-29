@@ -198,7 +198,7 @@ export function MarketDetail({ event }: MarketDetailProps) {
   );
 
   return (
-    <div className="max-w-7xl mx-auto">
+    <div className="max-w-7xl mx-auto pb-24 lg:pb-0">
       {/* Back navigation */}
       <motion.div
         initial={{ opacity: 0, x: -10 }}
@@ -206,17 +206,17 @@ export function MarketDetail({ event }: MarketDetailProps) {
       >
         <Link
           href="/"
-          className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground mb-6 transition-colors group"
+          className="inline-flex items-center gap-1.5 sm:gap-2 text-sm sm:text-base text-muted-foreground hover:text-foreground mb-4 sm:mb-6 transition-colors group"
         >
-          <ArrowLeft className="h-4 w-4 group-hover:-translate-x-1 transition-transform" />
-          <span>Back to Events</span>
+          <ArrowLeft className="h-3.5 w-3.5 sm:h-4 sm:w-4 group-hover:-translate-x-1 transition-transform" />
+          <span>Back</span>
         </Link>
       </motion.div>
 
       {/* Main grid layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
         {/* Left column: Header + Markets */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className="lg:col-span-2 space-y-4 sm:space-y-6">
           {/* Prop Event Header */}
           <PropEventHeader event={event} />
 
@@ -225,18 +225,18 @@ export function MarketDetail({ event }: MarketDetailProps) {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="flex items-center gap-6"
+            className="flex items-center gap-3 sm:gap-6 flex-wrap"
           >
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <TrendingUp className="h-4 w-4" />
+            <div className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm text-muted-foreground">
+              <TrendingUp className="h-3 w-3 sm:h-4 sm:w-4" />
               <span>{markets.length} markets</span>
             </div>
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Users className="h-4 w-4" />
+            <div className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm text-muted-foreground">
+              <Users className="h-3 w-3 sm:h-4 sm:w-4" />
               <span>{totalBets} predictions</span>
             </div>
             {/* Real-time connection indicator */}
-            <div className="flex items-center gap-1.5 text-xs">
+            <div className="flex items-center gap-1 sm:gap-1.5 text-xs">
               {isConnected ? (
                 <>
                   <Wifi className="h-3 w-3 text-green-500" />
@@ -303,8 +303,8 @@ export function MarketDetail({ event }: MarketDetailProps) {
           </motion.div>
         </div>
 
-        {/* Right column: Betting Sidebar (sticky) */}
-        <div className="lg:col-span-1">
+        {/* Right column: Betting Sidebar (sticky) - hidden on mobile */}
+        <div className="hidden lg:block lg:col-span-1">
           <div className="lg:sticky lg:top-20">
             <SportsBettingSidebar
               event={event}
@@ -315,6 +315,19 @@ export function MarketDetail({ event }: MarketDetailProps) {
           </div>
         </div>
       </div>
+
+      {/* Mobile fixed bottom bar - shown when outcome is selected */}
+      {selectedMarket && selectedOutcome !== null && (
+        <div className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-background border-t border-border p-4 shadow-lg">
+          <SportsBettingSidebar
+            event={event}
+            selectedMarket={selectedMarket}
+            selectedOutcome={selectedOutcome}
+            onClearSelection={handleClearSelection}
+            compact
+          />
+        </div>
+      )}
     </div>
   );
 }

@@ -1,8 +1,8 @@
 "use client";
 
-import { useRef, useState, useEffect, useCallback } from "react";
+import { useRef, useCallback, useId } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { cn } from "@vault/ui/lib/utils";
 
 interface LineSelectorProps {
@@ -18,77 +18,107 @@ export function LineSelector({
   onLineChange,
   className,
 }: LineSelectorProps) {
-  // Prevent clicks from propagating to parent (e.g., expandable card)
-  const handleContainerClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-  };
+  const id = useId();
   const containerRef = useRef<HTMLDivElement>(null);
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragStartX, setDragStartX] = useState(0);
-  const [dragStartIndex, setDragStartIndex] = useState(0);
+  const isDraggingRef = useRef(false);
+  const hasDraggedRef = useRef(false);
+
+  // Find current index, defaulting to 0 if activeLine not found
+  const currentIndex = Math.max(0, lines.indexOf(activeLine));
+  const hasPrevious = currentIndex > 0;
+  const hasNext = currentIndex < lines.length - 1;
 
   // Navigate to previous/next line
-  const navigateToPrevious = () => {
-    const currentIndex = lines.indexOf(activeLine);
-    if (currentIndex > 0) {
-      onLineChange(lines[currentIndex - 1]);
+  const navigateToPrevious = useCallback((e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    const idx = Math.max(0, lines.indexOf(activeLine));
+    if (idx > 0) {
+      onLineChange(lines[idx - 1]);
     }
-  };
+  }, [lines, activeLine, onLineChange]);
 
-  const navigateToNext = () => {
-    const currentIndex = lines.indexOf(activeLine);
-    if (currentIndex < lines.length - 1) {
-      onLineChange(lines[currentIndex + 1]);
+  const navigateToNext = useCallback((e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    const idx = Math.max(0, lines.indexOf(activeLine));
+    if (idx < lines.length - 1) {
+      onLineChange(lines[idx + 1]);
     }
-  };
+  }, [lines, activeLine, onLineChange]);
 
-  // Handle drag to select
-  const handleDragStart = (e: React.MouseEvent | React.TouchEvent) => {
-    if (!containerRef.current) return;
+  // Find which line index the mouse is over based on position
+  const getIndexAtPosition = useCallback((clientX: number): number => {
+    if (!containerRef.current) return currentIndex;
     
-    setIsDragging(true);
-    const currentIndex = lines.indexOf(activeLine);
-    setDragStartIndex(currentIndex);
+    const buttons = containerRef.current.querySelectorAll('button');
+    if (buttons.length === 0) return currentIndex;
     
-    const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
-    setDragStartX(clientX);
-  };
+    // Find which button the mouse is over
+    for (let i = 0; i < buttons.length; i++) {
+      const rect = buttons[i].getBoundingClientRect();
+      if (clientX >= rect.left && clientX <= rect.right) {
+        return i;
+      }
+    }
+    
+    // If mouse is to the left of all buttons, return first index
+    const firstRect = buttons[0].getBoundingClientRect();
+    if (clientX < firstRect.left) {
+      return 0;
+    }
+    
+    // If mouse is to the right of all buttons, return last index
+    const lastRect = buttons[buttons.length - 1].getBoundingClientRect();
+    if (clientX > lastRect.right) {
+      return buttons.length - 1;
+    }
+    
+    return currentIndex;
+  }, [currentIndex]);
 
+  // Handle drag move
   const handleDragMove = useCallback((e: MouseEvent | TouchEvent) => {
-    if (!isDragging || !containerRef.current) return;
+    if (!isDraggingRef.current) return;
 
     const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
-    const deltaX = clientX - dragStartX;
-    const threshold = 30; // pixels to move before changing selection
-
-    const steps = Math.round(deltaX / threshold);
-    const newIndex = Math.max(0, Math.min(lines.length - 1, dragStartIndex + steps));
-
-    if (newIndex !== lines.indexOf(activeLine)) {
+    
+    hasDraggedRef.current = true;
+    
+    const newIndex = getIndexAtPosition(clientX);
+    if (lines[newIndex] !== undefined && lines[newIndex] !== activeLine) {
       onLineChange(lines[newIndex]);
     }
-  }, [isDragging, dragStartX, dragStartIndex, lines, activeLine, onLineChange]);
+  }, [lines, activeLine, onLineChange, getIndexAtPosition]);
 
+  // Handle drag end
   const handleDragEnd = useCallback(() => {
-    setIsDragging(false);
-  }, []);
+    isDraggingRef.current = false;
+    
+    // Clean up listeners
+    window.removeEventListener("mousemove", handleDragMove);
+    window.removeEventListener("mouseup", handleDragEnd);
+    window.removeEventListener("touchmove", handleDragMove);
+    window.removeEventListener("touchend", handleDragEnd);
+    
+    // Reset hasDragged after a short delay
+    setTimeout(() => {
+      hasDraggedRef.current = false;
+    }, 100);
+  }, [handleDragMove]);
 
-  // Attach drag listeners
-  useEffect(() => {
-    if (isDragging) {
-      window.addEventListener("mousemove", handleDragMove);
-      window.addEventListener("mouseup", handleDragEnd);
-      window.addEventListener("touchmove", handleDragMove);
-      window.addEventListener("touchend", handleDragEnd);
-
-      return () => {
-        window.removeEventListener("mousemove", handleDragMove);
-        window.removeEventListener("mouseup", handleDragEnd);
-        window.removeEventListener("touchmove", handleDragMove);
-        window.removeEventListener("touchend", handleDragEnd);
-      };
-    }
-  }, [isDragging, handleDragMove, handleDragEnd]);
+  // Handle drag start
+  const handleDragStart = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    
+    isDraggingRef.current = true;
+    hasDraggedRef.current = false;
+    
+    // Attach listeners
+    window.addEventListener("mousemove", handleDragMove);
+    window.addEventListener("mouseup", handleDragEnd);
+    window.addEventListener("touchmove", handleDragMove, { passive: true });
+    window.addEventListener("touchend", handleDragEnd);
+  }, [handleDragMove, handleDragEnd]);
 
   // Keyboard navigation
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -101,17 +131,21 @@ export function LineSelector({
     }
   };
 
-  if (lines.length <= 1) return null;
+  // Handle line button click - only if we haven't been dragging
+  const handleLineClick = useCallback((e: React.MouseEvent, line: number) => {
+    e.stopPropagation();
+    if (!hasDraggedRef.current && !isDraggingRef.current) {
+      onLineChange(line);
+    }
+  }, [onLineChange]);
 
-  const currentIndex = lines.indexOf(activeLine);
-  const hasPrevious = currentIndex > 0;
-  const hasNext = currentIndex < lines.length - 1;
+  if (lines.length <= 1) return null;
 
   return (
     <div
-      className={cn("relative flex items-center gap-3 mt-3 pt-3 border-t border-border/20", className)}
+      className={cn("relative flex items-center gap-2 sm:gap-3 mt-3 pt-3 border-t border-border/20", className)}
       onKeyDown={handleKeyDown}
-      onClick={handleContainerClick}
+      onClick={(e) => e.stopPropagation()}
       tabIndex={0}
     >
       {/* Left arrow button */}
@@ -119,7 +153,7 @@ export function LineSelector({
         onClick={navigateToPrevious}
         disabled={!hasPrevious}
         className={cn(
-          "flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-all",
+          "flex-shrink-0 w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center transition-all",
           hasPrevious
             ? "bg-muted/60 hover:bg-muted text-foreground hover:scale-110 active:scale-95"
             : "bg-muted/20 text-muted-foreground/30 cursor-not-allowed"
@@ -132,11 +166,7 @@ export function LineSelector({
       {/* Draggable line selector */}
       <div
         ref={containerRef}
-        className={cn(
-          "flex-1 flex items-center justify-center gap-1 py-1 px-2 rounded-lg bg-muted/20",
-          isDragging && "cursor-grabbing select-none",
-          !isDragging && "cursor-grab"
-        )}
+        className="flex-1 flex items-center justify-center gap-0.5 sm:gap-1 py-1 px-1.5 sm:px-2 rounded-lg bg-muted/20 overflow-x-auto scrollbar-hide cursor-grab active:cursor-grabbing select-none"
         onMouseDown={handleDragStart}
         onTouchStart={handleDragStart}
         role="slider"
@@ -150,12 +180,9 @@ export function LineSelector({
           return (
             <button
               key={line}
-              onClick={(e) => {
-                e.stopPropagation();
-                onLineChange(line);
-              }}
+              onClick={(e) => handleLineClick(e, line)}
               className={cn(
-                "relative px-2.5 py-1 text-sm font-medium rounded-md transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
+                "relative px-2 sm:px-2.5 py-1 text-xs sm:text-sm font-medium rounded-md transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
                 isActive
                   ? "text-primary"
                   : "text-muted-foreground hover:text-foreground hover:bg-muted/30"
@@ -164,7 +191,7 @@ export function LineSelector({
             >
               {isActive && (
                 <motion.div
-                  layoutId="line-selector-active"
+                  layoutId={`line-selector-active-${id}`}
                   className="absolute inset-0 bg-primary/15 rounded-md border border-primary/20"
                   transition={{ type: "spring", stiffness: 500, damping: 35 }}
                 />
@@ -182,7 +209,7 @@ export function LineSelector({
         onClick={navigateToNext}
         disabled={!hasNext}
         className={cn(
-          "flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-all",
+          "flex-shrink-0 w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center transition-all",
           hasNext
             ? "bg-muted/60 hover:bg-muted text-foreground hover:scale-110 active:scale-95"
             : "bg-muted/20 text-muted-foreground/30 cursor-not-allowed"

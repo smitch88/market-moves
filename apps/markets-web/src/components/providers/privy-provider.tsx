@@ -2,11 +2,13 @@
 
 import { PrivyProvider as BasePrivyProvider } from "@privy-io/react-auth";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 
 const PRIVY_APP_ID = process.env.NEXT_PUBLIC_PRIVY_APP_ID || "cmkvwa8l400fkjj0chn8cvpa8";
 
 export function PrivyProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const queryClient = useQueryClient();
 
   return (
     <BasePrivyProvider
@@ -25,6 +27,12 @@ export function PrivyProvider({ children }: { children: React.ReactNode }) {
         defaultChain: undefined,
       }}
       onSuccess={() => {
+        // Invalidate auth-dependent queries after successful login
+        // Small delay to ensure the access token is ready
+        setTimeout(() => {
+          queryClient.invalidateQueries({ queryKey: ["profile"] });
+          queryClient.invalidateQueries({ queryKey: ["xp"] });
+        }, 100);
         router.refresh();
       }}
     >

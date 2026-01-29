@@ -1,26 +1,17 @@
 "use client";
 
-import { useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { usePrivy } from "@privy-io/react-auth";
-import Image from "next/image";
-import Link from "next/link";
-import { format } from "date-fns";
-import {
-  AreaChart,
-  Area,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
-import { User, ExternalLink } from "lucide-react";
-import { Tabs, TabsList, TabsTrigger, TabsContent, Skeleton } from "@vault/ui";
-import { cn } from "@vault/ui/lib/utils";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@vault/ui";
 import { ProfileActivity } from "./profile-activity";
 import { ProfileSettings } from "./profile-settings";
 import { ProfilePositions } from "./profile-positions";
+import { ProfileHeaderCard } from "./profile-header-card";
+import { PnLChart } from "./pnl-chart";
+import { ProfileContentSkeleton } from "./profile-content-skeleton";
+import { formatMoney } from "./profile-utils";
+import { useAuthFetch } from "@/lib/auth/auth-fetch";
 
 interface ProfileContentProps {
   userId: string;
@@ -45,131 +36,73 @@ interface PnLHistoryPoint {
   totalVolume: number;
 }
 
-async function fetchProfile() {
-  const res = await fetch("/api/me");
-  if (!res.ok) return null;
-  return res.json();
-}
-
-async function fetchUserActivity(userId: string) {
-  const res = await fetch(`/api/users/${userId}/activity`);
-  if (!res.ok) return { bets: [], positions: [] };
-  return res.json();
-}
-
-async function fetchUserStats(): Promise<UserStats | null> {
-  const res = await fetch("/api/me/stats");
-  if (!res.ok) return null;
-  return res.json();
-}
-
-async function fetchPnLHistory(): Promise<PnLHistoryPoint[]> {
-  const res = await fetch(`/api/me/pnl-history?days=90`);
-  if (!res.ok) return [];
-  return res.json();
-}
-
-async function fetchPositionsValue(): Promise<number> {
-  const res = await fetch("/api/me/positions");
-  if (!res.ok) return 0;
-  const positions = await res.json();
-  
-  let totalValue = 0;
-  positions.forEach((pos: { shares0: number; shares1: number; market: { outcomePrices: string } }) => {
-    try {
-      const prices = JSON.parse(pos.market.outcomePrices);
-      totalValue += (pos.shares0 || 0) * Number(prices[0]); // Already in dollars
-      totalValue += (pos.shares1 || 0) * Number(prices[1]); // Already in dollars
-    } catch {
-      // ignore
-    }
-  });
-  return totalValue;
-}
-
-function formatMoney(dollars: number, options?: { compact?: boolean; showSign?: boolean }): string {
-  const absDollars = Math.abs(dollars);
-  let formatted: string;
-
-  if (options?.compact) {
-    if (absDollars >= 1000000) {
-      formatted = `${(absDollars / 1000000).toFixed(1)}m`;
-    } else if (absDollars >= 1000) {
-      formatted = `${(absDollars / 1000).toFixed(1)}k`;
-    } else {
-      formatted = absDollars.toLocaleString(undefined, { maximumFractionDigits: 2 });
-    }
-  } else {
-    formatted = absDollars.toLocaleString(undefined, {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    });
-  }
-
-  if (options?.showSign && dollars !== 0) {
-    return dollars >= 0 ? `+$${formatted}` : `-$${formatted}`;
-  }
-  return dollars >= 0 ? `$${formatted}` : `-$${formatted}`;
-}
-
-// Enhanced chart tooltip with time and better formatting
-function ChartTooltip({
-  active,
-  payload,
-}: {
-  active?: boolean;
-  payload?: Array<{ value: number; payload: { date: string; timestamp: string } }>;
-}) {
-  if (!active || !payload || !payload.length) return null;
-  const value = payload[0].value;
-  const date = payload[0].payload.date;
-  const timestamp = payload[0].payload.timestamp;
-
-  // Format time
-  const time = format(new Date(timestamp), "MMM d, yyyy 'at' h:mm a");
-
-  return (
-    <div className="bg-popover/95 backdrop-blur-sm border border-border rounded-lg px-3 py-2 shadow-xl">
-      <div className="text-xs text-muted-foreground mb-1">{time}</div>
-      <div className={cn("font-mono font-semibold text-base", value >= 0 ? "text-green-500" : "text-red-500")}>
-        {value >= 0 ? "+" : ""}${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-      </div>
-    </div>
-  );
-}
-
-type TimeRange = "1D" | "1W" | "1M" | "ALL";
-
 export function ProfileContent({ userId }: ProfileContentProps) {
   const searchParams = useSearchParams();
   const defaultTab = searchParams.get("tab") || "positions";
-  const [timeRange, setTimeRange] = useState<TimeRange>("ALL");
-  const [hoveredPnL, setHoveredPnL] = useState<{ value: number; timestamp: string } | null>(null);
   const { user } = usePrivy();
+  const authFetch = useAuthFetch();
 
   const { data: profile, isLoading: profileLoading } = useQuery({
     queryKey: ["profile"],
-    queryFn: fetchProfile,
+    queryFn: async () => {
+      const res = await authFetch("/api/me");
+      if (!res.ok) return null;
+      return res.json();
+    },
   });
 
   const { data: activity, isLoading: activityLoading } = useQuery({
     queryKey: ["user-activity", userId],
-    queryFn: () => fetchUserActivity(userId),
+    queryFn: async () => {
+      const res = await authFetch(`/api/users/${userId}/activity`);
+      if (!res.ok) return { bets: [], positions: [] };
+      return res.json();
+    },
   });
 
   const { data: stats } = useQuery({
     queryKey: ["user-stats"],
-    queryFn: fetchUserStats,
+    queryFn: async (): Promise<UserStats | null> => {
+      const res = await authFetch("/api/me/stats");
+      if (!res.ok) return null;
+      return res.json();
+    },
   });
 
   const { data: pnlHistory } = useQuery({
     queryKey: ["pnl-history-header"],
-    queryFn: fetchPnLHistory,
+    queryFn: async (): Promise<PnLHistoryPoint[]> => {
+      const res = await authFetch("/api/me/pnl-history?days=90");
+      if (!res.ok) return [];
+      return res.json();
+    },
   });
 
   const { data: positionsValue } = useQuery({
     queryKey: ["positions-value"],
-    queryFn: fetchPositionsValue,
+    queryFn: async (): Promise<number> => {
+      const res = await authFetch("/api/me/positions");
+      if (!res.ok) return 0;
+      const positions = await res.json();
+
+      let totalValue = 0;
+      positions.forEach(
+        (pos: {
+          shares0: number;
+          shares1: number;
+          market: { outcomePrices: string };
+        }) => {
+          try {
+            const prices = JSON.parse(pos.market.outcomePrices);
+            totalValue += (pos.shares0 || 0) * Number(prices[0]);
+            totalValue += (pos.shares1 || 0) * Number(prices[1]);
+          } catch {
+            // ignore
+          }
+        }
+      );
+      return totalValue;
+    },
   });
 
   if (profileLoading) {
@@ -184,277 +117,53 @@ export function ProfileContent({ userId }: ProfileContentProps) {
     );
   }
 
-  const displayName = profile?.name || profile?.handle || 
-    user?.twitter?.username || user?.email?.address?.split("@")[0] || "User";
+  const displayName =
+    profile?.name ||
+    profile?.handle ||
+    user?.twitter?.username ||
+    user?.email?.address?.split("@")[0] ||
+    "User";
   const twitterHandle = profile?.handle;
   const avatarUrl = profile?.profileImageUrl || user?.twitter?.profilePictureUrl;
   const totalPnL = stats?.totalPnL || 0;
-  const isPositive = totalPnL >= 0;
-  
-  // Use hovered value if available, otherwise show the total
-  const displayPnL = hoveredPnL?.value ?? totalPnL;
-  const displayIsPositive = displayPnL >= 0;
-
-  // Filter chart data based on time range
-  const now = Date.now();
-  const rangeMs: Record<TimeRange, number> = {
-    "1D": 24 * 60 * 60 * 1000,
-    "1W": 7 * 24 * 60 * 60 * 1000,
-    "1M": 30 * 24 * 60 * 60 * 1000,
-    "ALL": Infinity,
-  };
-
-  // Get sorted raw data points within range
-  const rawChartData = (pnlHistory || [])
-    .filter((point) => {
-      if (timeRange === "ALL") return true;
-      return now - new Date(point.timestamp).getTime() <= rangeMs[timeRange];
-    })
-    .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
-    .map((point) => ({
-      timestamp: new Date(point.timestamp).getTime(),
-      value: point.realizedPnL + point.unrealizedPnL,
-    }));
-
-  // Generate evenly spaced data points across the ENTIRE time range
-  const generateChartData = () => {
-    // Determine time range boundaries
-    const rangeStart = timeRange === "ALL" 
-      ? (rawChartData.length > 0 ? rawChartData[0].timestamp : now - 7 * 24 * 60 * 60 * 1000)
-      : now - rangeMs[timeRange];
-    const rangeEnd = now;
-    
-    // Number of points based on time range
-    const pointCount: Record<TimeRange, number> = {
-      "1D": 24,   // 1 per hour
-      "1W": 42,   // 1 every 4 hours
-      "1M": 30,   // 1 per day
-      "ALL": Math.min(90, Math.max(30, rawChartData.length * 2)), // Dynamic
-    };
-    
-    const numPoints = pointCount[timeRange];
-    const interval = (rangeEnd - rangeStart) / numPoints;
-    const points: Array<{ date: string; timestamp: string; value: number }> = [];
-    
-    for (let i = 0; i <= numPoints; i++) {
-      const pointTime = rangeStart + (i * interval);
-      
-      // Find the latest P&L value at or before this point
-      let value = 0;
-      for (const dataPoint of rawChartData) {
-        if (dataPoint.timestamp <= pointTime) {
-          value = dataPoint.value;
-        } else {
-          break;
-        }
-      }
-      
-      points.push({
-        date: format(new Date(pointTime), timeRange === "1D" ? "h:mm a" : "MMM d"),
-        timestamp: new Date(pointTime).toISOString(),
-        value,
-      });
-    }
-    
-    return points;
-  };
-
-  const chartData = generateChartData();
-  const hasChartData = chartData.length > 1 || rawChartData.length > 0;
 
   return (
     <div className="max-w-6xl mx-auto">
       {/* Header - Two column layout like Polymarket */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
         {/* Left side - User info */}
-        <div className="border border-border rounded-xl p-5 flex flex-col">
-          <div className="flex items-center gap-4">
-            {/* Avatar */}
-            <div className="relative h-16 w-16 rounded-full overflow-hidden bg-gradient-to-br from-orange-400 via-green-400 to-blue-400 flex-shrink-0">
-              {avatarUrl ? (
-                <Image
-                  src={avatarUrl}
-                  alt={displayName}
-                  fill
-                  className="object-cover"
-                />
-              ) : (
-                <div className="h-full w-full flex items-center justify-center">
-                  <User className="h-8 w-8 text-white/70" />
-                </div>
-              )}
-            </div>
-
-            {/* Name & meta */}
-            <div className="flex-1 min-w-0">
-              <h1 className="text-xl font-bold truncate">{displayName}</h1>
-              <div className="flex items-center gap-2 mt-0.5">
-                {twitterHandle && (
-                  <>
-                    <a
-                      href={`https://x.com/${twitterHandle}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-sm text-muted-foreground hover:text-foreground transition-colors inline-flex items-center gap-1"
-                    >
-                      @{twitterHandle}
-                      <ExternalLink className="h-3 w-3" />
-                    </a>
-                    <span className="text-muted-foreground">·</span>
-                  </>
-                )}
-                <span className="text-sm text-muted-foreground">
-                  Joined {profile.createdAt ? format(new Date(profile.createdAt), "MMM yyyy") : "recently"}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Stats row - pushed to bottom */}
-          <div className="flex items-center gap-6 pt-6 mt-auto border-t border-border">
-            <div>
-              <div className="text-2xl font-bold tabular-nums">
-                {formatMoney(positionsValue || 0, { compact: true })}
-              </div>
-              <div className="text-sm text-muted-foreground mt-1">Positions Value</div>
-            </div>
-            <div className="h-10 w-px bg-border" />
-            <div>
-              <div className="text-2xl font-bold tabular-nums">
-                {stats ? `${(stats.winRate * 100).toFixed(0)}%` : "0%"}
-              </div>
-              <div className="text-sm text-muted-foreground mt-1">
-                Win Rate
-                {stats && stats.totalBets > 0 && (
-                  <span className="ml-1">({stats.wonBets}W-{stats.lostBets}L)</span>
-                )}
-              </div>
-            </div>
-            <div className="h-10 w-px bg-border" />
-            <div>
-              <div className="text-2xl font-bold tabular-nums">
-                {stats?.totalBets?.toLocaleString() || 0}
-              </div>
-              <div className="text-sm text-muted-foreground mt-1">Predictions</div>
-            </div>
-          </div>
-        </div>
+        <ProfileHeaderCard
+          displayName={displayName}
+          avatarUrl={avatarUrl}
+          handle={twitterHandle}
+          showHandleLink={true}
+          joinedAt={profile.createdAt}
+          stats={[
+            {
+              label: "Positions Value",
+              value: formatMoney(positionsValue || 0, { compact: true }),
+            },
+            {
+              label: "Win Rate",
+              value: stats ? `${(stats.winRate * 100).toFixed(0)}%` : "0%",
+              sublabel:
+                stats && stats.totalBets > 0
+                  ? `(${stats.wonBets}W-${stats.lostBets}L)`
+                  : undefined,
+            },
+            {
+              label: "Predictions",
+              value: stats?.totalBets?.toLocaleString() || 0,
+            },
+          ]}
+        />
 
         {/* Right side - P&L Chart */}
-        <div className="border border-border rounded-xl p-5">
-          {/* Header with P&L value and time range */}
-          <div className="flex items-start justify-between mb-4">
-            <div>
-              <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-                <span className={cn("w-2 h-2 rounded-full", displayIsPositive ? "bg-green-500" : "bg-red-500")} />
-                Profit/Loss
-              </div>
-              <div className={cn(
-                "text-3xl font-bold tabular-nums tracking-tight",
-                displayIsPositive ? "text-green-500" : "text-red-500"
-              )}>
-                {formatMoney(displayPnL, { showSign: false })}
-              </div>
-              <div className="text-sm text-muted-foreground mt-0.5">
-                {hoveredPnL 
-                  ? format(new Date(hoveredPnL.timestamp), "MMM d, yyyy 'at' h:mm a")
-                  : timeRange === "1D" ? "Past 24 Hours"
-                  : timeRange === "1W" ? "Past 7 Days"
-                  : timeRange === "1M" ? "Past 30 Days"
-                  : "All-Time"
-                }
-              </div>
-            </div>
-
-            {/* Time range selector */}
-            <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1">
-              {(["1D", "1W", "1M", "ALL"] as TimeRange[]).map((range) => (
-                <button
-                  key={range}
-                  onClick={() => setTimeRange(range)}
-                  className={cn(
-                    "px-2.5 py-1 text-xs font-medium rounded-md transition-colors focus:outline-none",
-                    timeRange === range
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  {range}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Chart */}
-          <div 
-            className="h-[120px] -mx-2"
-            onMouseLeave={() => setHoveredPnL(null)}
-          >
-            {hasChartData ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart 
-                  data={chartData} 
-                  margin={{ top: 5, right: 5, left: 5, bottom: 5 }}
-                  onMouseMove={(state) => {
-                    if (state?.activePayload?.[0]?.payload) {
-                      const { value, timestamp } = state.activePayload[0].payload;
-                      setHoveredPnL({ value, timestamp });
-                    }
-                  }}
-                  onMouseLeave={() => setHoveredPnL(null)}
-                >
-                  <defs>
-                    <linearGradient id="pnlGradientPositive" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
-                      <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0.05} />
-                    </linearGradient>
-                    <linearGradient id="pnlGradientNegative" x1="0" y1="1" x2="0" y2="0">
-                      <stop offset="0%" stopColor="#ef4444" stopOpacity={0.3} />
-                      <stop offset="100%" stopColor="#ef4444" stopOpacity={0.05} />
-                    </linearGradient>
-                  </defs>
-                  <XAxis dataKey="date" hide />
-                  <YAxis 
-                    hide 
-                    domain={['dataMin', (dataMax: number) => Math.max(dataMax, 0) * 1.1 || 0.1]}
-                  />
-                  <Tooltip
-                    cursor={{ stroke: 'hsl(var(--muted-foreground))', strokeWidth: 1 }}
-                    content={({ active, payload }) => {
-                      if (active && payload?.[0]?.payload) {
-                        const { value, timestamp } = payload[0].payload;
-                        // Update the state for header display
-                        if (!hoveredPnL || hoveredPnL.value !== value || hoveredPnL.timestamp !== timestamp) {
-                          setTimeout(() => setHoveredPnL({ value, timestamp }), 0);
-                        }
-                      }
-                      return null; // Don't render a tooltip box
-                    }}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="value"
-                    stroke={isPositive ? "hsl(var(--primary))" : "#ef4444"}
-                    strokeWidth={2}
-                    fill={isPositive ? "url(#pnlGradientPositive)" : "url(#pnlGradientNegative)"}
-                    animationDuration={300}
-                    dot={false}
-                    activeDot={{ 
-                      r: 5, 
-                      fill: isPositive ? "hsl(var(--primary))" : "#ef4444",
-                      stroke: "hsl(var(--background))",
-                      strokeWidth: 2
-                    }}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
-                No trading history yet
-              </div>
-            )}
-          </div>
-        </div>
+        <PnLChart
+          totalPnL={totalPnL}
+          pnlHistory={pnlHistory}
+          interactive={true}
+        />
       </div>
 
       {/* Tabs */}
@@ -505,45 +214,6 @@ export function ProfileContent({ userId }: ProfileContentProps) {
           <ProfileSettings profile={profile} onlyReferrals={true} />
         </TabsContent>
       </Tabs>
-    </div>
-  );
-}
-
-function ProfileContentSkeleton() {
-  return (
-    <div className="max-w-6xl mx-auto">
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        <div className="border border-border rounded-xl p-5">
-          <div className="flex items-start gap-4 mb-6">
-            <Skeleton className="h-16 w-16 rounded-full" />
-            <div className="flex-1 space-y-2">
-              <Skeleton className="h-6 w-32" />
-              <Skeleton className="h-4 w-24" />
-            </div>
-          </div>
-          <div className="flex items-center gap-6 pt-4 border-t border-border">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="space-y-1">
-                <Skeleton className="h-8 w-16" />
-                <Skeleton className="h-4 w-20" />
-              </div>
-            ))}
-          </div>
-        </div>
-        <div className="border border-border rounded-xl p-5">
-          <div className="flex items-start justify-between mb-4">
-            <div className="space-y-2">
-              <Skeleton className="h-4 w-20" />
-              <Skeleton className="h-9 w-32" />
-              <Skeleton className="h-4 w-16" />
-            </div>
-            <Skeleton className="h-8 w-32 rounded-lg" />
-          </div>
-          <Skeleton className="h-[120px] w-full" />
-        </div>
-      </div>
-      <Skeleton className="h-10 w-full mb-6" />
-      <Skeleton className="h-64 w-full" />
     </div>
   );
 }

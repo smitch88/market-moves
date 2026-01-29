@@ -15,12 +15,15 @@ import {
 import type { Market, Event } from "@vault/database";
 import { cn } from "@vault/ui/lib/utils";
 import { SuccessModal } from "../markets/betting-panel/success-modal";
+import { useAuthFetch } from "@/lib/auth/auth-fetch";
 
 interface SportsBettingSidebarProps {
   event: Event;
   selectedMarket: Market | null;
   selectedOutcome: number | null;
   onClearSelection: () => void;
+  /** Compact mode for mobile fixed bottom bar */
+  compact?: boolean;
 }
 
 // Parse outcomes from JSON
@@ -45,14 +48,14 @@ export function SportsBettingSidebar({
   selectedMarket,
   selectedOutcome,
   onClearSelection,
+  compact = false,
 }: SportsBettingSidebarProps) {
   const { login, authenticated } = usePrivy();
   const queryClient = useQueryClient();
+  const authFetch = useAuthFetch();
 
   const [amount, setAmount] = useState("");
   const [betId, setBetId] = useState<string | null>(null);
-  const [tweetUrl, setTweetUrl] = useState("");
-  const [step, setStep] = useState<"bet" | "verify">("bet");
   const [tradeMode, setTradeMode] = useState<"buy" | "sell">("buy");
 
   // Success modal state
@@ -89,8 +92,6 @@ export function SportsBettingSidebar({
   useEffect(() => {
     setAmount("");
     setBetId(null);
-    setTweetUrl("");
-    setStep("bet");
     setPreviousPrice(null);
     setPriceChangeDirection(null);
   }, [selectedMarket?.id, selectedOutcome]);
@@ -99,7 +100,7 @@ export function SportsBettingSidebar({
   const { data: profile } = useQuery({
     queryKey: ["profile"],
     queryFn: async () => {
-      const res = await fetch("/api/me");
+      const res = await authFetch("/api/me");
       if (!res.ok) return null;
       return res.json();
     },
@@ -129,7 +130,7 @@ export function SportsBettingSidebar({
     queryKey: ["position", selectedMarket?.id],
     queryFn: async () => {
       if (!selectedMarket) return null;
-      const res = await fetch(`/api/me/positions?marketId=${selectedMarket.id}`);
+      const res = await authFetch(`/api/me/positions?marketId=${selectedMarket.id}`);
       if (!res.ok) return null;
       return res.json();
     },
@@ -141,33 +142,7 @@ export function SportsBettingSidebar({
     return selectedOutcome === 0 ? (position.shares0 || 0) : (position.shares1 || 0);
   }, [position, selectedOutcome]);
 
-  // Check for pending bets
-  const { data: pendingBetData } = useQuery({
-    queryKey: ["pendingBet", selectedMarket?.id],
-    queryFn: async () => {
-      if (!selectedMarket) return null;
-      const res = await fetch(`/api/bets/pending?marketId=${selectedMarket.id}`);
-      if (!res.ok) return null;
-      return res.json();
-    },
-    enabled: authenticated && !!selectedMarket,
-  });
-
-  // Initialize pending bet if found
-  useEffect(() => {
-    if (pendingBetData?.pendingBet && !betId && step === "bet") {
-      const pendingBet = pendingBetData.pendingBet;
-      setBetId(pendingBet.id);
-      // Amount is now stored in dollars (Decimal), convert to number for display
-      const displayAmount = typeof pendingBet.amount === 'number' 
-        ? pendingBet.amount 
-        : parseFloat(String(pendingBet.amount));
-      setAmount(String(displayAmount));
-      setStep("verify");
-    }
-  }, [pendingBetData, betId, step]);
-
-  // Place bet/trade mutation
+  // Place bet/trade mutation - bet is confirmed immediately (no tweet required)
   const placeBetMutation = useMutation({
     mutationFn: async () => {
       if (!selectedMarket) throw new Error("No market selected");
@@ -175,7 +150,7 @@ export function SportsBettingSidebar({
       // Use CPMM trade endpoint
       const endpoint = "/api/trades/buy";
       const amountToSend = parseInt(amount, 10); // Amount in dollars
-      const res = await fetch(endpoint, {
+      const res = await authFetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -191,12 +166,26 @@ export function SportsBettingSidebar({
       }
       return res.json();
     },
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
+      // Store bet ID for potential share-for-XP
       setBetId(data.bet.id);
-      setStep("verify");
-      queryClient.invalidateQueries({ queryKey: ["pendingBet", selectedMarket?.id] });
-      queryClient.invalidateQueries({ queryKey: ["quote"] });
-      toast.info(`Order for ~${quote?.outputAmount?.toFixed(2) || "?"} shares reserved! Share on X to confirm.`);
+      
+      // Show success immediately
+      setConfirmedBetAmount(parseInt(amount, 10));
+      setConfirmedOutcome(selectedOutcome);
+      setShowSuccessModal(true);
+      
+      // Reset form
+      setAmount("");
+      
+      // Invalidate and refetch queries
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["profile"] }),
+        queryClient.invalidateQueries({ queryKey: ["quote"] }),
+        queryClient.refetchQueries({ queryKey: ["market", event.slug] }),
+      ]);
+      
+      toast.success("Bet confirmed!");
     },
     onError: (error: Error) => {
       toast.error(error.message || "Failed to place bet");
@@ -207,7 +196,7 @@ export function SportsBettingSidebar({
   const sellSharesMutation = useMutation({
     mutationFn: async () => {
       if (!selectedMarket) throw new Error("Invalid market");
-      const res = await fetch("/api/trades/sell", {
+      const res = await authFetch("/api/trades/sell", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -243,77 +232,6 @@ export function SportsBettingSidebar({
     },
   });
 
-  // Tweet intent mutation
-  const tweetIntentMutation = useMutation({
-    mutationFn: async () => {
-      if (!selectedMarket) throw new Error("No market selected");
-      const res = await fetch("/api/tweet/intent", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          marketId: selectedMarket.id,
-          betId,
-        }),
-      });
-      if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.error || "Failed to create tweet intent");
-      }
-      return res.json();
-    },
-    onSuccess: (data) => {
-      window.open(data.intentUrl, "_blank", "width=550,height=420");
-    },
-    onError: (error: Error) => {
-      toast.error(error.message || "Failed to create tweet.");
-    },
-  });
-
-  // Verify tweet mutation
-  const verifyTweetMutation = useMutation({
-    mutationFn: async (method: "timeline" | "url") => {
-      if (!selectedMarket) throw new Error("No market selected");
-      const res = await fetch("/api/tweet/verify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          marketId: selectedMarket.id,
-          betId,
-          method,
-          tweetUrl: method === "url" ? tweetUrl : undefined,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to verify tweet");
-      }
-      return data;
-    },
-    onSuccess: async (data) => {
-      if (data.verified) {
-        setConfirmedBetAmount(parseInt(amount, 10));
-        setConfirmedOutcome(selectedOutcome);
-        setShowSuccessModal(true);
-
-        setBetId(null);
-        setStep("bet");
-        setAmount("");
-        setTweetUrl("");
-
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ["profile"] }),
-          queryClient.refetchQueries({ queryKey: ["market", event.slug] }),
-          queryClient.refetchQueries({ queryKey: ["pendingBet", selectedMarket?.id] }),
-        ]);
-      } else {
-        toast.warning(data.message || "Tweet verification failed. Please try again.");
-      }
-    },
-    onError: (error: Error) => {
-      toast.error(error.message || "Failed to verify tweet.");
-    },
-  });
-
   // Handlers
   const handlePlaceBet = () => {
     if (!authenticated) {
@@ -327,15 +245,6 @@ export function SportsBettingSidebar({
     } else {
       placeBetMutation.mutate();
     }
-  };
-
-  const handleOpenTweetIntent = () => {
-    if (!betId) return;
-    tweetIntentMutation.mutate();
-  };
-
-  const handleVerify = (method: "timeline" | "url") => {
-    verifyTweetMutation.mutate(method);
   };
 
   const generateTicketImage = useCallback(async (): Promise<string | null> => {
@@ -409,8 +318,9 @@ export function SportsBettingSidebar({
     }
   };
 
-  // If no market selected, show placeholder
+  // If no market selected, show placeholder (not in compact mode)
   if (!selectedMarket) {
+    if (compact) return null;
     return (
       <motion.div
         initial={{ opacity: 0, y: 10 }}
@@ -444,6 +354,86 @@ export function SportsBettingSidebar({
   const sharesDisplay = quote ? quote.outputAmount?.toFixed(2) : null;
   const potentialWin = quote?.outputAmount ? Math.floor(quote.outputAmount) : 0; // 1 share = $1 at settlement
   const priceImpactDisplay = quote?.priceImpact ? (quote.priceImpact * 100).toFixed(2) : null;
+
+  // Compact mode for mobile bottom bar
+  if (compact && selectedOutcome !== null) {
+    return (
+      <>
+        <div className="flex items-center gap-3">
+          {/* Selection info */}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-sm truncate">
+                {outcomes[selectedOutcome]}
+              </span>
+              <span className="text-xs text-muted-foreground">
+                {selectedPrice}%
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground truncate">
+              {selectedMarket.question}
+            </p>
+          </div>
+
+          {/* Amount input - compact */}
+          <div className="relative w-24">
+            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">$</span>
+            <Input
+              type="number"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder="0"
+              className="h-10 pl-6 pr-2 text-right text-sm font-bold bg-muted/30"
+              min={1}
+              max={balance}
+            />
+          </div>
+
+          {/* Bet button - compact */}
+          <Button
+            onClick={handlePlaceBet}
+            disabled={
+              !canBet || 
+              !amount || 
+              parseFloat(amount) <= 0 || 
+              placeBetMutation.isPending
+            }
+            className="h-10 px-4"
+            size="sm"
+          >
+            {placeBetMutation.isPending ? "..." : "Bet"}
+          </Button>
+
+          {/* Close button */}
+          <button
+            onClick={onClearSelection}
+            className="w-8 h-8 rounded-full bg-muted/50 hover:bg-muted flex items-center justify-center transition-colors shrink-0"
+          >
+            <X className="h-4 w-4 text-muted-foreground" />
+          </button>
+        </div>
+
+        {/* Success Modal - still needed for mobile */}
+        <SuccessModal
+          open={showSuccessModal}
+          onOpenChange={setShowSuccessModal}
+          market={selectedMarket}
+          event={event}
+          outcomes={outcomes}
+          confirmedOutcome={confirmedOutcome}
+          confirmedBetAmount={confirmedBetAmount}
+          betId={betId}
+          profile={profile}
+          ticketRef={ticketRef}
+          isGeneratingImage={isGeneratingImage}
+          copied={copied}
+          onShareOnX={handleShareTicketOnX}
+          onDownload={handleDownloadTicket}
+          onCopyLink={handleCopyLink}
+        />
+      </>
+    );
+  }
 
   return (
     <>
@@ -556,7 +546,7 @@ export function SportsBettingSidebar({
                   )}
                 </div>
               </motion.div>
-            ) : step === "bet" ? (
+            ) : (
               <motion.div
                 key="bet"
                 initial={{ opacity: 0, x: -10 }}
@@ -750,73 +740,6 @@ export function SportsBettingSidebar({
                   </Link>
                 </p>
               </motion.div>
-            ) : (
-              <motion.div
-                key="verify"
-                initial={{ opacity: 0, x: 10 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -10 }}
-                className="space-y-4"
-              >
-                {/* Verification step */}
-                <div className="text-center py-2">
-                  <p className="text-sm text-muted-foreground mb-1">
-                    Share on X to confirm your bet
-                  </p>
-                  <p className="font-semibold text-lg">
-                    ${amount} on {selectedOutcome !== null && outcomes[selectedOutcome]}
-                  </p>
-                </div>
-
-                <Button onClick={handleOpenTweetIntent} className="w-full" size="lg">
-                  Share on X
-                </Button>
-
-                <div className="relative">
-                  <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t border-border/50" />
-                  </div>
-                  <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-card px-3 text-muted-foreground">or paste URL</span>
-                  </div>
-                </div>
-
-                <div className="flex gap-2">
-                  <Input
-                    value={tweetUrl}
-                    onChange={(e) => setTweetUrl(e.target.value)}
-                    placeholder="https://x.com/..."
-                    className="flex-1 text-sm"
-                  />
-                  <Button
-                    onClick={() => handleVerify("url")}
-                    disabled={!tweetUrl || verifyTweetMutation.isPending}
-                    variant="secondary"
-                    size="sm"
-                  >
-                    Verify
-                  </Button>
-                </div>
-
-                <Button
-                  onClick={() => handleVerify("timeline")}
-                  variant="outline"
-                  className="w-full"
-                  disabled={verifyTweetMutation.isPending}
-                >
-                  {verifyTweetMutation.isPending ? "Verifying..." : "Auto-detect from timeline"}
-                </Button>
-
-                <button
-                  onClick={() => {
-                    setStep("bet");
-                    setBetId(null);
-                  }}
-                  className="w-full text-sm text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  ← Go back
-                </button>
-              </motion.div>
             )}
           </AnimatePresence>
         </div>
@@ -832,6 +755,7 @@ export function SportsBettingSidebar({
           outcomes={outcomes}
           confirmedOutcome={confirmedOutcome}
           confirmedBetAmount={confirmedBetAmount}
+          betId={betId}
           profile={profile}
           ticketRef={ticketRef}
           isGeneratingImage={isGeneratingImage}

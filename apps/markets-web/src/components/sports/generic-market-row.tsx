@@ -70,18 +70,18 @@ export function GenericMarketRow({
       <MarketCard>
         <div
           className={cn(
-            "p-4 hover:bg-muted/20 transition-colors",
+            "p-3 sm:p-4 hover:bg-muted/20 transition-colors",
             onToggleExpand && "cursor-pointer",
             isExpanded && "bg-muted/10"
           )}
           onClick={() => onToggleExpand?.(market.id)}
         >
-          <div className="flex items-center justify-between gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
             <div className="flex-1 min-w-0">
-              <h4 className="font-medium text-foreground line-clamp-2">
+              <h4 className="font-medium text-sm sm:text-base text-foreground line-clamp-2">
                 {displayLabel}
               </h4>
-              <p className="text-xs text-muted-foreground mt-1">
+              <p className="text-xs text-muted-foreground mt-0.5 sm:mt-1">
                 {formatVolume(volume)} volume
               </p>
             </div>

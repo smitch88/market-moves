@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma, BetStatus, BalanceReason } from "@vault/database";
 import { requireUser } from "@vault/auth";
+import { createPriceSnapshot } from "@/lib/services/price-snapshot-service";
+import { broadcastPriceChange } from "@/lib/services/price-broadcaster";
 import { z } from "zod";
 
 const placeBetSchema = z.object({
@@ -53,16 +55,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Insufficient balance" }, { status: 400 });
     }
 
-    // Create bet and update balance in transaction
+    // Create bet, update balance, position, and pool in transaction (immediate confirmation)
     const result = await prisma.$transaction(async (tx) => {
-      // Create the bet (pending tweet verification)
+      const isOutcome0 = outcomeIndex === 0;
+
+      // Create the bet (confirmed immediately - no tweet required)
       const bet = await tx.bet.create({
         data: {
           userId: user.id,
           marketId: market.id,
           outcomeIndex,
           amount,
-          status: BetStatus.PENDING_TWEET,
+          status: BetStatus.CONFIRMED,
+          confirmedAt: new Date(),
         },
       });
 
@@ -84,6 +89,83 @@ export async function POST(request: NextRequest) {
           correlationId: bet.id,
         },
       });
+
+      // Update or create position (pari-mutuel style)
+      await tx.position.upsert({
+        where: {
+          userId_marketId: {
+            userId: user.id,
+            marketId: market.id,
+          },
+        },
+        update: {
+          ...(isOutcome0
+            ? {
+                amount0: { increment: amount },
+                weighted0: { increment: amount * bet.weight },
+              }
+            : {
+                amount1: { increment: amount },
+                weighted1: { increment: amount * bet.weight },
+              }),
+          lastBetAt: new Date(),
+        },
+        create: {
+          userId: user.id,
+          marketId: market.id,
+          amount0: isOutcome0 ? amount : 0,
+          amount1: isOutcome0 ? 0 : amount,
+          weighted0: isOutcome0 ? amount * bet.weight : 0,
+          weighted1: isOutcome0 ? 0 : amount * bet.weight,
+          lastBetAt: new Date(),
+        },
+      });
+
+      // Update market pool totals
+      const updatedMarket = await tx.market.update({
+        where: { id: market.id },
+        data: {
+          ...(isOutcome0
+            ? { pool0: { increment: amount } }
+            : { pool1: { increment: amount } }),
+        },
+      });
+
+      // Calculate new prices (pari-mutuel style)
+      const seed0Num = Number(updatedMarket.seed0);
+      const seed1Num = Number(updatedMarket.seed1);
+      const pool0Num = Number(updatedMarket.pool0);
+      const pool1Num = Number(updatedMarket.pool1);
+      
+      const totalPool = seed0Num + seed1Num + pool0Num + pool1Num;
+      const price0 = totalPool > 0 ? (seed0Num + pool0Num) / totalPool : 0.5;
+      const price1 = totalPool > 0 ? (seed1Num + pool1Num) / totalPool : 0.5;
+
+      // Persist new prices to database
+      await tx.market.update({
+        where: { id: market.id },
+        data: {
+          outcomePrices: JSON.stringify([price0.toFixed(4), price1.toFixed(4)]),
+        },
+      });
+
+      // Create price snapshot for chart history
+      await createPriceSnapshot(
+        tx,
+        market.id,
+        updatedMarket.pool0,
+        updatedMarket.pool1,
+        updatedMarket.seed0,
+        updatedMarket.seed1
+      );
+
+      // Broadcast to connected clients for real-time updates
+      broadcastPriceChange(
+        market.id,
+        market.eventId,
+        [price0, price1],
+        [seed0Num + pool0Num, seed1Num + pool1Num]
+      );
 
       return bet;
     });

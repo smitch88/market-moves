@@ -10,6 +10,7 @@ import { ProfileCard } from "./profile-card";
 import { SearchBar } from "./search-bar";
 import { SearchModal } from "./search-modal";
 import { Search, Bug } from "lucide-react";
+import { useAuthFetch } from "@/lib/auth/auth-fetch";
 import { useState, Suspense } from "react";
 import { cn } from "@vault/ui/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
@@ -26,6 +27,7 @@ export function Header() {
   const pathname = usePathname();
   const { login, authenticated, ready } = usePrivy();
   const [searchModalOpen, setSearchModalOpen] = useState(false);
+  const authFetch = useAuthFetch();
 
   // Only fetch impersonation state in dev mode
   const { data: impersonationData } = useQuery({
@@ -41,32 +43,41 @@ export function Header() {
   const isImpersonating = isDev && impersonationData?.active;
   // Only show ProfileCard if actually authenticated via Privy OR actively impersonating
   const hasSession = authenticated || isImpersonating;
+  // Wait for Privy to be ready before making authenticated requests
+  const canFetchAuthData = (ready && authenticated) || isImpersonating;
 
   // Fetch user profile for PnL
-  const { data: profile } = useQuery({
+  const { data: profile, isLoading: profileLoading } = useQuery({
     queryKey: ["profile"],
     queryFn: async () => {
-      const res = await fetch("/api/me");
+      const res = await authFetch("/api/me");
       if (!res.ok) return null;
       return res.json();
     },
-    enabled: hasSession,
+    enabled: canFetchAuthData,
+    staleTime: 10000, // Consider data stale after 10 seconds
+    refetchOnMount: true,
+    refetchOnWindowFocus: true,
+    retry: 3, // Retry failed requests (handles race with user provisioning)
+    retryDelay: (attemptIndex) => Math.min(500 * 2 ** attemptIndex, 3000),
   });
 
   // Fetch XP with auto-refresh
-  const { data: xpData } = useQuery({
+  const { data: xpData, isLoading: xpLoading } = useQuery({
     queryKey: ["xp"],
     queryFn: async () => {
-      const res = await fetch("/api/me/xp");
+      const res = await authFetch("/api/me/xp");
       if (!res.ok) return { xp: 0 };
       return res.json();
     },
-    enabled: hasSession,
+    enabled: canFetchAuthData,
     refetchInterval: 30000, // Refresh every 30 seconds
     staleTime: 10000, // Consider data stale after 10 seconds
   });
 
   const xp = xpData?.xp ?? 0;
+  // Show loading state while Privy is initializing or data is loading
+  const isLoadingUserData = !canFetchAuthData || profileLoading || xpLoading;
 
   return (
     <motion.header
@@ -152,13 +163,23 @@ export function Header() {
             <div className="hidden sm:flex items-center gap-5 mr-2">
               <div className="flex flex-col items-center">
                 <span className="text-[11px] text-muted-foreground font-medium tracking-wide">XP</span>
-                <span className="text-base font-semibold text-foreground">{xp.toLocaleString()}</span>
+                {isLoadingUserData ? (
+                  <span className="text-base font-semibold text-foreground/50 tabular-nums animate-pulse">---</span>
+                ) : (
+                  <span className="text-base font-semibold text-foreground tabular-nums">
+                    {xp.toLocaleString()}
+                  </span>
+                )}
               </div>
               <div className="flex flex-col items-center">
                 <span className="text-[11px] text-muted-foreground font-medium tracking-wide">Balance</span>
-                <span className="text-base font-semibold text-[#21C55E]">
-                  ${((profile?.balance ?? 0)).toLocaleString()}
-                </span>
+                {isLoadingUserData ? (
+                  <span className="text-base font-semibold text-[#21C55E]/50 animate-pulse">---</span>
+                ) : (
+                  <span className="text-base font-semibold text-[#21C55E]">
+                    ${((profile?.balance ?? 0)).toLocaleString()}
+                  </span>
+                )}
               </div>
             </div>
           )}

@@ -22,6 +22,7 @@ import {
   toast,
 } from "@vault/ui";
 import { User, LogOut, ChevronDown, Bug, Gift, Check, Copy, Users, Shield, Sun, Moon } from "lucide-react";
+import { useAuthFetch } from "@/lib/auth/auth-fetch";
 
 // Custom X (Twitter) logo icon
 function XIcon({ className }: { className?: string }) {
@@ -40,30 +41,29 @@ import { motion, AnimatePresence } from "framer-motion";
 
 const isDev = process.env.NODE_ENV === "development";
 
-async function fetchUserProfile() {
-  const res = await fetch("/api/me");
-  if (!res.ok) return null;
-  return res.json();
-}
-
 export function ProfileCard() {
   const { user, logout } = usePrivy();
   const queryClient = useQueryClient();
   const { theme, setTheme } = useTheme();
   const [copied, setCopied] = useState(false);
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
+  const authFetch = useAuthFetch();
   
   // Fetch user profile (works for both real auth and impersonation)
   const { data: profile } = useQuery({
     queryKey: ["profile"],
-    queryFn: fetchUserProfile,
+    queryFn: async () => {
+      const res = await authFetch("/api/me");
+      if (!res.ok) return null;
+      return res.json();
+    },
   });
 
   // Fetch XP for level calculation
   const { data: xpData } = useQuery({
     queryKey: ["xp"],
     queryFn: async () => {
-      const res = await fetch("/api/me/xp");
+      const res = await authFetch("/api/me/xp");
       if (!res.ok) return { xp: 0 };
       return res.json();
     },
@@ -121,7 +121,7 @@ export function ProfileCard() {
 
   return (
     <>
-    <DropdownMenu>
+    <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
         <button className={`flex items-center gap-2 px-3 py-1.5 rounded-full glass glass-hover ${isImpersonating ? "ring-2 ring-amber-500/50" : ""}`}>
           {/* Avatar with progress ring */}
@@ -173,7 +173,7 @@ export function ProfileCard() {
           <ChevronDown className="h-4 w-4 text-muted-foreground" />
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56">
+      <DropdownMenuContent align="end" sideOffset={8} collisionPadding={16} className="w-56">
         {isImpersonating && (
           <>
             <div className="px-2 py-1.5 bg-amber-500/10 border-b border-amber-500/30">
