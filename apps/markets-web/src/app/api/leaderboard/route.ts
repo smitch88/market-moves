@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   getLeaderboard,
+  getUserLeaderboardEntry,
   LeaderboardMetric,
   LeaderboardPeriod,
 } from "@/lib/services/leaderboard-service";
+import { getEffectiveUser } from "@/lib/auth/get-effective-user";
 
 export const dynamic = "force-dynamic";
 
@@ -13,7 +15,8 @@ export const dynamic = "force-dynamic";
  * Query params:
  * - metric: "xp" | "pnl" (default: "xp")
  * - period: "all" | "monthly" | "weekly" (default: "all")
- * - limit: number (default: 100, max: 100)
+ * - page: number (default: 1)
+ * - pageSize: number (default: 25, max: 50)
  */
 export async function GET(request: NextRequest) {
   try {
@@ -22,7 +25,8 @@ export async function GET(request: NextRequest) {
     // Parse and validate query params
     const metricParam = searchParams.get("metric") || "xp";
     const periodParam = searchParams.get("period") || "all";
-    const limitParam = searchParams.get("limit") || "100";
+    const pageParam = searchParams.get("page") || "1";
+    const pageSizeParam = searchParams.get("pageSize") || "25";
 
     // Validate metric
     const validMetrics: LeaderboardMetric[] = ["xp", "pnl"];
@@ -36,18 +40,40 @@ export async function GET(request: NextRequest) {
       ? (periodParam as LeaderboardPeriod)
       : "all";
 
-    // Validate limit
-    const limit = Math.min(100, Math.max(1, parseInt(limitParam, 10) || 100));
+    // Validate pagination
+    const page = Math.max(1, parseInt(pageParam, 10) || 1);
+    const pageSize = Math.min(50, Math.max(1, parseInt(pageSizeParam, 10) || 25));
 
     // Get leaderboard data
-    const result = await getLeaderboard(metric, period, limit);
+    const result = await getLeaderboard(metric, period, page, pageSize);
+
+    // Try to get current user's rank if authenticated
+    let currentUserEntry = null;
+    try {
+      const user = await getEffectiveUser();
+      if (user) {
+        // Check if user is already in the current page
+        const isInCurrentPage = result.entries.some((e) => e.userId === user.id);
+        if (!isInCurrentPage) {
+          currentUserEntry = await getUserLeaderboardEntry(user.id, metric, period);
+        }
+      }
+    } catch {
+      // User not authenticated, that's fine
+    }
 
     // Return with cache headers for CDN caching
-    return NextResponse.json(result, {
-      headers: {
-        "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
+    return NextResponse.json(
+      {
+        ...result,
+        currentUserEntry,
       },
-    });
+      {
+        headers: {
+          "Cache-Control": "public, s-maxage=30, stale-while-revalidate=60",
+        },
+      }
+    );
   } catch (error) {
     console.error("Error fetching leaderboard:", error);
     return NextResponse.json(

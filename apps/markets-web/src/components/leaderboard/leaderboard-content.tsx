@@ -8,6 +8,7 @@ import {
   AvatarFallback,
   Input,
   Badge,
+  Button,
 } from "@vault/ui";
 import {
   Search,
@@ -19,6 +20,9 @@ import {
   Medal,
   Award,
   Loader2,
+  ChevronLeft,
+  ChevronRight,
+  User,
 } from "lucide-react";
 import { cn } from "@vault/ui/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
@@ -41,7 +45,11 @@ interface LeaderboardResponse {
   entries: LeaderboardEntry[];
   metric: "xp" | "pnl";
   period: "all" | "monthly" | "weekly";
+  page: number;
+  pageSize: number;
   totalUsers: number;
+  totalPages: number;
+  currentUserEntry: LeaderboardEntry | null;
   updatedAt: string;
 }
 
@@ -51,6 +59,8 @@ type Period = "all" | "monthly" | "weekly";
 // ============================================================================
 // CONSTANTS
 // ============================================================================
+
+const PAGE_SIZE = 25;
 
 const metricTabs = [
   { label: "XP", value: "xp" as Metric, icon: Sparkles },
@@ -118,45 +128,157 @@ const containerVariants = {
   visible: {
     opacity: 1,
     transition: {
-      staggerChildren: 0.03,
-      delayChildren: 0.1,
+      staggerChildren: 0.02,
+      delayChildren: 0.05,
     },
   },
 };
 
 const itemVariants = {
-  hidden: { opacity: 0, y: 8 },
+  hidden: { opacity: 0, y: 6 },
   visible: {
     opacity: 1,
     y: 0,
-    transition: { duration: 0.3, ease: [0.25, 0.1, 0.25, 1] as const },
+    transition: { duration: 0.25, ease: [0.25, 0.1, 0.25, 1] as const },
   },
 };
 
 // ============================================================================
-// COMPONENT
+// LEADERBOARD ROW COMPONENT
+// ============================================================================
+
+function LeaderboardRow({
+  entry,
+  index,
+  metric,
+  isCurrentUser = false,
+}: {
+  entry: LeaderboardEntry;
+  index: number;
+  metric: Metric;
+  isCurrentUser?: boolean;
+}) {
+  const displayName = entry.name || entry.handle || "Anonymous";
+  const rankIcon = getRankIcon(entry.rank);
+
+  return (
+    <motion.div
+      variants={itemVariants}
+      className={cn(
+        "flex items-center px-4 py-3 transition-colors rounded-lg",
+        isCurrentUser
+          ? "bg-primary/10 border border-primary/20"
+          : "hover:bg-muted/20"
+      )}
+    >
+      {/* Rank */}
+      <div className="w-12 flex items-center gap-1.5">
+        {rankIcon}
+        <span
+          className={cn(
+            "text-sm tabular-nums",
+            entry.rank <= 3 ? "font-semibold" : "text-muted-foreground"
+          )}
+        >
+          {entry.rank}
+        </span>
+      </div>
+
+      {/* Avatar + Name */}
+      <div className="flex-1 flex items-center gap-3 min-w-0">
+        <Avatar className="h-10 w-10 border border-border/30">
+          <AvatarImage src={entry.profileImageUrl || undefined} />
+          <AvatarFallback
+            className={cn(
+              "bg-gradient-to-br text-white text-sm",
+              getAvatarGradient(index)
+            )}
+          >
+            {displayName[0].toUpperCase()}
+          </AvatarFallback>
+        </Avatar>
+        <div className="min-w-0">
+          <p className={cn("font-medium truncate", isCurrentUser && "text-primary")}>
+            {displayName}
+            {isCurrentUser && (
+              <span className="ml-2 text-xs text-primary/70">(You)</span>
+            )}
+          </p>
+          {entry.handle && (
+            <p className="text-xs text-muted-foreground truncate">
+              @{entry.handle}
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* Level */}
+      {metric === "xp" && (
+        <div className="w-16 text-center hidden sm:block">
+          <Badge
+            variant="outline"
+            className="text-xs border-border/30 bg-transparent"
+          >
+            Lvl {entry.level ?? 0}
+          </Badge>
+        </div>
+      )}
+
+      {/* Value */}
+      <div className="w-28 text-right">
+        <span
+          className={cn(
+            "font-semibold tabular-nums",
+            metric === "xp"
+              ? "text-primary"
+              : entry.value >= 0
+              ? "text-emerald-400"
+              : "text-red-400"
+          )}
+        >
+          {metric === "xp" ? formatXp(entry.value) : formatPnl(entry.value)}
+        </span>
+      </div>
+    </motion.div>
+  );
+}
+
+// ============================================================================
+// MAIN COMPONENT
 // ============================================================================
 
 export function LeaderboardContent() {
   const [metric, setMetric] = useState<Metric>("xp");
   const [period, setPeriod] = useState<Period>("all");
+  const [page, setPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState("");
+
+  // Reset page when filters change
+  const handleMetricChange = (newMetric: Metric) => {
+    setMetric(newMetric);
+    setPage(1);
+  };
+
+  const handlePeriodChange = (newPeriod: Period) => {
+    setPeriod(newPeriod);
+    setPage(1);
+  };
 
   // Fetch leaderboard data
   const { data, isLoading, error } = useQuery<LeaderboardResponse>({
-    queryKey: ["leaderboard", metric, period],
+    queryKey: ["leaderboard", metric, period, page],
     queryFn: async () => {
       const res = await fetch(
-        `/api/leaderboard?metric=${metric}&period=${period}&limit=100`
+        `/api/leaderboard?metric=${metric}&period=${period}&page=${page}&pageSize=${PAGE_SIZE}`
       );
       if (!res.ok) throw new Error("Failed to fetch leaderboard");
       return res.json();
     },
-    staleTime: 60 * 1000, // 1 minute
-    refetchInterval: 5 * 60 * 1000, // Auto-refresh every 5 minutes
+    staleTime: 30 * 1000, // 30 seconds
+    refetchInterval: 60 * 1000, // Auto-refresh every minute
   });
 
-  // Filter by search
+  // Filter by search (client-side for current page)
   const filteredEntries = (data?.entries || []).filter((entry) => {
     if (!searchQuery) return true;
     const name = entry.name?.toLowerCase() || "";
@@ -167,6 +289,38 @@ export function LeaderboardContent() {
     );
   });
 
+  // Check if current user is in the displayed entries
+  const currentUserInPage = data?.currentUserEntry
+    ? filteredEntries.some((e) => e.userId === data.currentUserEntry?.userId)
+    : false;
+
+  // Pagination helpers
+  const totalPages = data?.totalPages || 1;
+  const canGoPrev = page > 1;
+  const canGoNext = page < totalPages;
+
+  // Generate page numbers to display
+  const getPageNumbers = () => {
+    const pages: (number | "ellipsis")[] = [];
+    const maxVisible = 5;
+
+    if (totalPages <= maxVisible) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
+    } else {
+      pages.push(1);
+      if (page > 3) pages.push("ellipsis");
+
+      const start = Math.max(2, page - 1);
+      const end = Math.min(totalPages - 1, page + 1);
+      for (let i = start; i <= end; i++) pages.push(i);
+
+      if (page < totalPages - 2) pages.push("ellipsis");
+      pages.push(totalPages);
+    }
+
+    return pages;
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -176,9 +330,7 @@ export function LeaderboardContent() {
         transition={{ duration: 0.4 }}
       >
         <h1 className="text-3xl font-bold mb-2">Leaderboard</h1>
-        <p className="text-muted-foreground">
-          Top predictors on Vault Markets
-        </p>
+        <p className="text-muted-foreground">Top predictors on Vault Markets</p>
       </motion.div>
 
       {/* Filters Row */}
@@ -196,7 +348,7 @@ export function LeaderboardContent() {
             return (
               <button
                 key={tab.value}
-                onClick={() => setPeriod(tab.value)}
+                onClick={() => handlePeriodChange(tab.value)}
                 className={cn(
                   "relative flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all",
                   isActive
@@ -228,7 +380,7 @@ export function LeaderboardContent() {
             return (
               <button
                 key={tab.value}
-                onClick={() => setMetric(tab.value)}
+                onClick={() => handleMetricChange(tab.value)}
                 className={cn(
                   "relative flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all",
                   isActive
@@ -250,17 +402,6 @@ export function LeaderboardContent() {
               </button>
             );
           })}
-        </div>
-
-        {/* Search */}
-        <div className="relative flex-1 max-w-xs">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground z-10 pointer-events-none" />
-          <Input
-            placeholder="Search users..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10 bg-muted/30 border-border/30 h-11 rounded-xl"
-          />
         </div>
       </motion.div>
 
@@ -284,23 +425,31 @@ export function LeaderboardContent() {
       {data && !isLoading && (
         <AnimatePresence mode="wait">
           <motion.div
-            key={`${metric}-${period}`}
+            key={`${metric}-${period}-${page}`}
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.3 }}
             className="space-y-4"
           >
-            {/* Table Header */}
+            {/* Table Header with Search */}
             <div className="flex items-center px-4 py-2 text-sm text-muted-foreground border-b border-border/30">
               <div className="w-12" />
-              <div className="flex-1" />
+              <div className="flex-1">
+                <div className="relative max-w-[200px]">
+                  <Search className="absolute left-0 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/50" />
+                  <Input
+                    placeholder="Search..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-5 h-7 text-sm bg-transparent border-0 rounded-none focus-visible:ring-0 placeholder:text-muted-foreground/40"
+                  />
+                </div>
+              </div>
               {metric === "xp" && (
                 <div className="w-16 text-center hidden sm:block">Level</div>
               )}
-              <div className="w-28 text-right">
-                {metric === "xp" ? "XP" : "PnL"}
-              </div>
+              <div className="w-28 text-right">{metric === "xp" ? "XP" : "PnL"}</div>
             </div>
 
             {/* Entries */}
@@ -315,104 +464,80 @@ export function LeaderboardContent() {
                   No users found
                 </div>
               ) : (
-                filteredEntries.map((entry, index) => {
-                  const displayName =
-                    entry.name || entry.handle || "Anonymous";
-                  const rankIcon = getRankIcon(entry.rank);
-
-                  return (
-                    <motion.div
-                      key={entry.userId}
-                      variants={itemVariants}
-                      className="flex items-center px-4 py-3 transition-colors hover:bg-muted/20 rounded-lg"
-                    >
-                      {/* Rank */}
-                      <div className="w-12 flex items-center gap-1.5">
-                        {rankIcon}
-                        <span
-                          className={cn(
-                            "text-sm tabular-nums",
-                            entry.rank <= 3
-                              ? "font-semibold"
-                              : "text-muted-foreground"
-                          )}
-                        >
-                          {entry.rank}
-                        </span>
-                      </div>
-
-                      {/* Avatar + Name */}
-                      <div className="flex-1 flex items-center gap-3 min-w-0">
-                        <Avatar className="h-10 w-10 border border-border/30">
-                          <AvatarImage
-                            src={entry.profileImageUrl || undefined}
-                          />
-                          <AvatarFallback
-                            className={cn(
-                              "bg-gradient-to-br text-white text-sm",
-                              getAvatarGradient(index)
-                            )}
-                          >
-                            {displayName[0].toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="min-w-0">
-                          <p className="font-medium truncate">
-                            {displayName}
-                          </p>
-                          {entry.handle && (
-                            <p className="text-xs text-muted-foreground truncate">
-                              @{entry.handle}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Level */}
-                      {metric === "xp" && (
-                        <div className="w-16 text-center hidden sm:block">
-                          <Badge
-                            variant="outline"
-                            className="text-xs border-border/30 bg-transparent"
-                          >
-                            Lvl {entry.level ?? 0}
-                          </Badge>
-                        </div>
-                      )}
-
-                      {/* Value */}
-                      <div className="w-28 text-right">
-                        <span
-                          className={cn(
-                            "font-semibold tabular-nums",
-                            metric === "xp"
-                              ? "text-primary"
-                              : entry.value >= 0
-                              ? "text-emerald-400"
-                              : "text-red-400"
-                          )}
-                        >
-                          {metric === "xp"
-                            ? formatXp(entry.value)
-                            : formatPnl(entry.value)}
-                        </span>
-                      </div>
-                    </motion.div>
-                  );
-                })
+                filteredEntries.map((entry, index) => (
+                  <LeaderboardRow
+                    key={entry.userId}
+                    entry={entry}
+                    index={index}
+                    metric={metric}
+                  />
+                ))
               )}
             </motion.div>
 
-            {/* Stats Footer */}
-            {data.totalUsers > 0 && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.3 }}
-                className="text-center text-sm text-muted-foreground pt-4"
-              >
-                Showing {filteredEntries.length} of {data.totalUsers} users
-              </motion.div>
+            {/* Current User Position (if not in current page) */}
+            {data.currentUserEntry && !currentUserInPage && (
+              <div className="pt-4 border-t border-border/30">
+                <div className="flex items-center gap-2 px-4 py-2 text-sm text-muted-foreground mb-2">
+                  <User className="h-4 w-4" />
+                  <span>Your Position</span>
+                </div>
+                <LeaderboardRow
+                  entry={data.currentUserEntry}
+                  index={data.currentUserEntry.rank}
+                  metric={metric}
+                  isCurrentUser
+                />
+              </div>
+            )}
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between pt-4 border-t border-border/30">
+                <div className="text-sm text-muted-foreground">
+                  Page {page} of {totalPages} ({data.totalUsers} users)
+                </div>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={!canGoPrev}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+
+                  {getPageNumbers().map((pageNum, idx) =>
+                    pageNum === "ellipsis" ? (
+                      <span
+                        key={`ellipsis-${idx}`}
+                        className="px-2 text-muted-foreground"
+                      >
+                        ...
+                      </span>
+                    ) : (
+                      <Button
+                        key={pageNum}
+                        variant={page === pageNum ? "default" : "ghost"}
+                        size="sm"
+                        onClick={() => setPage(pageNum)}
+                        className="min-w-[36px]"
+                      >
+                        {pageNum}
+                      </Button>
+                    )
+                  )}
+
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={!canGoNext}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
             )}
           </motion.div>
         </AnimatePresence>

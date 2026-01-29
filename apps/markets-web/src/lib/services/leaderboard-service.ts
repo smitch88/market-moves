@@ -2,7 +2,7 @@
  * Leaderboard Service
  *
  * Provides efficient leaderboard queries for XP and PnL rankings
- * with support for time-based filtering.
+ * with support for time-based filtering and pagination.
  */
 
 import { prisma, BetStatus } from "@vault/database";
@@ -29,8 +29,18 @@ export interface LeaderboardResult {
   entries: LeaderboardEntry[];
   metric: LeaderboardMetric;
   period: LeaderboardPeriod;
+  page: number;
+  pageSize: number;
   totalUsers: number;
+  totalPages: number;
   updatedAt: string;
+}
+
+export interface UserRankResult {
+  rank: number;
+  value: number;
+  level?: number;
+  totalUsers: number;
 }
 
 // ============================================================================
@@ -58,31 +68,36 @@ function getPeriodStartDate(period: LeaderboardPeriod): Date | null {
 // ============================================================================
 
 /**
- * Get XP leaderboard
- * XP is cumulative, so we just query User.xp for all periods
- * For weekly/monthly, we aggregate from XPLedger
+ * Get XP leaderboard with pagination
  */
 export async function getXPLeaderboard(
   period: LeaderboardPeriod = "all",
-  limit: number = 100
-): Promise<LeaderboardEntry[]> {
+  page: number = 1,
+  pageSize: number = 25
+): Promise<{ entries: LeaderboardEntry[]; total: number }> {
+  const skip = (page - 1) * pageSize;
+
   if (period === "all") {
     // All-time: Query User.xp directly (most efficient)
-    const users = await prisma.user.findMany({
-      where: { xp: { gt: 0 } },
-      orderBy: { xp: "desc" },
-      take: limit,
-      select: {
-        id: true,
-        handle: true,
-        name: true,
-        profileImageUrl: true,
-        xp: true,
-      },
-    });
+    const [users, total] = await Promise.all([
+      prisma.user.findMany({
+        where: { xp: { gt: 0 } },
+        orderBy: { xp: "desc" },
+        skip,
+        take: pageSize,
+        select: {
+          id: true,
+          handle: true,
+          name: true,
+          profileImageUrl: true,
+          xp: true,
+        },
+      }),
+      prisma.user.count({ where: { xp: { gt: 0 } } }),
+    ]);
 
-    return users.map((user, index) => ({
-      rank: index + 1,
+    const entries = users.map((user, index) => ({
+      rank: skip + index + 1,
       userId: user.id,
       handle: user.handle,
       name: user.name,
@@ -90,21 +105,36 @@ export async function getXPLeaderboard(
       value: user.xp,
       level: calculateLevel(user.xp),
     }));
+
+    return { entries, total };
   }
 
   // Weekly/Monthly: Aggregate from XPLedger
   const startDate = getPeriodStartDate(period);
-  if (!startDate) return [];
+  if (!startDate) return { entries: [], total: 0 };
 
+  // Get total count first
+  const totalResult = await prisma.xPLedger.groupBy({
+    by: ["userId"],
+    where: {
+      createdAt: { gte: startDate },
+      delta: { gt: 0 },
+    },
+    _count: true,
+  });
+  const total = totalResult.length;
+
+  // Get paginated data
   const xpData = await prisma.xPLedger.groupBy({
     by: ["userId"],
     where: {
       createdAt: { gte: startDate },
-      delta: { gt: 0 }, // Only positive XP gains
+      delta: { gt: 0 },
     },
     _sum: { delta: true },
     orderBy: { _sum: { delta: "desc" } },
-    take: limit,
+    skip,
+    take: pageSize,
   });
 
   // Get user details
@@ -116,16 +146,16 @@ export async function getXPLeaderboard(
       handle: true,
       name: true,
       profileImageUrl: true,
-      xp: true, // Total XP for level calculation
+      xp: true,
     },
   });
 
   const userMap = new Map(users.map((u) => [u.id, u]));
 
-  return xpData.map((entry, index) => {
+  const entries = xpData.map((entry, index) => {
     const user = userMap.get(entry.userId);
     return {
-      rank: index + 1,
+      rank: skip + index + 1,
       userId: entry.userId,
       handle: user?.handle ?? null,
       name: user?.name ?? null,
@@ -134,6 +164,80 @@ export async function getXPLeaderboard(
       level: user ? calculateLevel(user.xp) : 0,
     };
   });
+
+  return { entries, total };
+}
+
+/**
+ * Get a user's XP rank
+ */
+export async function getUserXPRank(
+  userId: string,
+  period: LeaderboardPeriod = "all"
+): Promise<UserRankResult | null> {
+  if (period === "all") {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { xp: true },
+    });
+
+    if (!user || user.xp <= 0) return null;
+
+    const rank = await prisma.user.count({
+      where: { xp: { gt: user.xp } },
+    });
+
+    const total = await prisma.user.count({ where: { xp: { gt: 0 } } });
+
+    return {
+      rank: rank + 1,
+      value: user.xp,
+      level: calculateLevel(user.xp),
+      totalUsers: total,
+    };
+  }
+
+  // For weekly/monthly, we need to aggregate
+  const startDate = getPeriodStartDate(period);
+  if (!startDate) return null;
+
+  const userXP = await prisma.xPLedger.aggregate({
+    where: {
+      userId,
+      createdAt: { gte: startDate },
+      delta: { gt: 0 },
+    },
+    _sum: { delta: true },
+  });
+
+  const userValue = userXP._sum.delta ?? 0;
+  if (userValue <= 0) return null;
+
+  // Count users with more XP in the period
+  const allUserXP = await prisma.xPLedger.groupBy({
+    by: ["userId"],
+    where: {
+      createdAt: { gte: startDate },
+      delta: { gt: 0 },
+    },
+    _sum: { delta: true },
+  });
+
+  const rank = allUserXP.filter((u) => (u._sum.delta ?? 0) > userValue).length + 1;
+  const total = allUserXP.length;
+
+  // Get user's total XP for level
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { xp: true },
+  });
+
+  return {
+    rank,
+    value: userValue,
+    level: user ? calculateLevel(user.xp) : 0,
+    totalUsers: total,
+  };
 }
 
 // ============================================================================
@@ -141,47 +245,54 @@ export async function getXPLeaderboard(
 // ============================================================================
 
 /**
- * Get PnL leaderboard
- * All-time: Query User.realizedPnL directly
- * Weekly/Monthly: Aggregate from Bet table
+ * Get PnL leaderboard with pagination
  */
 export async function getPnLLeaderboard(
   period: LeaderboardPeriod = "all",
-  limit: number = 100
-): Promise<LeaderboardEntry[]> {
-  if (period === "all") {
-    // All-time: Query User.realizedPnL directly
-    const users = await prisma.user.findMany({
-      where: {
-        OR: [
-          { realizedPnL: { gt: 0 } },
-          { realizedPnL: { lt: 0 } },
-        ],
-      },
-      orderBy: { realizedPnL: "desc" },
-      take: limit,
-      select: {
-        id: true,
-        handle: true,
-        name: true,
-        profileImageUrl: true,
-        realizedPnL: true,
-      },
-    });
+  page: number = 1,
+  pageSize: number = 25
+): Promise<{ entries: LeaderboardEntry[]; total: number }> {
+  const skip = (page - 1) * pageSize;
 
-    return users.map((user, index) => ({
-      rank: index + 1,
+  if (period === "all") {
+    const [users, total] = await Promise.all([
+      prisma.user.findMany({
+        where: {
+          OR: [{ realizedPnL: { gt: 0 } }, { realizedPnL: { lt: 0 } }],
+        },
+        orderBy: { realizedPnL: "desc" },
+        skip,
+        take: pageSize,
+        select: {
+          id: true,
+          handle: true,
+          name: true,
+          profileImageUrl: true,
+          realizedPnL: true,
+        },
+      }),
+      prisma.user.count({
+        where: {
+          OR: [{ realizedPnL: { gt: 0 } }, { realizedPnL: { lt: 0 } }],
+        },
+      }),
+    ]);
+
+    const entries = users.map((user, index) => ({
+      rank: skip + index + 1,
       userId: user.id,
       handle: user.handle,
       name: user.name,
       profileImageUrl: user.profileImageUrl,
       value: Number(user.realizedPnL),
     }));
+
+    return { entries, total };
   }
 
   // Weekly/Monthly: Calculate PnL from settled bets
   const startDate = getPeriodStartDate(period);
-  if (!startDate) return [];
+  if (!startDate) return { entries: [], total: 0 };
 
   // Get all settled bets in the period
   const bets = await prisma.bet.findMany({
@@ -201,24 +312,23 @@ export async function getPnLLeaderboard(
   // Aggregate PnL per user
   const pnlByUser = new Map<string, number>();
   for (const bet of bets) {
-    // For buys: PnL = payout - amount
-    // For sells: PnL is already realized at sell time
     if (bet.tradeType === "SELL") continue;
-
     const pnl = Number(bet.payout ?? 0) - Number(bet.amount);
     const current = pnlByUser.get(bet.userId) ?? 0;
     pnlByUser.set(bet.userId, current + pnl);
   }
 
-  // Sort and get top users
+  // Sort and paginate
   const sortedEntries = Array.from(pnlByUser.entries())
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, limit);
+    .sort((a, b) => b[1] - a[1]);
+  
+  const total = sortedEntries.length;
+  const paginatedEntries = sortedEntries.slice(skip, skip + pageSize);
 
-  if (sortedEntries.length === 0) return [];
+  if (paginatedEntries.length === 0) return { entries: [], total };
 
   // Get user details
-  const userIds = sortedEntries.map(([userId]) => userId);
+  const userIds = paginatedEntries.map(([userId]) => userId);
   const users = await prisma.user.findMany({
     where: { id: { in: userIds } },
     select: {
@@ -231,17 +341,92 @@ export async function getPnLLeaderboard(
 
   const userMap = new Map(users.map((u) => [u.id, u]));
 
-  return sortedEntries.map(([userId, value], index) => {
+  const entries = paginatedEntries.map(([userId, value], index) => {
     const user = userMap.get(userId);
     return {
-      rank: index + 1,
+      rank: skip + index + 1,
       userId,
       handle: user?.handle ?? null,
       name: user?.name ?? null,
       profileImageUrl: user?.profileImageUrl ?? null,
-      value: Math.round(value), // Round to whole cents
+      value: Math.round(value),
     };
   });
+
+  return { entries, total };
+}
+
+/**
+ * Get a user's PnL rank
+ */
+export async function getUserPnLRank(
+  userId: string,
+  period: LeaderboardPeriod = "all"
+): Promise<UserRankResult | null> {
+  if (period === "all") {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { realizedPnL: true },
+    });
+
+    if (!user) return null;
+    const userValue = Number(user.realizedPnL);
+    if (userValue === 0) return null;
+
+    const rank = await prisma.user.count({
+      where: { realizedPnL: { gt: user.realizedPnL } },
+    });
+
+    const total = await prisma.user.count({
+      where: {
+        OR: [{ realizedPnL: { gt: 0 } }, { realizedPnL: { lt: 0 } }],
+      },
+    });
+
+    return {
+      rank: rank + 1,
+      value: userValue,
+      totalUsers: total,
+    };
+  }
+
+  // For weekly/monthly, aggregate from bets
+  const startDate = getPeriodStartDate(period);
+  if (!startDate) return null;
+
+  const bets = await prisma.bet.findMany({
+    where: {
+      status: { in: [BetStatus.WON, BetStatus.LOST] },
+      createdAt: { gte: startDate },
+      payout: { not: null },
+    },
+    select: {
+      userId: true,
+      amount: true,
+      payout: true,
+      tradeType: true,
+    },
+  });
+
+  const pnlByUser = new Map<string, number>();
+  for (const bet of bets) {
+    if (bet.tradeType === "SELL") continue;
+    const pnl = Number(bet.payout ?? 0) - Number(bet.amount);
+    const current = pnlByUser.get(bet.userId) ?? 0;
+    pnlByUser.set(bet.userId, current + pnl);
+  }
+
+  const userValue = pnlByUser.get(userId);
+  if (userValue === undefined || userValue === 0) return null;
+
+  const rank = Array.from(pnlByUser.values()).filter((v) => v > userValue).length + 1;
+  const total = pnlByUser.size;
+
+  return {
+    rank,
+    value: Math.round(userValue),
+    totalUsers: total,
+  };
 }
 
 // ============================================================================
@@ -249,28 +434,74 @@ export async function getPnLLeaderboard(
 // ============================================================================
 
 /**
- * Get leaderboard for any metric and period
+ * Get leaderboard for any metric and period with pagination
  */
 export async function getLeaderboard(
   metric: LeaderboardMetric,
   period: LeaderboardPeriod = "all",
-  limit: number = 100
+  page: number = 1,
+  pageSize: number = 25
 ): Promise<LeaderboardResult> {
-  const entries =
+  const { entries, total } =
     metric === "xp"
-      ? await getXPLeaderboard(period, limit)
-      : await getPnLLeaderboard(period, limit);
-
-  // Get total user count with activity
-  const totalUsers = await prisma.user.count({
-    where: metric === "xp" ? { xp: { gt: 0 } } : { realizedPnL: { not: 0 } },
-  });
+      ? await getXPLeaderboard(period, page, pageSize)
+      : await getPnLLeaderboard(period, page, pageSize);
 
   return {
     entries,
     metric,
     period,
-    totalUsers,
+    page,
+    pageSize,
+    totalUsers: total,
+    totalPages: Math.ceil(total / pageSize),
     updatedAt: new Date().toISOString(),
+  };
+}
+
+/**
+ * Get a user's rank for a given metric and period
+ */
+export async function getUserRank(
+  userId: string,
+  metric: LeaderboardMetric,
+  period: LeaderboardPeriod = "all"
+): Promise<UserRankResult | null> {
+  return metric === "xp"
+    ? getUserXPRank(userId, period)
+    : getUserPnLRank(userId, period);
+}
+
+/**
+ * Get user's leaderboard entry with their details
+ */
+export async function getUserLeaderboardEntry(
+  userId: string,
+  metric: LeaderboardMetric,
+  period: LeaderboardPeriod = "all"
+): Promise<LeaderboardEntry | null> {
+  const rankResult = await getUserRank(userId, metric, period);
+  if (!rankResult) return null;
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      handle: true,
+      name: true,
+      profileImageUrl: true,
+    },
+  });
+
+  if (!user) return null;
+
+  return {
+    rank: rankResult.rank,
+    userId: user.id,
+    handle: user.handle,
+    name: user.name,
+    profileImageUrl: user.profileImageUrl,
+    value: rankResult.value,
+    level: rankResult.level,
   };
 }
