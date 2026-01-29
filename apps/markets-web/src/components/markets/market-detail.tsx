@@ -105,8 +105,8 @@ export function MarketDetail({ event }: MarketDetailProps) {
                     outcomePrices: JSON.stringify(
                       update.prices.map((p) => p.toFixed(4))
                     ),
-                    pool0: update.pools[0] - (market.seed0 || 1000),
-                    pool1: update.pools[1] - (market.seed1 || 1000),
+                    pool0: update.pools[0] - Number(market.seed0 || 1000),
+                    pool1: update.pools[1] - Number(market.seed1 || 1000),
                   };
                 }
                 return market;
@@ -148,7 +148,7 @@ export function MarketDetail({ event }: MarketDetailProps) {
     const filtered = activeCategory_obj ? markets.filter(activeCategory_obj.filter) : markets;
     
     // Check if markets have explicit sortOrder (from database)
-    const hasSortOrder = filtered.some((m) => m.sortOrder !== null && m.sortOrder !== undefined);
+    const hasSortOrder = filtered.some((m: MarketWithDisplay) => m.sortOrder !== null && m.sortOrder !== undefined);
     
     if (hasSortOrder) {
       // Sort by explicit sortOrder (lower = first), then by probability as fallback

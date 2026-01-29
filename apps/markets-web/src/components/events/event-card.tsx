@@ -5,12 +5,20 @@ import Image from "next/image";
 import { format } from "date-fns";
 import { Clock, TrendingUp, BarChart3 } from "lucide-react";
 import { motion } from "framer-motion";
-import type { Event } from "@vault/database";
+import type { Event, MarketCategory, EventType } from "@vault/database";
 import { cn } from "@vault/ui/lib/utils";
 import { getMarketUrl } from "@/lib/urls";
 
+// Event type that accepts both Date and string for date fields (API serialization)
+type SerializedEvent = Omit<Event, 'createdAt' | 'updatedAt' | 'startTime' | 'endTime'> & {
+  createdAt: Date | string;
+  updatedAt: Date | string;
+  startTime: Date | string | null;
+  endTime: Date | string | null;
+};
+
 interface EventCardProps {
-  event: Event & {
+  event: SerializedEvent & {
     _count: { markets: number };
     _aggregations: {
       totalVolume: number;

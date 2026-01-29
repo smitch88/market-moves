@@ -500,9 +500,9 @@ export async function getPnLHistory(
 
   return snapshots.map((s) => ({
     timestamp: s.createdAt,
-    realizedPnL: s.realizedPnL,
-    unrealizedPnL: s.unrealizedPnL,
-    totalVolume: s.totalVolume,
+    realizedPnL: Number(s.realizedPnL),
+    unrealizedPnL: Number(s.unrealizedPnL),
+    totalVolume: Number(s.totalVolume),
   }));
 }
 

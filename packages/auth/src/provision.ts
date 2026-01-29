@@ -25,6 +25,7 @@ export type ProvisionedUser = {
   role: "USER" | "ADMIN";
   balance: number;
   referralCode: string;
+  hasSeenWelcomeModal: boolean;
   _count: { referralsGiven: number };
 };
 
@@ -69,6 +70,7 @@ export async function provisionUser(input: ProvisionUserInput): Promise<Provisio
         role: true,
         balance: true,
         referralCode: true,
+        hasSeenWelcomeModal: true,
         _count: {
           select: { referralsGiven: true },
         },
@@ -107,5 +109,8 @@ export async function provisionUser(input: ProvisionUserInput): Promise<Provisio
     return newUser;
   });
 
-  return user;
+  return {
+    ...user,
+    balance: Number(user.balance),
+  };
 }

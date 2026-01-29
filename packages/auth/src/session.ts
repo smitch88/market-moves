@@ -113,7 +113,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
       );
 
       try {
-        user = await provisionUser({
+        const provisioned = await provisionUser({
           privyUserId: claims.userId,
           email: emailAccount && 'address' in emailAccount ? emailAccount.address : null,
           twitterSubject: twitterAccount && 'subject' in twitterAccount ? twitterAccount.subject : null,
@@ -121,10 +121,12 @@ export async function getSessionUser(): Promise<SessionUser | null> {
           name: twitterAccount && 'name' in twitterAccount ? (twitterAccount.name as string) : null,
           profileImageUrl: twitterAccount && 'profilePictureUrl' in twitterAccount ? (twitterAccount.profilePictureUrl as string) : null,
         });
+        // Return directly since provisionUser already returns the correct type
+        return provisioned as SessionUser;
       } catch (err) {
         // Handle race condition: if another request created the user, fetch them
         if (err && typeof err === 'object' && 'code' in err && err.code === 'P2002') {
-          user = await prisma.user.findUnique({
+          const dbUser = await prisma.user.findUnique({
             where: { privyUserId: claims.userId },
             select: {
               id: true,
@@ -143,16 +145,27 @@ export async function getSessionUser(): Promise<SessionUser | null> {
               },
             },
           });
-          if (!user) {
+          if (!dbUser) {
             throw err; // Re-throw if still not found
           }
+          return {
+            ...dbUser,
+            balance: Number(dbUser.balance),
+          } as SessionUser;
         } else {
           throw err;
         }
       }
     }
 
-    return user;
+    // Convert balance to number for SessionUser type
+    if (user) {
+      return {
+        ...user,
+        balance: typeof user.balance === 'number' ? user.balance : Number(user.balance),
+      } as SessionUser;
+    }
+    return null;
   } catch (error) {
     console.error("Error getting session user:", error);
     return null;

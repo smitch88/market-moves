@@ -24,7 +24,7 @@ function formatVolume(v: number): string {
 export function PropEventHeader({ event }: PropEventHeaderProps) {
   // Calculate total volume
   const totalVolume = event.markets.reduce((sum, m) => {
-    return sum + (m.seed0 || 0) + (m.seed1 || 0) + (m.pool0 || 0) + (m.pool1 || 0);
+    return sum + Number(m.seed0 || 0) + Number(m.seed1 || 0) + Number(m.pool0 || 0) + Number(m.pool1 || 0);
   }, 0);
 
   const eventDate = event.endTime || event.startTime;

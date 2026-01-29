@@ -49,7 +49,7 @@ export async function GET(
         totalVolume: Number(user.totalVolume),
       },
       xp: xpInfo,
-      history: history.map((entry) => ({
+      history: history.entries.map((entry) => ({
         ...entry,
         createdAt: entry.createdAt.toISOString(),
       })),

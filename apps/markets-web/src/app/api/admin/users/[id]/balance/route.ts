@@ -33,7 +33,8 @@ export async function POST(
         throw new Error("User not found");
       }
 
-      const newBalance = user.balance + delta;
+      const currentBalance = Number(user.balance);
+      const newBalance = currentBalance + delta;
 
       // Prevent negative balance
       if (newBalance < 0) {
@@ -51,7 +52,7 @@ export async function POST(
         data: {
           userId: id,
           delta,
-          balanceBefore: user.balance,
+          balanceBefore: currentBalance,
           balanceAfter: newBalance,
           reason: BalanceReason.ADMIN_ADJUST,
           actorAdminUserId: admin.id,
@@ -67,7 +68,7 @@ export async function POST(
           targetId: id,
           metadata: {
             delta,
-            balanceBefore: user.balance,
+            balanceBefore: currentBalance,
             balanceAfter: newBalance,
             reason,
           },

@@ -19,7 +19,7 @@ import {
   ResponsiveContainer,
   Tooltip,
 } from "recharts";
-import type { Event } from "@vault/database";
+import type { Event, MarketCategory, EventType } from "@vault/database";
 import { cn } from "@vault/ui/lib/utils";
 import { getMarketUrl } from "@/lib/urls";
 import { useMarketUpdates, type PriceUpdate } from "@/hooks/use-market-updates";
@@ -36,12 +36,21 @@ interface FeaturedMarket {
   pool1: number;
   seed0: number;
   seed1: number;
+  closesAt?: string | null;
   _count?: { bets: number };
 }
 
+// Serialized event type (dates as strings from API)
+type SerializedEvent = Omit<Event, 'createdAt' | 'updatedAt' | 'startTime' | 'endTime'> & {
+  createdAt: string | null;
+  updatedAt: string | null;
+  startTime: string | null;
+  endTime: string | null;
+};
+
 interface FeaturedEventBannerProps {
   events: Array<
-    Event & {
+    SerializedEvent & {
       markets: FeaturedMarket[];
       _aggregations: {
         totalVolume: number;

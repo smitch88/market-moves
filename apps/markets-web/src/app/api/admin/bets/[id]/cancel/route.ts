@@ -43,8 +43,9 @@ export async function POST(
       }
 
       // Refund user balance
-      const refundAmount = bet.amount;
-      const newBalance = bet.user.balance + refundAmount;
+      const refundAmount = Number(bet.amount);
+      const currentBalance = Number(bet.user.balance);
+      const newBalance = currentBalance + refundAmount;
 
       await tx.user.update({
         where: { id: bet.userId },
@@ -56,7 +57,7 @@ export async function POST(
         data: {
           userId: bet.userId,
           delta: refundAmount,
-          balanceBefore: bet.user.balance,
+          balanceBefore: currentBalance,
           balanceAfter: newBalance,
           reason: BalanceReason.OTHER, // Could add BET_CANCELLED reason
           correlationId: bet.id,

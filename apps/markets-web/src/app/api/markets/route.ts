@@ -139,7 +139,7 @@ export async function GET(request: NextRequest) {
         // JSON strings (Polymarket style)
         outcomes: market.outcomes,
         outcomePrices: JSON.stringify([price0, price1]),
-        outcomeColors: market.outcomeColors,
+        outcomeColors: null,
         // Status
         status: market.status,
         active: market.status === "OPEN",

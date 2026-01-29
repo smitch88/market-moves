@@ -37,15 +37,12 @@ export async function GET(request: NextRequest) {
 
     // Parse outcomes and add the label to the response
     const outcomes = JSON.parse(pendingBet.market.outcomes) as string[];
-    const outcomeColors = pendingBet.market.outcomeColors 
-      ? JSON.parse(pendingBet.market.outcomeColors) as string[]
-      : null;
 
     return NextResponse.json({ 
       pendingBet: {
         ...pendingBet,
         outcomeLabel: outcomes[pendingBet.outcomeIndex],
-        outcomeColor: outcomeColors?.[pendingBet.outcomeIndex] || null,
+        outcomeColor: null,
       },
     });
   } catch (error) {

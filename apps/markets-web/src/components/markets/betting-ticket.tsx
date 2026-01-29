@@ -3,9 +3,17 @@
 import { forwardRef } from "react";
 import type { Market, Event } from "@vault/database";
 
+// Event type that accepts both Date and string for date fields (API serialization)
+type FlexibleEvent = Omit<Event, 'createdAt' | 'updatedAt' | 'startTime' | 'endTime'> & {
+  createdAt: Date | string | null;
+  updatedAt: Date | string | null;
+  startTime: Date | string | null;
+  endTime: Date | string | null;
+};
+
 interface BettingTicketProps {
-  market: Market;
-  event: Event;
+  market: Partial<Market> & { id: string; question?: string };
+  event: FlexibleEvent;
   outcomeLabel: string;
   outcomeIndex: number; 
   amount: number;

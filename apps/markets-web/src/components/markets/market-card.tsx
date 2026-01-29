@@ -56,7 +56,7 @@ export function MarketCard({ market, index = 0 }: MarketCardProps) {
   const isNew = isNewMarket(market.createdAt);
 
   // Calculate volume from pools
-  const volume = (market.seed0 || 0) + (market.seed1 || 0) + (market.pool0 || 0) + (market.pool1 || 0);
+  const volume = Number(market.seed0 || 0) + Number(market.seed1 || 0) + Number(market.pool0 || 0) + Number(market.pool1 || 0);
   const formatVolume = (v: number) => {
     if (v >= 1000000) return `$${(v / 1000000).toFixed(1)}M`;
     if (v >= 1000) return `$${(v / 1000).toFixed(0)}K`;

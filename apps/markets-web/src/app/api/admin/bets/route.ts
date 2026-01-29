@@ -67,14 +67,11 @@ export async function GET(request: NextRequest) {
     // Transform bets to include outcome labels
     const transformedBets = bets.map((bet) => {
       const outcomes = JSON.parse(bet.market.outcomes) as string[];
-      const outcomeColors = bet.market.outcomeColors 
-        ? JSON.parse(bet.market.outcomeColors) as string[]
-        : null;
 
       return {
         ...bet,
         outcomeLabel: outcomes[bet.outcomeIndex],
-        outcomeColor: outcomeColors?.[bet.outcomeIndex] || null,
+        outcomeColor: null, // outcomeColors not in schema
       };
     });
 

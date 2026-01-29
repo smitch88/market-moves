@@ -245,7 +245,8 @@ export function PnLChart({
               margin={{ top: 5, right: 5, left: 5, bottom: 5 }}
               onMouseMove={
                 interactive
-                  ? (state) => {
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  ? (state: any) => {
                       if (state?.activePayload?.[0]?.payload) {
                         const { value, timestamp } =
                           state.activePayload[0].payload;
@@ -306,7 +307,8 @@ export function PnLChart({
                 }}
                 content={
                   interactive
-                    ? ({ active, payload }) => {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    ? ({ active, payload }: any) => {
                         if (active && payload?.[0]?.payload) {
                           const { value, timestamp } = payload[0].payload;
                           if (
@@ -322,7 +324,8 @@ export function PnLChart({
                         }
                         return null;
                       }
-                    : (props) => <ChartTooltipContent {...props} />
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    : (props: any) => <ChartTooltipContent {...props} />
                 }
               />
               <Area

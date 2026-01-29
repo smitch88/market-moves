@@ -108,9 +108,6 @@ export async function GET(
 
       // Parse outcomes for display
       const outcomes = JSON.parse(market.outcomes) as string[];
-      const outcomeColors = market.outcomeColors 
-        ? JSON.parse(market.outcomeColors) as string[]
-        : null;
 
       // Determine if market is "new"
       const isNew = Date.now() - new Date(market.createdAt).getTime() < 24 * 60 * 60 * 1000;
@@ -121,11 +118,11 @@ export async function GET(
         // Raw JSON strings (Polymarket style)
         outcomes: market.outcomes,
         outcomePrices: JSON.stringify([price0, price1]),
-        outcomeColors: market.outcomeColors,
+        outcomeColors: null,
         // Parsed for convenience
         outcomesArray: outcomes,
         outcomePricesArray: [price0, price1],
-        outcomeColorsArray: outcomeColors,
+        outcomeColorsArray: null,
         // Status
         status: market.status,
         active: market.status === "OPEN",
@@ -154,13 +151,12 @@ export async function GET(
         // Recent activity
         recentBets: market.bets.map((bet) => {
           const outcomeLabel = outcomes[bet.outcomeIndex] || `Outcome ${bet.outcomeIndex}`;
-          const outcomeColor = outcomeColors?.[bet.outcomeIndex] || null;
           return {
             id: bet.id,
             amount: bet.amount,
             outcomeIndex: bet.outcomeIndex,
             outcomeLabel,
-            outcomeColor,
+            outcomeColor: null,
             createdAt: bet.createdAt.toISOString(),
             user: bet.user,
           };
@@ -170,7 +166,7 @@ export async function GET(
           id: pos.id,
           amount0: pos.amount0,
           amount1: pos.amount1,
-          totalAmount: pos.amount0 + pos.amount1,
+          totalAmount: Number(pos.amount0) + Number(pos.amount1),
           user: pos.user,
         })),
         // Timestamps

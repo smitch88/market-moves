@@ -46,7 +46,7 @@ export function ActivityFeed({ marketId, bets, outcomes }: ActivityFeedProps) {
                   profileImageUrl: bet.user.profileImageUrl,
                 }}
                 action="bet"
-                amount={bet.amount}
+                amount={Number(bet.amount)}
                 outcome={{
                   label: outcomeLabel,
                   color: isOutcome0

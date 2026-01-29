@@ -79,7 +79,7 @@ export interface PricingEngine {
   /**
    * Calculate current prices for both outcomes
    */
-  calculatePrice(pool0: Prisma.Decimal, pool1: Prisma.Decimal): PriceResult;
+  calculatePrice(pool0: number | Prisma.Decimal, pool1: number | Prisma.Decimal): PriceResult;
 
   /**
    * Calculate payout for a winning bet/position
@@ -145,7 +145,7 @@ export class ConstantProductAMM implements PricingEngine {
    * 
    * Higher reserve means lower price (more supply = cheaper)
    */
-  calculatePrice(reserve0: Prisma.Decimal, reserve1: Prisma.Decimal): PriceResult {
+  calculatePrice(reserve0: number | Prisma.Decimal, reserve1: number | Prisma.Decimal): PriceResult {
     const total = currency.add(reserve0, reserve1);
     
     if (currency.isZero(total)) {
@@ -453,7 +453,7 @@ export class ConstantProductAMM implements PricingEngine {
   /**
    * Calculate the initial k value for market creation
    */
-  static calculateInitialK(reserve0: Prisma.Decimal, reserve1: Prisma.Decimal): Prisma.Decimal {
+  static calculateInitialK(reserve0: number | Prisma.Decimal, reserve1: number | Prisma.Decimal): Prisma.Decimal {
     return currency.multiply(reserve0, reserve1);
   }
 }

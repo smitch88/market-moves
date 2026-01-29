@@ -35,8 +35,9 @@ export async function POST(
       let totalRefunded = 0;
 
       for (const bet of pendingBets) {
-        const refundAmount = bet.amount;
-        const newBalance = bet.user.balance + refundAmount;
+        const refundAmount = Number(bet.amount);
+        const currentBalance = Number(bet.user.balance);
+        const newBalance = currentBalance + refundAmount;
 
         // Refund user balance
         await tx.user.update({
@@ -49,7 +50,7 @@ export async function POST(
           data: {
             userId: bet.userId,
             delta: refundAmount,
-            balanceBefore: bet.user.balance,
+            balanceBefore: currentBalance,
             balanceAfter: newBalance,
             reason: BalanceReason.OTHER,
             correlationId: bet.id,

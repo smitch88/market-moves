@@ -43,7 +43,7 @@ export async function adjustBalance(
     throw new Error(`User not found: ${userId}`);
   }
 
-  const balanceBefore = user.balance;
+  const balanceBefore = Number(user.balance);
   const balanceAfter = balanceBefore + delta;
 
   if (balanceAfter < 0) {
@@ -152,8 +152,8 @@ export async function recordLoss(
     data: {
       userId,
       delta: 0,
-      balanceBefore: user.balance,
-      balanceAfter: user.balance,
+      balanceBefore: Number(user.balance),
+      balanceAfter: Number(user.balance),
       reason: BalanceReason.SETTLEMENT_LOSS,
       correlationId,
     },
@@ -162,8 +162,8 @@ export async function recordLoss(
   return {
     userId,
     delta: 0,
-    balanceBefore: user.balance,
-    balanceAfter: user.balance,
+    balanceBefore: Number(user.balance),
+    balanceAfter: Number(user.balance),
     ledgerEntryId: ledgerEntry.id,
   };
 }
@@ -181,7 +181,7 @@ export async function getBalance(userId: string): Promise<number> {
     throw new Error(`User not found: ${userId}`);
   }
 
-  return user.balance;
+  return Number(user.balance);
 }
 
 /**

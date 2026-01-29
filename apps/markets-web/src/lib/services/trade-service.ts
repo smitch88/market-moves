@@ -50,10 +50,10 @@ export interface TradeResult {
   bet: Bet;
   shares: Prisma.Decimal;
   avgPrice: Prisma.Decimal;
-  totalCost?: Prisma.Decimal; // For buys
-  proceeds?: Prisma.Decimal; // For sells
-  newPrices: [Prisma.Decimal, Prisma.Decimal];
-  newReserves: [Prisma.Decimal, Prisma.Decimal];
+  totalCost?: number; // For buys
+  proceeds?: number; // For sells
+  newPrices: [number, number];
+  newReserves: [number, number];
   priceImpact: Prisma.Decimal;
 }
 
@@ -545,16 +545,16 @@ export class TradeService {
     broadcastPriceChange(
       market.id,
       market.eventId,
-      [prices.price0, prices.price1],
-      [newReserve0, newReserve1],
+      [Number(prices.price0), Number(prices.price1)],
+      [Number(newReserve0), Number(newReserve1)],
       {
-        reserves: [newReserve0, newReserve1],
-        k: market.k || undefined,
+        reserves: [Number(newReserve0), Number(newReserve1)],
+        k: market.k ? Number(market.k) : undefined,
       }
     );
 
     // Update user volume stats (fire-and-forget, don't block trade)
-    updateUserStats(bet.userId, bet.amount).catch(console.error);
+    updateUserStats(bet.userId, Number(bet.amount)).catch(console.error);
     
     // Create PnL snapshot if rate limit allows (fire-and-forget)
     createPnLSnapshot(bet.userId).catch(console.error);
@@ -564,9 +564,9 @@ export class TradeService {
       bet,
       shares: result.shares,
       avgPrice: result.avgPrice,
-      totalCost: bet.amount,
-      newPrices: [prices.price0, prices.price1],
-      newReserves: [newReserve0, newReserve1],
+      totalCost: Number(bet.amount),
+      newPrices: [Number(prices.price0), Number(prices.price1)],
+      newReserves: [Number(newReserve0), Number(newReserve1)],
       priceImpact: result.priceImpact,
     };
   }
@@ -753,11 +753,11 @@ export class TradeService {
       broadcastPriceChange(
         marketId,
         market.eventId,
-        [prices.price0, prices.price1],
-        [newReserve0, newReserve1],
+        [Number(prices.price0), Number(prices.price1)],
+        [Number(newReserve0), Number(newReserve1)],
         {
-          reserves: [newReserve0, newReserve1],
-          k: market.k || undefined,
+          reserves: [Number(newReserve0), Number(newReserve1)],
+          k: market.k ? Number(market.k) : undefined,
         }
       );
 
@@ -770,7 +770,7 @@ export class TradeService {
     });
 
     // Update user volume stats (fire-and-forget, don't block trade)
-    updateUserStats(userId, proceedsAfterFee).catch(console.error);
+    updateUserStats(userId, Number(proceedsAfterFee)).catch(console.error);
     
     // Create PnL snapshot if rate limit allows (fire-and-forget)
     createPnLSnapshot(userId).catch(console.error);
@@ -780,9 +780,9 @@ export class TradeService {
       bet: result.bet,
       shares,
       avgPrice: sellResult.avgPrice,
-      proceeds: proceedsAfterFee,
-      newPrices: [result.prices.price0, result.prices.price1],
-      newReserves: [result.newReserve0, result.newReserve1],
+      proceeds: Number(proceedsAfterFee),
+      newPrices: [Number(result.prices.price0), Number(result.prices.price1)],
+      newReserves: [Number(result.newReserve0), Number(result.newReserve1)],
       priceImpact: sellResult.priceImpact,
     };
   }

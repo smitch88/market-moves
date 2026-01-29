@@ -226,7 +226,7 @@ export async function GET(
           detailsMarkdown: event.markets[0]?.detailsMarkdown,
           closesAt: event.markets[0]?.closesAt,
           outcomes: event.markets[0]?.outcomes,
-          outcomeColors: event.markets[0]?.outcomeColors,
+          outcomeColors: null,
           // Include nested markets for multi-market events
           markets: marketsWithStats,
           bets: marketsWithStats[0]?.bets || [],

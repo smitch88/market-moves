@@ -97,9 +97,7 @@ export async function GET(
       const outcomes = position?.market.outcomes 
         ? JSON.parse(position.market.outcomes) as string[]
         : ["Yes", "No"];
-      const colors = position?.market.outcomeColors
-        ? JSON.parse(position.market.outcomeColors) as string[]
-        : ["#22c55e", "#ef4444"];
+      const colors = ["#22c55e", "#ef4444"]; // Default colors (outcomeColors not in schema)
       const resolvedOutcome = position?.market.resolvedOutcome ?? 0;
 
       return {
@@ -113,7 +111,7 @@ export async function GET(
         market: position?.market ? {
           question: position.market.question,
           outcomes: position.market.outcomes,
-          outcomeColors: position.market.outcomeColors,
+          outcomeColors: null,
           event: position.market.event,
         } : null,
       };
@@ -134,7 +132,7 @@ export async function GET(
         market: {
           question: bet.market.question,
           outcomes: bet.market.outcomes,
-          outcomeColors: bet.market.outcomeColors,
+          outcomeColors: null,
           event: bet.market.event,
         },
       };

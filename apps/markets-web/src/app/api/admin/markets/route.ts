@@ -97,9 +97,6 @@ export async function POST(request: NextRequest) {
           question: data.question,
           outcomes: JSON.stringify(data.outcomes),
           outcomePrices: JSON.stringify([initialPrice0, initialPrice1]),
-          outcomeColors: data.outcomeColors 
-            ? JSON.stringify(data.outcomeColors) 
-            : null,
           detailsMarkdown: data.detailsMarkdown || null,
           resolutionSourceUrl: data.resolutionSourceUrl || null,
           opensAt: data.opensAt ? new Date(data.opensAt) : null,

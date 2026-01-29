@@ -476,8 +476,8 @@ export function SportsEventView({ event, sport }: SportsEventViewProps) {
                 ...market,
                 outcomePrices: JSON.stringify(update.prices.map(p => p.toFixed(4))),
                 // Update pool values for display
-                pool0: update.pools[0] - (market.seed0 || 1000),
-                pool1: update.pools[1] - (market.seed1 || 1000),
+                pool0: update.pools[0] - Number(market.seed0 || 1000),
+                pool1: update.pools[1] - Number(market.seed1 || 1000),
               };
             }
             return market;

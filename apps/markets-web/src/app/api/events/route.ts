@@ -159,7 +159,7 @@ export async function GET(request: NextRequest) {
           question: market.question,
           outcomes: market.outcomes, // JSON string like '["Yes", "No"]'
           outcomePrices: JSON.stringify([price0, price1]),
-          outcomeColors: market.outcomeColors,
+          outcomeColors: null,
           volume: volume.toString(),
           volumeNum: volume,
           liquidity: liquidity.toString(),

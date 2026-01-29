@@ -29,10 +29,18 @@ import { BettingTicket } from "../markets/betting-ticket";
 import type { Event, Market } from "@vault/database";
 import { useAuthFetch } from "@/lib/auth/auth-fetch";
 
+// Event type that accepts both Date and string for date fields (API serialization)
+type SerializedEvent = Omit<Event, 'createdAt' | 'updatedAt' | 'startTime' | 'endTime'> & {
+  createdAt: Date | string | null;
+  updatedAt: Date | string | null;
+  startTime: Date | string | null;
+  endTime: Date | string | null;
+};
+
 interface QuickBetModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  event: Event;
+  event: SerializedEvent;
   market: {
     id: string;
     question: string;

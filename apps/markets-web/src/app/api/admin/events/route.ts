@@ -103,9 +103,6 @@ export async function POST(request: NextRequest) {
             question: marketData.question,
             outcomes: JSON.stringify(marketData.outcomes),
             outcomePrices: JSON.stringify(["0.50", "0.50"]),
-            outcomeColors: marketData.outcomeColors 
-              ? JSON.stringify(marketData.outcomeColors) 
-              : null,
             detailsMarkdown: marketData.detailsMarkdown || null,
             resolutionSourceUrl: marketData.resolutionSourceUrl || null,
             opensAt: marketData.opensAt ? new Date(marketData.opensAt) : null,

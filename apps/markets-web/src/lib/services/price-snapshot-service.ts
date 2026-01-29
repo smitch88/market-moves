@@ -146,10 +146,10 @@ export async function getPriceHistory(
 
   return snapshots.map((s) => ({
     marketId: s.marketId,
-    price0: s.price0,
-    price1: s.price1,
-    pool0: s.pool0,
-    pool1: s.pool1,
+    price0: Number(s.price0),
+    price1: Number(s.price1),
+    pool0: Number(s.pool0),
+    pool1: Number(s.pool1),
     timestamp: s.timestamp,
   }));
 }
@@ -169,10 +169,10 @@ export async function getLatestSnapshot(
 
   return {
     marketId: snapshot.marketId,
-    price0: snapshot.price0,
-    price1: snapshot.price1,
-    pool0: snapshot.pool0,
-    pool1: snapshot.pool1,
+    price0: Number(snapshot.price0),
+    price1: Number(snapshot.price1),
+    pool0: Number(snapshot.pool0),
+    pool1: Number(snapshot.pool1),
     timestamp: snapshot.timestamp,
   };
 }

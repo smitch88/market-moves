@@ -52,6 +52,7 @@ export async function getEffectiveUser(): Promise<EffectiveUser | null> {
         if (impersonatedUser) {
           return {
             ...impersonatedUser,
+            balance: Number(impersonatedUser.balance),
             _impersonated: true,
           } as EffectiveUser;
         }

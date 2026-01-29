@@ -51,7 +51,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Account is locked" }, { status: 403 });
     }
 
-    if (currentUser.balance < amount) {
+    const userBalance = Number(currentUser.balance);
+    if (userBalance < amount) {
       return NextResponse.json({ error: "Insufficient balance" }, { status: 400 });
     }
 
@@ -72,7 +73,7 @@ export async function POST(request: NextRequest) {
       });
 
       // Debit user balance
-      const newBalance = currentUser.balance - amount;
+      const newBalance = userBalance - amount;
       await tx.user.update({
         where: { id: user.id },
         data: { balance: newBalance },
@@ -83,7 +84,7 @@ export async function POST(request: NextRequest) {
         data: {
           userId: user.id,
           delta: -amount,
-          balanceBefore: currentUser.balance,
+          balanceBefore: userBalance,
           balanceAfter: newBalance,
           reason: BalanceReason.BET_PLACED,
           correlationId: bet.id,

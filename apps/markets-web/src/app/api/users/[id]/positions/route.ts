@@ -70,9 +70,7 @@ export async function GET(
     // Transform positions with serialized Decimals
     const transformedPositions = positions.map((pos) => {
       const outcomes = JSON.parse(pos.market.outcomes) as string[];
-      const colors = pos.market.outcomeColors
-        ? (JSON.parse(pos.market.outcomeColors) as string[])
-        : ["#22c55e", "#ef4444"];
+      const colors = ["#22c55e", "#ef4444"]; // Default colors (outcomeColors not in schema)
       const prices = pos.market.outcomePrices
         ? (JSON.parse(pos.market.outcomePrices) as number[])
         : [0.5, 0.5];
@@ -100,8 +98,8 @@ export async function GET(
         totalCost,
         totalValue,
         unrealizedPnL,
-        avgPrice0: pos.avgPrice0 ? Number(pos.avgPrice0) : null,
-        avgPrice1: pos.avgPrice1 ? Number(pos.avgPrice1) : null,
+        avgPrice0: avgCost0 || null,
+        avgPrice1: avgCost1 || null,
         lastBetAt: pos.lastBetAt?.toISOString() || null,
         market: {
           id: pos.market.id,
