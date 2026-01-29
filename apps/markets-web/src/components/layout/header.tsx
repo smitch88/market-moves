@@ -20,7 +20,6 @@ const isDev = process.env.NODE_ENV === "development";
 const navLinks = [
   { href: "/", label: "Markets" },
   { href: "/leaderboard", label: "Leaderboard" },
-  { href: "/faq", label: "FAQ" },
 ];
 
 export function Header() {

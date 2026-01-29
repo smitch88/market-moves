@@ -34,6 +34,8 @@ interface ProfileSettingsProps {
       referralsGiven?: number;
     };
   };
+  showReferrals?: boolean;
+  onlyReferrals?: boolean;
 }
 
 interface HandleCheckResult {
@@ -190,7 +192,7 @@ export function ProfileSettings({ profile, showReferrals = true, onlyReferrals =
   // If only showing referrals, render just that section
   if (onlyReferrals) {
     return (
-      <div className="max-w-4xl mx-auto space-y-8">
+      <div className="max-w-xl space-y-8">
         {/* Referral Link */}
         <div className="space-y-2">
           <Label className="text-sm font-medium">Referral Link</Label>
@@ -238,7 +240,7 @@ export function ProfileSettings({ profile, showReferrals = true, onlyReferrals =
           </Button>
           <Button
             onClick={handleShareTwitter}
-            className="bg-[#1DA1F2] hover:bg-[#1a8cd8]"
+            className="bg-black hover:bg-black/80 text-white"
           >
             <Twitter className="h-4 w-4 mr-2" />
             Share on X
@@ -266,7 +268,7 @@ export function ProfileSettings({ profile, showReferrals = true, onlyReferrals =
   }
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="max-w-4xl">
       <div className="grid grid-cols-1 lg:grid-cols-[1fr,360px] gap-x-12 gap-y-8">
         {/* Profile Section */}
         <div className="space-y-6">

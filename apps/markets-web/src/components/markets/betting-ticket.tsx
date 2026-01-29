@@ -30,7 +30,7 @@ export const BettingTicket = forwardRef<HTMLDivElement, BettingTicketProps>(
     return (
       <div
         ref={ref}
-        className="w-full max-w-[400px] bg-[#0a0a0f] text-white font-sans overflow-hidden border border-white/10 rounded-sm"
+        className="w-full max-w-[400px] bg-black text-white font-sans overflow-hidden border border-white/10 rounded-sm"
         style={{
           fontFamily: "'Inter', system-ui, sans-serif",
         }}
@@ -39,7 +39,7 @@ export const BettingTicket = forwardRef<HTMLDivElement, BettingTicketProps>(
         <div className="h-3 sm:h-4 bg-[#df2421] relative">
           <div className="absolute bottom-0 left-0 right-0 h-2 flex justify-between px-1">
             {[...Array(16)].map((_, i) => (
-              <div key={i} className="w-2 h-2 sm:w-3 sm:h-3 bg-[#0a0a0f] rounded-full -mb-1 sm:-mb-1.5" />
+              <div key={i} className="w-2 h-2 sm:w-3 sm:h-3 bg-black rounded-full -mb-1 sm:-mb-1.5" />
             ))}
           </div>
         </div>
@@ -76,7 +76,7 @@ export const BettingTicket = forwardRef<HTMLDivElement, BettingTicketProps>(
             <div className="flex items-center justify-between">
               <div className="flex-1 text-center">
                 <div className="text-[10px] sm:text-xs text-white/40 uppercase tracking-wider mb-1 sm:mb-2">Your Pick</div>
-                <div className="text-2xl sm:text-3xl font-bold text-purple-300 leading-tight">
+                <div className="text-2xl sm:text-3xl font-bold text-white leading-tight">
                   {outcomeLabel}
                 </div>
               </div>
@@ -133,7 +133,7 @@ export const BettingTicket = forwardRef<HTMLDivElement, BettingTicketProps>(
         <div className="h-3 sm:h-4 bg-[#df2421] relative">
           <div className="absolute top-0 left-0 right-0 h-2 flex justify-between px-1">
             {[...Array(16)].map((_, i) => (
-              <div key={i} className="w-2 h-2 sm:w-3 sm:h-3 bg-[#0a0a0f] rounded-full -mt-1 sm:-mt-1.5" />
+              <div key={i} className="w-2 h-2 sm:w-3 sm:h-3 bg-black rounded-full -mt-1 sm:-mt-1.5" />
             ))}
           </div>
         </div>

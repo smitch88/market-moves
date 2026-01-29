@@ -14,7 +14,7 @@ export function PrivyProvider({ children }: { children: React.ReactNode }) {
     <BasePrivyProvider
       appId={PRIVY_APP_ID}
       config={{
-        loginMethods: ["email", "twitter", "wallet"],
+        loginMethods: ["twitter"],
         appearance: {
           theme: "dark",
           accentColor: "#dc2626",

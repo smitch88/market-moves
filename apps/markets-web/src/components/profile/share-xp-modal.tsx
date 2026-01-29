@@ -1,71 +1,90 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { Button, Dialog, DialogContent, Input, toast } from "@vault/ui";
-import { Loader2, Copy, Download, Check, Sparkles } from "lucide-react";
+import { Loader2, Copy, Download, Check } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { XIcon } from "../x-icon";
-import { BettingTicket } from "../betting-ticket";
-import type { Market, Event } from "@vault/database";
+import { toPng } from "html-to-image";
+import { BettingTicket } from "../markets/betting-ticket";
+import { useAuthFetch } from "@/lib/auth/auth-fetch";
 
-interface SuccessModalProps {
+// Custom X (Twitter) logo icon
+function XIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      className={className}
+      fill="currentColor"
+    >
+      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+    </svg>
+  );
+}
+
+interface UnsharedBet {
+  id: string;
+  marketId: string;
+  outcomeIndex: number;
+  amount: number;
+  createdAt: string;
+  market: {
+    id: string;
+    question: string;
+    outcomes: string;
+    event: {
+      id: string;
+      slug: string;
+      title: string;
+    };
+  };
+}
+
+interface ShareXPModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  market: Market;
-  event: Event;
-  outcomes: string[];
-  confirmedOutcome: number | null;
-  confirmedBetAmount: number;
-  betId?: string | null;
+  bet: UnsharedBet;
   profile?: {
     name?: string | null;
     handle?: string | null;
     profileImageUrl?: string | null;
   } | null;
-  ticketRef: React.RefObject<HTMLDivElement>;
-  isGeneratingImage: boolean;
-  copied: boolean;
-  onShareOnX: () => void;
-  onDownload: () => void;
-  onCopyLink: () => void;
 }
 
 const SHARE_XP_BONUS = 50;
 
-export function SuccessModal({
-  open,
-  onOpenChange,
-  market,
-  event,
-  outcomes,
-  confirmedOutcome,
-  confirmedBetAmount,
-  betId,
-  profile,
-  ticketRef,
-  isGeneratingImage,
-  copied,
-  onShareOnX,
-  onDownload,
-  onCopyLink,
-}: SuccessModalProps) {
+function parseOutcomes(outcomes: string): string[] {
+  try {
+    return JSON.parse(outcomes);
+  } catch {
+    return ["Yes", "No"];
+  }
+}
+
+export function ShareXPModal({ open, onOpenChange, bet, profile }: ShareXPModalProps) {
   const { user } = usePrivy();
   const queryClient = useQueryClient();
+  const authFetch = useAuthFetch();
+  
   const [xpClaimed, setXpClaimed] = useState(false);
   const [tweetUrl, setTweetUrl] = useState("");
   const [showManualEntry, setShowManualEntry] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+  const ticketRef = useRef<HTMLDivElement>(null);
 
   const hasTwitter = !!user?.twitter;
+  const outcomes = parseOutcomes(bet.market.outcomes);
+  const outcomeLabel = outcomes[bet.outcomeIndex] || "Unknown";
 
   // Share for XP mutation
   const shareXPMutation = useMutation({
     mutationFn: async (method: "timeline" | "url") => {
-      if (!betId) throw new Error("No bet ID");
-      const res = await fetch(`/api/bets/${betId}/share-xp`, {
+      const res = await authFetch(`/api/bets/${bet.id}/share-xp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           method,
           tweetUrl: method === "url" ? tweetUrl : undefined,
         }),
@@ -82,8 +101,8 @@ export function SuccessModal({
         toast.success(`+${SHARE_XP_BONUS} XP earned for sharing!`);
         await queryClient.invalidateQueries({ queryKey: ["profile"] });
         await queryClient.invalidateQueries({ queryKey: ["xp"] });
+        await queryClient.invalidateQueries({ queryKey: ["unshared-bets"] });
       } else {
-        // Auto-verify failed, show manual entry option
         setShowManualEntry(true);
         toast.warning(data.message || "Could not find your tweet. Try pasting the URL below.");
       }
@@ -92,19 +111,87 @@ export function SuccessModal({
       if (error.message.includes("already claimed")) {
         setXpClaimed(true);
         toast.info("XP already claimed for this bet!");
+        queryClient.invalidateQueries({ queryKey: ["unshared-bets"] });
       } else if (error.message.includes("already been used")) {
         toast.warning("This tweet was already used for XP. Please share a new tweet!");
       } else {
-        // Show manual entry on error
         setShowManualEntry(true);
         toast.error(error.message || "Failed to verify share");
       }
     },
   });
 
-  if (confirmedOutcome === null) return null;
+  const generateTicketImage = useCallback(async (): Promise<string | null> => {
+    if (!ticketRef.current) return null;
+    try {
+      const dataUrl = await toPng(ticketRef.current, {
+        quality: 1.0,
+        pixelRatio: 2,
+        backgroundColor: "#000000",
+      });
+      return dataUrl;
+    } catch (error) {
+      console.error("Failed to generate ticket image:", error);
+      return null;
+    }
+  }, []);
 
-  const confirmedOutcomeLabel = outcomes[confirmedOutcome];
+  const handleShareOnX = useCallback(async () => {
+    setIsGeneratingImage(true);
+    try {
+      const dataUrl = await generateTicketImage();
+      if (dataUrl) {
+        const response = await fetch(dataUrl);
+        const blob = await response.blob();
+        await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+
+        setTimeout(() => {
+          const tweetText = encodeURIComponent(
+            `🎯 I bet $${bet.amount.toLocaleString()} on "${outcomeLabel}" for "${bet.market.event.title}" on @VaultMarkets!\n\nMake your prediction 👇\n${window.location.origin}/markets/${bet.market.event.slug}`
+          );
+          window.open(`https://x.com/intent/tweet?text=${tweetText}`, "_blank");
+        }, 500);
+
+        toast.success("Ticket copied to clipboard! Paste it in your tweet.", { duration: 4000 });
+      }
+    } catch (error) {
+      console.error("Failed to copy ticket:", error);
+      toast.error("Failed to copy ticket to clipboard");
+    } finally {
+      setIsGeneratingImage(false);
+    }
+  }, [generateTicketImage, bet, outcomeLabel]);
+
+  const handleDownload = useCallback(async () => {
+    setIsGeneratingImage(true);
+    try {
+      const dataUrl = await generateTicketImage();
+      if (dataUrl) {
+        const link = document.createElement("a");
+        link.download = `vault-bet-${bet.market.event.slug}-${Date.now()}.png`;
+        link.href = dataUrl;
+        link.click();
+        toast.success("Ticket downloaded!");
+      } else {
+        toast.error("Failed to generate ticket");
+      }
+    } catch {
+      toast.error("Failed to download ticket");
+    } finally {
+      setIsGeneratingImage(false);
+    }
+  }, [generateTicketImage, bet.market.event.slug]);
+
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(`${window.location.origin}/markets/${bet.market.event.slug}`);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+      toast.success("Link copied!");
+    } catch {
+      toast.error("Failed to copy link");
+    }
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -112,30 +199,29 @@ export function SuccessModal({
         <div className="p-4 sm:p-6 space-y-4 sm:space-y-5 overflow-y-auto max-h-[calc(90vh-2rem)]">
           {/* Header */}
           <div className="text-center">
-            <h2 className="text-xl font-bold">Bet Confirmed!</h2>
+            <h2 className="text-xl font-bold">Boost Your XP</h2>
           </div>
 
           {/* Ticket Preview */}
-          {confirmedOutcomeLabel && (
-            <div className="flex justify-center">
-              <BettingTicket
-                ref={ticketRef}
-                market={market}
-                event={event}
-                outcomeLabel={confirmedOutcomeLabel}
-                outcomeIndex={confirmedOutcome}
-                amount={confirmedBetAmount}
-                userName={profile?.name}
-                userHandle={profile?.handle}
-                userAvatar={profile?.profileImageUrl}
-              />
-            </div>
-          )}
+          <div className="flex justify-center">
+            <BettingTicket
+              ref={ticketRef}
+              market={{ ...bet.market, outcomes: bet.market.outcomes } as never}
+              event={bet.market.event as never}
+              outcomeLabel={outcomeLabel}
+              outcomeIndex={bet.outcomeIndex}
+              amount={bet.amount}
+              userName={profile?.name}
+              userHandle={profile?.handle}
+              userAvatar={profile?.profileImageUrl}
+              timestamp={new Date(bet.createdAt)}
+            />
+          </div>
 
           {/* Action buttons */}
           <div className="flex gap-2">
             <Button
-              onClick={onShareOnX}
+              onClick={handleShareOnX}
               disabled={isGeneratingImage}
               className="flex-1 gap-2 bg-black hover:bg-black/80 text-white"
             >
@@ -146,16 +232,16 @@ export function SuccessModal({
               )}
               Share on X
             </Button>
-            <Button onClick={onDownload} disabled={isGeneratingImage} variant="outline" className="gap-2">
+            <Button onClick={handleDownload} disabled={isGeneratingImage} variant="outline" className="gap-2">
               {isGeneratingImage ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
             </Button>
-            <Button onClick={onCopyLink} variant="outline" className="gap-2">
+            <Button onClick={handleCopyLink} variant="outline" className="gap-2">
               {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
             </Button>
           </div>
 
           {/* Claim XP Section */}
-          {betId && !xpClaimed && (
+          {!xpClaimed && (
             <div className="space-y-2 pt-2 border-t border-border/50">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <span className="text-xs sm:text-sm font-medium">Claim +{SHARE_XP_BONUS} XP for sharing on X</span>
@@ -176,7 +262,6 @@ export function SuccessModal({
                   </Button>
                 )}
               </div>
-              {/* Manual URL entry: show always if no Twitter, or on auto-verify fail */}
               {(!hasTwitter || showManualEntry) && (
                 <div className="flex gap-2">
                   <Input

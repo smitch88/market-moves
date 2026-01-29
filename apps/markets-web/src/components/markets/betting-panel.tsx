@@ -150,7 +150,7 @@ export function BettingPanel({ market, event, stats }: BettingPanelProps) {
       const dataUrl = await toPng(ticketRef.current, {
         quality: 1.0,
         pixelRatio: 2,
-        backgroundColor: "#0a0a0f",
+        backgroundColor: "#000000",
       });
       return dataUrl;
     } catch (error) {

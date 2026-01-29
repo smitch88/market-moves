@@ -21,7 +21,7 @@ import {
   Input,
   toast,
 } from "@vault/ui";
-import { User, LogOut, ChevronDown, Bug, Gift, Check, Copy, Users, Shield, Sun, Moon } from "lucide-react";
+import { User, LogOut, ChevronDown, Bug, Gift, Check, Copy, Users, Shield, Sun, Moon, HelpCircle } from "lucide-react";
 import { useAuthFetch } from "@/lib/auth/auth-fetch";
 
 // Custom X (Twitter) logo icon
@@ -184,11 +184,52 @@ export function ProfileCard() {
             </div>
           </>
         )}
-        <div className="px-2 py-1.5 sm:hidden">
-          <p className="text-sm font-medium">{displayName}</p>
-          <p className="text-xs text-amber-500 font-semibold">Lvl {level}</p>
+        {/* User info with avatar and XP ring */}
+        <div className="px-3 py-3 flex items-center gap-3">
+          {/* Avatar with progress ring */}
+          <div className="relative h-12 w-12 flex items-center justify-center flex-shrink-0">
+            {/* Progress ring SVG */}
+            <svg className="absolute inset-0 h-12 w-12 -rotate-90" viewBox="0 0 48 48">
+              {/* Background circle */}
+              <circle
+                cx="24"
+                cy="24"
+                r="21"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                className="text-muted/30"
+              />
+              {/* Progress circle */}
+              <circle
+                cx="24"
+                cy="24"
+                r="21"
+                fill="none"
+                stroke="#df2421"
+                strokeWidth="3"
+                strokeLinecap="round"
+                strokeDasharray={`${progress * 132} 132`}
+              />
+            </svg>
+            {/* Avatar */}
+            <div className="relative h-9 w-9 rounded-full overflow-hidden bg-muted">
+              {avatarUrl ? (
+                <Image src={avatarUrl} alt={displayName} fill className="object-cover" />
+              ) : (
+                <div className="h-full w-full flex items-center justify-center bg-gradient-to-br from-violet-500 to-purple-600">
+                  <User className="h-4 w-4 text-white" />
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium truncate">{displayName}</p>
+            <p className="text-xs text-foreground font-semibold">Lvl {level}</p>
+            <p className="text-xs text-[#21C55E] font-semibold">${(profile?.balance ?? 0).toLocaleString()}</p>
+          </div>
         </div>
-        <DropdownMenuSeparator className="sm:hidden" />
+        <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
           <Link href="/profile" className="cursor-pointer">
             <User className="mr-2 h-4 w-4" />
@@ -206,6 +247,12 @@ export function ProfileCard() {
         <DropdownMenuItem onClick={() => setInviteModalOpen(true)} className="cursor-pointer">
           <Gift className="mr-2 h-4 w-4" />
           Invite Friends
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href="/faq" className="cursor-pointer">
+            <HelpCircle className="mr-2 h-4 w-4" />
+            FAQ
+          </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem 
@@ -233,7 +280,7 @@ export function ProfileCard() {
             Stop Impersonating
           </DropdownMenuItem>
         ) : (
-          <DropdownMenuItem onClick={logout} className="cursor-pointer text-destructive">
+          <DropdownMenuItem onClick={logout} className="cursor-pointer text-[#df2421] focus:text-[#df2421]">
             <LogOut className="mr-2 h-4 w-4" />
             Sign Out
           </DropdownMenuItem>

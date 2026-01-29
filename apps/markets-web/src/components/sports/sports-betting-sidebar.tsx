@@ -259,7 +259,7 @@ export function SportsBettingSidebar({
       return await toPng(ticketRef.current, {
         quality: 1.0,
         pixelRatio: 2,
-        backgroundColor: "#0a0a0f",
+        backgroundColor: "#000000",
       });
     } catch {
       return null;

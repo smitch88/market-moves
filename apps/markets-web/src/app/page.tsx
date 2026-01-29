@@ -6,6 +6,7 @@ import {
   FeaturedEventsSkeleton,
 } from "@/components/events";
 import { Header } from "@/components/layout/header";
+import { Footer } from "@/components/layout/footer";
 import { MarketFilters } from "@/components/markets/market-filters";
 
 interface HomePageProps {
@@ -39,6 +40,8 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           <EventGrid sort={sort} category={category} query={q} />
         </Suspense>
       </main>
+
+      <Footer />
     </div>
   );
 }

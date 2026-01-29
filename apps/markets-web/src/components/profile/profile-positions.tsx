@@ -4,11 +4,12 @@ import { useState } from "react";
 import Link from "next/link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, Skeleton } from "@vault/ui";
-import { ArrowUpRight, Target, Gift } from "lucide-react";
+import { ArrowUpRight, Target, Gift, Zap } from "lucide-react";
 import { cn } from "@vault/ui/lib/utils";
 import { getMarketUrl } from "@/lib/urls";
 import { SellPositionModal } from "./sell-position-modal";
 import { RedeemPositionsModal } from "./redeem-positions-modal";
+import { ShareXPModal } from "./share-xp-modal";
 import { useAuthFetch } from "@/lib/auth/auth-fetch";
 
 interface Position {
@@ -26,6 +27,7 @@ interface Position {
     question: string;
     outcomes: string;
     outcomePrices: string;
+    outcomeColors?: string;
     status: string;
     reserve0: number;
     reserve1: number;
@@ -40,6 +42,24 @@ interface Position {
       id: string;
       title: string;
       slug: string;
+    };
+  };
+}
+
+interface UnsharedBet {
+  id: string;
+  marketId: string;
+  outcomeIndex: number;
+  amount: number;
+  createdAt: string;
+  market: {
+    id: string;
+    question: string;
+    outcomes: string;
+    event: {
+      id: string;
+      slug: string;
+      title: string;
     };
   };
 }
@@ -70,10 +90,17 @@ interface PositionRowProps {
   shares: number;
   avgCost: number;
   onSellComplete: () => void;
+  unsharedBet?: UnsharedBet | null;
+  profile?: {
+    name?: string | null;
+    handle?: string | null;
+    profileImageUrl?: string | null;
+  } | null;
 }
 
-function PositionRow({ position, outcomeIndex, shares, avgCost, onSellComplete }: PositionRowProps) {
+function PositionRow({ position, outcomeIndex, shares, avgCost, onSellComplete, unsharedBet, profile }: PositionRowProps) {
   const [showSellModal, setShowSellModal] = useState(false);
+  const [showShareXPModal, setShowShareXPModal] = useState(false);
 
   const { market } = position;
   const outcomes = parseJsonArray(market.outcomes, ["Yes", "No"]);
@@ -189,46 +216,62 @@ function PositionRow({ position, outcomeIndex, shares, avgCost, onSellComplete }
           </div>
 
           {/* Actions */}
-          {isSettled ? (
-            <div className="flex flex-col items-end gap-1">
-              {isClaimed ? (
-                // Already claimed
-                didWin ? (
-                  <div className="text-xs text-green-500 font-medium bg-green-500/10 px-2 py-1 rounded border border-green-500/20">
-                    ✓ Claimed
-                  </div>
+          <div className="flex items-center gap-2">
+            {/* Boost XP button */}
+            {unsharedBet && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowShareXPModal(true)}
+                className="gap-1.5 text-[#df2421] border-[#df2421]/30 hover:bg-[#df2421]/10 hover:text-[#df2421]"
+              >
+                <Zap className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Boost XP</span>
+                <span className="sm:hidden">+XP</span>
+              </Button>
+            )}
+            
+            {isSettled ? (
+              <div className="flex flex-col items-end gap-1">
+                {isClaimed ? (
+                  // Already claimed
+                  didWin ? (
+                    <div className="text-xs text-green-500 font-medium bg-green-500/10 px-2 py-1 rounded border border-green-500/20">
+                      ✓ Claimed
+                    </div>
+                  ) : (
+                    <div className="text-xs text-muted-foreground bg-muted/50 px-2 py-1 rounded">
+                      Settled
+                    </div>
+                  )
                 ) : (
-                  <div className="text-xs text-muted-foreground bg-muted/50 px-2 py-1 rounded">
-                    Settled
-                  </div>
-                )
-              ) : (
-                // Not yet claimed
-                canRedeem ? (
-                  <div className="text-xs text-amber-500 font-medium bg-amber-500/10 px-2 py-1 rounded border border-amber-500/20">
-                    Pending claim
-                  </div>
-                ) : didLose ? (
-                  <div className="text-xs text-muted-foreground bg-muted/50 px-2 py-1 rounded">
-                    Lost
-                  </div>
-                ) : null
-              )}
-            </div>
-          ) : (
-            <>
-              {isOpen && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowSellModal(true)}
-                  className="text-muted-foreground hover:text-foreground"
-                >
-                  Sell
-                </Button>
-              )}
-            </>
-          )}
+                  // Not yet claimed
+                  canRedeem ? (
+                    <div className="text-xs text-amber-500 font-medium bg-amber-500/10 px-2 py-1 rounded border border-amber-500/20">
+                      Pending claim
+                    </div>
+                  ) : didLose ? (
+                    <div className="text-xs text-muted-foreground bg-muted/50 px-2 py-1 rounded">
+                      Lost
+                    </div>
+                  ) : null
+                )}
+              </div>
+            ) : (
+              <>
+                {isOpen && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowSellModal(true)}
+                    className="text-muted-foreground hover:text-foreground"
+                  >
+                    Sell
+                  </Button>
+                )}
+              </>
+            )}
+          </div>
         </div>
       </div>
 
@@ -244,6 +287,16 @@ function PositionRow({ position, outcomeIndex, shares, avgCost, onSellComplete }
           maxShares={shares}
           avgCost={avgCost}
           onSellComplete={onSellComplete}
+        />
+      )}
+
+      {/* Share XP Modal */}
+      {unsharedBet && (
+        <ShareXPModal
+          open={showShareXPModal}
+          onOpenChange={setShowShareXPModal}
+          bet={unsharedBet}
+          profile={profile}
         />
       )}
     </>
@@ -282,6 +335,33 @@ export function ProfilePositions() {
         return null;
       }
     },
+  });
+
+  // Fetch unshared bets for Boost XP feature
+  const { data: unsharedBets } = useQuery({
+    queryKey: ["unshared-bets"],
+    queryFn: async (): Promise<UnsharedBet[]> => {
+      const res = await authFetch("/api/me/bets/unshared");
+      if (!res.ok) return [];
+      return res.json();
+    },
+  });
+
+  // Fetch profile for share modal
+  const { data: profile } = useQuery({
+    queryKey: ["profile"],
+    queryFn: async () => {
+      const res = await authFetch("/api/me");
+      if (!res.ok) return null;
+      return res.json();
+    },
+  });
+
+  // Create a map of marketId-outcomeIndex to unshared bet for quick lookup
+  const unsharedBetMap = new Map<string, UnsharedBet>();
+  unsharedBets?.forEach((bet) => {
+    const key = `${bet.marketId}-${bet.outcomeIndex}`;
+    unsharedBetMap.set(key, bet);
   });
 
   if (isLoading) {
@@ -440,18 +520,25 @@ export function ProfilePositions() {
 
       {/* Position list */}
       <div>
-        {positionRows.map((row) => (
-          <PositionRow
-            key={`${row.position.id}-${row.outcomeIndex}`}
-            position={row.position}
-            outcomeIndex={row.outcomeIndex}
-            shares={row.shares}
-            avgCost={row.avgCost}
-            onSellComplete={() => {
-              queryClient.invalidateQueries({ queryKey: ["positions"] });
-            }}
-          />
-        ))}
+        {positionRows.map((row) => {
+          const positionKey = `${row.position.market.id}-${row.outcomeIndex}`;
+          const unsharedBet = unsharedBetMap.get(positionKey);
+          
+          return (
+            <PositionRow
+              key={`${row.position.id}-${row.outcomeIndex}`}
+              position={row.position}
+              outcomeIndex={row.outcomeIndex}
+              shares={row.shares}
+              avgCost={row.avgCost}
+              onSellComplete={() => {
+                queryClient.invalidateQueries({ queryKey: ["positions"] });
+              }}
+              unsharedBet={unsharedBet}
+              profile={profile}
+            />
+          );
+        })}
       </div>
     </div>
   );
