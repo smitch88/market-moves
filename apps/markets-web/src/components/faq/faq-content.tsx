@@ -134,8 +134,8 @@ const faqCategories: { title: string; items: FAQItem[] }[] = [
       {
         question: "How do referrals work?",
         answer: [
-          "Each user has a unique referral code that can be shared with friends. When someone signs up using your referral code, both you and the new user may receive bonus credits or raffle entries.",
-          "Referral bonuses are typically awarded after the referred user places their first verified bet.",
+          "Each user has a unique referral code that can be shared with friends. When someone signs up using your referral code, both you and the new user receive 10,000 XP - equivalent to placing a $1,000 bet!",
+          "The XP bonus is awarded immediately when the referred user joins through your link.",
         ],
       },
     ],

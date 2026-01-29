@@ -297,6 +297,7 @@ After successful bet confirmation:
 │  - Avatar       │
 │  - Name/Handle  │
 │  - Platform benefits│
+│  - XP bonus info│
 └────────┬────────┘
          │
          ▼
@@ -312,17 +313,26 @@ After successful bet confirmation:
 └────────┬────────┘
          │
          ▼
-┌─────────────────┐
-│  POST /api/     │
-│  referral/claim │
-└────────┬────────┘
+┌─────────────────────────┐
+│  POST /api/referral/claim│
+│  - Creates referral link │
+│  - Awards 10,000 XP to   │
+│    both users            │
+│  - Logs to XPLedger      │
+└────────┬────────────────┘
          │
          ▼
 ┌─────────────────┐
 │  Redirect to /  │
 │  Referral linked│
+│  XP awarded!    │
 └─────────────────┘
 ```
+
+**XP Reward:**
+- Both the referrer and referred user receive 10,000 XP
+- Equivalent to placing a $1,000 bet at 10 XP per dollar
+- XP is awarded immediately upon signup via referral link
 
 ---
 

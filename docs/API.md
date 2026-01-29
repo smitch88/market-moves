@@ -239,7 +239,7 @@ Get user betting activity.
 ---
 
 ### POST /api/referral/claim
-Claim a referral code after signup.
+Claim a referral code after signup. Awards 10,000 XP to both the referrer and the referred user (equivalent to placing a $1,000 bet).
 
 **Request Body:**
 ```json
@@ -256,9 +256,18 @@ Claim a referral code after signup.
   "referrer": {
     "name": "Referrer Name",
     "handle": "referrer_handle"
-  }
+  },
+  "xpAwarded": 10000,
+  "newXp": 10000,
+  "newLevel": 3
 }
 ```
+
+**Notes:**
+- Both users receive 10,000 XP immediately upon claiming
+- XP is logged in the XPLedger with reason `REFERRAL_BONUS`
+- Each user can only claim one referral (cannot be referred by multiple users)
+- Users cannot refer themselves
 
 ---
 
