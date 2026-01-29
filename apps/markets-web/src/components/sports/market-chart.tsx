@@ -236,18 +236,99 @@ export function MarketChart({ market, selectedOutcome }: MarketChartProps) {
     }
   }, [price0, price1, isLoading]); // Only depend on prices, not snapshots
 
-  // Transform snapshots to chart data, or use mock data as fallback
+  // Transform snapshots to chart data, ensuring we have enough points for a proper line chart
   const chartData = useMemo((): ChartDataPoint[] => {
     if (snapshots.length === 0) {
       // No real data, generate mock data
       return generateMockData(price0, price1, activePeriod);
     }
 
-    // Use real data
-    return snapshots.map((snapshot) => ({
-      time: formatTimestamp(snapshot.timestamp, activePeriod),
+    // Calculate time range for the selected period
+    const now = new Date();
+    let periodStartMs: number;
+    
+    switch (activePeriod) {
+      case "1H":
+        periodStartMs = now.getTime() - 60 * 60 * 1000;
+        break;
+      case "6H":
+        periodStartMs = now.getTime() - 6 * 60 * 60 * 1000;
+        break;
+      case "1D":
+        periodStartMs = now.getTime() - 24 * 60 * 60 * 1000;
+        break;
+      case "1W":
+        periodStartMs = now.getTime() - 7 * 24 * 60 * 60 * 1000;
+        break;
+      case "1M":
+        periodStartMs = now.getTime() - 30 * 24 * 60 * 60 * 1000;
+        break;
+      case "ALL":
+        // For ALL, use the earliest snapshot or 60 days ago
+        const earliestSnapshot = snapshots[0];
+        periodStartMs = earliestSnapshot 
+          ? new Date(earliestSnapshot.timestamp).getTime() 
+          : now.getTime() - 60 * 24 * 60 * 60 * 1000;
+        break;
+    }
+
+    // Convert snapshots to sortable format
+    const sortablePoints = snapshots.map((snapshot) => ({
+      timestamp: new Date(snapshot.timestamp).getTime(),
       price0: Math.round(snapshot.price0 * 100),
       price1: Math.round(snapshot.price1 * 100),
+    }));
+
+    // Sort by timestamp
+    sortablePoints.sort((a, b) => a.timestamp - b.timestamp);
+
+    // If we have very few points, extend the chart to span the full period
+    const minPointsNeeded = 2;
+    
+    if (sortablePoints.length < minPointsNeeded) {
+      const result: ChartDataPoint[] = [];
+      
+      // Add a starting point at the beginning of the period
+      // Use the first known price, or 50/50 if no data
+      const firstPrice0 = sortablePoints.length > 0 ? sortablePoints[0].price0 : 50;
+      const firstPrice1 = sortablePoints.length > 0 ? sortablePoints[0].price1 : 50;
+      
+      result.push({
+        time: formatTimestamp(new Date(periodStartMs).toISOString(), activePeriod),
+        price0: firstPrice0,
+        price1: firstPrice1,
+      });
+      
+      // Add all existing data points
+      sortablePoints.forEach(dp => {
+        result.push({
+          time: formatTimestamp(new Date(dp.timestamp).toISOString(), activePeriod),
+          price0: dp.price0,
+          price1: dp.price1,
+        });
+      });
+      
+      // Add current price as the ending point if different from last point
+      const lastPoint = result[result.length - 1];
+      const currentPercent0 = Math.round(price0 * 100);
+      const currentPercent1 = Math.round(price1 * 100);
+      
+      if (!lastPoint || lastPoint.price0 !== currentPercent0 || lastPoint.price1 !== currentPercent1) {
+        result.push({
+          time: formatTimestamp(now.toISOString(), activePeriod),
+          price0: currentPercent0,
+          price1: currentPercent1,
+        });
+      }
+      
+      return result;
+    }
+
+    // We have enough points, convert to chart format
+    return sortablePoints.map(dp => ({
+      time: formatTimestamp(new Date(dp.timestamp).toISOString(), activePeriod),
+      price0: dp.price0,
+      price1: dp.price1,
     }));
   }, [snapshots, price0, price1, activePeriod]);
 

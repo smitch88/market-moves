@@ -519,17 +519,22 @@ export function SportsEventView({ event, sport }: SportsEventViewProps) {
   // Handle outcome selection
   const handleSelectOutcome = (marketId: string, outcomeIndex: number) => {
     if (selectedMarketId === marketId && selectedOutcome === outcomeIndex) {
+      // Clicking the same outcome again - deselect
       setSelectedMarketId(null);
       setSelectedOutcome(null);
+      setExpandedMarketId(null);
     } else {
+      // Selecting a new outcome - update selection and expand that market's chart
       setSelectedMarketId(marketId);
       setSelectedOutcome(outcomeIndex);
+      setExpandedMarketId(marketId);
     }
   };
 
   const handleClearSelection = () => {
     setSelectedMarketId(null);
     setSelectedOutcome(null);
+    setExpandedMarketId(null);
   };
 
   const handleToggleExpand = (marketId: string) => {

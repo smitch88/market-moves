@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { Market } from "@vault/database";
 import { cn } from "@vault/ui/lib/utils";
@@ -249,8 +249,29 @@ export function SpreadRow({
   const lines = getLineValues(markets);
   const marketsByLine = groupMarketsByLine(markets);
   const [activeLine, setActiveLine] = useState(lines[0] || 0);
+  const prevMarketIdRef = useRef<string | null>(null);
 
   const activeMarket = marketsByLine.get(activeLine) || markets[0];
+  
+  // When the active market changes due to line change, update selection/expansion if needed
+  useEffect(() => {
+    if (!activeMarket) return;
+    const prevId = prevMarketIdRef.current;
+    const newId = activeMarket.id;
+    
+    if (prevId && prevId !== newId) {
+      // If the previous market was selected, select the new one
+      if (selectedMarketId === prevId && typeof selectedOutcome === 'number') {
+        onSelectOutcome(newId, selectedOutcome);
+      }
+      // If the previous market was expanded, expand the new one
+      if (expandedMarketId === prevId && onToggleExpand) {
+        onToggleExpand(newId);
+      }
+    }
+    prevMarketIdRef.current = newId;
+  }, [activeMarket?.id, selectedMarketId, selectedOutcome, expandedMarketId, onSelectOutcome, onToggleExpand]);
+
   if (!activeMarket) return null;
 
   const outcomes = parseOutcomes(activeMarket.outcomes);
@@ -330,8 +351,29 @@ export function TotalsRow({
   const lines = getLineValues(markets);
   const marketsByLine = groupMarketsByLine(markets);
   const [activeLine, setActiveLine] = useState(lines[0] || 0);
+  const prevMarketIdRef = useRef<string | null>(null);
 
   const activeMarket = marketsByLine.get(activeLine) || markets[0];
+  
+  // When the active market changes due to line change, update selection/expansion if needed
+  useEffect(() => {
+    if (!activeMarket) return;
+    const prevId = prevMarketIdRef.current;
+    const newId = activeMarket.id;
+    
+    if (prevId && prevId !== newId) {
+      // If the previous market was selected, select the new one
+      if (selectedMarketId === prevId && typeof selectedOutcome === 'number') {
+        onSelectOutcome(newId, selectedOutcome);
+      }
+      // If the previous market was expanded, expand the new one
+      if (expandedMarketId === prevId && onToggleExpand) {
+        onToggleExpand(newId);
+      }
+    }
+    prevMarketIdRef.current = newId;
+  }, [activeMarket?.id, selectedMarketId, selectedOutcome, expandedMarketId, onSelectOutcome, onToggleExpand]);
+
   if (!activeMarket) return null;
 
   const outcomePrices = parseOutcomePrices(activeMarket.outcomePrices);
@@ -409,8 +451,29 @@ export function TeamTotalRow({
   const lines = getLineValues(markets);
   const marketsByLine = groupMarketsByLine(markets);
   const [activeLine, setActiveLine] = useState(lines[0] || 0);
+  const prevMarketIdRef = useRef<string | null>(null);
 
   const activeMarket = marketsByLine.get(activeLine) || markets[0];
+  
+  // When the active market changes due to line change, update selection/expansion if needed
+  useEffect(() => {
+    if (!activeMarket) return;
+    const prevId = prevMarketIdRef.current;
+    const newId = activeMarket.id;
+    
+    if (prevId && prevId !== newId) {
+      // If the previous market was selected, select the new one
+      if (selectedMarketId === prevId && typeof selectedOutcome === 'number') {
+        onSelectOutcome(newId, selectedOutcome);
+      }
+      // If the previous market was expanded, expand the new one
+      if (expandedMarketId === prevId && onToggleExpand) {
+        onToggleExpand(newId);
+      }
+    }
+    prevMarketIdRef.current = newId;
+  }, [activeMarket?.id, selectedMarketId, selectedOutcome, expandedMarketId, onSelectOutcome, onToggleExpand]);
+
   if (!activeMarket) return null;
 
   const outcomePrices = parseOutcomePrices(activeMarket.outcomePrices);
