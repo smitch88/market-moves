@@ -53,7 +53,7 @@ interface LeaderboardResponse {
   updatedAt: string;
 }
 
-type Metric = "xp" | "pnl";
+type Metric = "xp" | "pnl" | "volume";
 type Period = "all" | "monthly" | "weekly";
 
 // ============================================================================
@@ -65,6 +65,7 @@ const PAGE_SIZE = 25;
 const metricTabs = [
   { label: "XP", value: "xp" as Metric, icon: Sparkles },
   { label: "PnL", value: "pnl" as Metric, icon: TrendingUp },
+  { label: "Volume", value: "volume" as Metric, icon: TrendingUp },
 ];
 
 const periodTabs = [
@@ -98,6 +99,16 @@ function formatPnl(value: number): string {
     formatted = `$${absValue.toLocaleString()}`;
   }
   return value >= 0 ? `+${formatted}` : `-${formatted}`;
+}
+
+function formatVolume(value: number): string {
+  if (value >= 1_000_000) {
+    return `$${(value / 1_000_000).toFixed(1)}M`;
+  } else if (value >= 1_000) {
+    return `$${(value / 1_000).toFixed(1)}K`;
+  } else {
+    return `$${value.toLocaleString()}`;
+  }
 }
 
 function getAvatarGradient(index: number): string {
@@ -229,12 +240,18 @@ function LeaderboardRow({
             "font-semibold tabular-nums",
             metric === "xp"
               ? "text-primary"
+              : metric === "volume"
+              ? "text-blue-400"
               : entry.value >= 0
               ? "text-emerald-400"
               : "text-red-400"
           )}
         >
-          {metric === "xp" ? formatXp(entry.value) : formatPnl(entry.value)}
+          {metric === "xp" 
+            ? formatXp(entry.value) 
+            : metric === "volume"
+            ? formatVolume(entry.value)
+            : formatPnl(entry.value)}
         </span>
       </div>
     </>
@@ -453,7 +470,9 @@ export function LeaderboardContent() {
           {metric === "xp" && (
             <div className="w-16 text-center hidden sm:block">Level</div>
           )}
-          <div className="w-28 text-right">{metric === "xp" ? "XP" : "PnL"}</div>
+          <div className="w-28 text-right">
+            {metric === "xp" ? "XP" : metric === "volume" ? "Volume" : "PnL"}
+          </div>
         </div>
       )}
 

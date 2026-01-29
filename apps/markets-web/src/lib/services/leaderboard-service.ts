@@ -15,7 +15,7 @@ import { calculateLevel } from "./xp-service";
 // TYPES
 // ============================================================================
 
-export type LeaderboardMetric = "xp" | "pnl";
+export type LeaderboardMetric = "xp" | "pnl" | "volume";
 export type LeaderboardPeriod = "all" | "monthly" | "weekly";
 
 export interface LeaderboardEntry {
@@ -230,6 +230,183 @@ export async function getUserXPRank(
   const total = allUserXP.length;
 
   // Get user's total XP for level
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { xp: true },
+  });
+
+  return {
+    rank,
+    value: userValue,
+    level: user ? calculateLevel(user.xp) : 0,
+    totalUsers: total,
+  };
+}
+
+// ============================================================================
+// VOLUME LEADERBOARD
+// ============================================================================
+
+/**
+ * Get Volume leaderboard with pagination
+ * Uses User.totalVolume for all-time, or aggregates from Bet for time periods
+ */
+export async function getVolumeLeaderboard(
+  period: LeaderboardPeriod = "all",
+  page: number = 1,
+  pageSize: number = 25
+): Promise<{ entries: LeaderboardEntry[]; total: number }> {
+  const skip = (page - 1) * pageSize;
+
+  if (period === "all") {
+    // Use stored totalVolume for efficiency
+    const total = await prisma.user.count({
+      where: { totalVolume: { gt: 0 } },
+    });
+
+    const users = await prisma.user.findMany({
+      where: { totalVolume: { gt: 0 } },
+      orderBy: { totalVolume: "desc" },
+      skip,
+      take: pageSize,
+      select: {
+        id: true,
+        handle: true,
+        name: true,
+        profileImageUrl: true,
+        totalVolume: true,
+        xp: true,
+      },
+    });
+
+    const entries = users.map((user, index) => ({
+      rank: skip + index + 1,
+      userId: user.id,
+      handle: user.handle,
+      name: user.name,
+      profileImageUrl: user.profileImageUrl,
+      value: Number(user.totalVolume),
+      level: calculateLevel(user.xp),
+    }));
+
+    return { entries, total };
+  }
+
+  // For weekly/monthly, aggregate from bets
+  const startDate = getPeriodStartDate(period);
+  if (!startDate) {
+    return { entries: [], total: 0 };
+  }
+
+  // Count unique users with volume in period
+  const volumeData = await prisma.bet.groupBy({
+    by: ["userId"],
+    where: {
+      createdAt: { gte: startDate },
+      status: BetStatus.CONFIRMED,
+    },
+    _sum: { amount: true },
+  });
+
+  const total = volumeData.filter((v) => Number(v._sum.amount ?? 0) > 0).length;
+
+  // Sort and paginate
+  const sortedData = volumeData
+    .map((v) => ({ userId: v.userId, volume: Number(v._sum.amount ?? 0) }))
+    .filter((v) => v.volume > 0)
+    .sort((a, b) => b.volume - a.volume)
+    .slice(skip, skip + pageSize);
+
+  // Get user details
+  const userIds = sortedData.map((x) => x.userId);
+  const users = await prisma.user.findMany({
+    where: { id: { in: userIds } },
+    select: {
+      id: true,
+      handle: true,
+      name: true,
+      profileImageUrl: true,
+      xp: true,
+    },
+  });
+
+  const userMap = new Map(users.map((u) => [u.id, u]));
+
+  const entries = sortedData.map((entry, index) => {
+    const user = userMap.get(entry.userId);
+    return {
+      rank: skip + index + 1,
+      userId: entry.userId,
+      handle: user?.handle ?? null,
+      name: user?.name ?? null,
+      profileImageUrl: user?.profileImageUrl ?? null,
+      value: entry.volume,
+      level: user ? calculateLevel(user.xp) : 0,
+    };
+  });
+
+  return { entries, total };
+}
+
+/**
+ * Get a user's Volume rank
+ */
+export async function getUserVolumeRank(
+  userId: string,
+  period: LeaderboardPeriod = "all"
+): Promise<UserRankResult | null> {
+  if (period === "all") {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { totalVolume: true, xp: true },
+    });
+
+    if (!user || Number(user.totalVolume) <= 0) return null;
+
+    const userVolume = Number(user.totalVolume);
+    const rank = await prisma.user.count({
+      where: { totalVolume: { gt: user.totalVolume } },
+    });
+
+    const total = await prisma.user.count({ where: { totalVolume: { gt: 0 } } });
+
+    return {
+      rank: rank + 1,
+      value: userVolume,
+      level: calculateLevel(user.xp),
+      totalUsers: total,
+    };
+  }
+
+  // For weekly/monthly, aggregate from bets
+  const startDate = getPeriodStartDate(period);
+  if (!startDate) return null;
+
+  const userVolume = await prisma.bet.aggregate({
+    where: {
+      userId,
+      createdAt: { gte: startDate },
+      status: BetStatus.CONFIRMED,
+    },
+    _sum: { amount: true },
+  });
+
+  const userValue = Number(userVolume._sum.amount ?? 0);
+  if (userValue <= 0) return null;
+
+  // Get all users' volumes for the period
+  const allVolumes = await prisma.bet.groupBy({
+    by: ["userId"],
+    where: {
+      createdAt: { gte: startDate },
+      status: BetStatus.CONFIRMED,
+    },
+    _sum: { amount: true },
+  });
+
+  const rank = allVolumes.filter((u) => Number(u._sum.amount ?? 0) > userValue).length + 1;
+  const total = allVolumes.filter((u) => Number(u._sum.amount ?? 0) > 0).length;
+
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: { xp: true },
@@ -649,19 +826,24 @@ export async function getLeaderboard(
   page: number = 1,
   pageSize: number = 25
 ): Promise<LeaderboardResult> {
-  const { entries, total } =
-    metric === "xp"
-      ? await getXPLeaderboard(period, page, pageSize)
-      : await getPnLLeaderboard(period, page, pageSize);
+  let result: { entries: LeaderboardEntry[]; total: number };
+  
+  if (metric === "xp") {
+    result = await getXPLeaderboard(period, page, pageSize);
+  } else if (metric === "volume") {
+    result = await getVolumeLeaderboard(period, page, pageSize);
+  } else {
+    result = await getPnLLeaderboard(period, page, pageSize);
+  }
 
   return {
-    entries,
+    entries: result.entries,
     metric,
     period,
     page,
     pageSize,
-    totalUsers: total,
-    totalPages: Math.ceil(total / pageSize),
+    totalUsers: result.total,
+    totalPages: Math.ceil(result.total / pageSize),
     updatedAt: new Date().toISOString(),
   };
 }
@@ -674,9 +856,13 @@ export async function getUserRank(
   metric: LeaderboardMetric,
   period: LeaderboardPeriod = "all"
 ): Promise<UserRankResult | null> {
-  return metric === "xp"
-    ? getUserXPRank(userId, period)
-    : getUserPnLRank(userId, period);
+  if (metric === "xp") {
+    return getUserXPRank(userId, period);
+  }
+  if (metric === "volume") {
+    return getUserVolumeRank(userId, period);
+  }
+  return getUserPnLRank(userId, period);
 }
 
 /**
