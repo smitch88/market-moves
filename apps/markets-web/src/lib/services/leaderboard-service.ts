@@ -3,9 +3,12 @@
  *
  * Provides efficient leaderboard queries for XP and PnL rankings
  * with support for time-based filtering and pagination.
+ * 
+ * PnL includes both realized (from settled bets) and unrealized
+ * (from current open positions) for a complete picture.
  */
 
-import { prisma, BetStatus } from "@vault/database";
+import { prisma, BetStatus, PricingModel } from "@vault/database";
 import { calculateLevel } from "./xp-service";
 
 // ============================================================================
@@ -245,7 +248,77 @@ export async function getUserXPRank(
 // ============================================================================
 
 /**
+ * Calculate unrealized PnL for a position
+ * Handles OPEN/PUBLISHED markets (current prices) and RESOLVED/SETTLED markets (known outcome)
+ */
+function calculatePositionUnrealizedPnL(position: {
+  shares0: unknown;
+  shares1: unknown;
+  avgCost0: unknown;
+  avgCost1: unknown;
+  market: {
+    status: string;
+    pricingModel: string;
+    reserve0: unknown;
+    reserve1: unknown;
+    resolvedOutcome?: number | null;
+    feeBps?: number;
+  };
+}): number {
+  if (position.market.pricingModel !== PricingModel.CPMM) {
+    return 0; // Skip pari-mutuel
+  }
+
+  const shares0 = Number(position.shares0);
+  const shares1 = Number(position.shares1);
+  const avgCost0 = Number(position.avgCost0);
+  const avgCost1 = Number(position.avgCost1);
+
+  // Skip if no shares
+  if (shares0 <= 0 && shares1 <= 0) return 0;
+
+  let unrealizedPnL = 0;
+  const { market } = position;
+
+  if (market.status === "RESOLVED" || market.status === "SETTLED") {
+    // For resolved/settled markets, winning shares = $1 (minus fee), losing = $0
+    const fee = (market.feeBps || 0) / 10000;
+    const winningOutcome = market.resolvedOutcome;
+
+    if (winningOutcome === 0) {
+      const currentValue = shares0 * (1 - fee);
+      unrealizedPnL += currentValue - shares0 * avgCost0;
+      unrealizedPnL -= shares1 * avgCost1; // Lost
+    } else if (winningOutcome === 1) {
+      const currentValue = shares1 * (1 - fee);
+      unrealizedPnL += currentValue - shares1 * avgCost1;
+      unrealizedPnL -= shares0 * avgCost0; // Lost
+    }
+  } else if (market.status === "OPEN" || market.status === "PUBLISHED") {
+    const reserve0 = Number(market.reserve0);
+    const reserve1 = Number(market.reserve1);
+    const totalReserve = reserve0 + reserve1;
+
+    if (totalReserve === 0) return 0;
+
+    const price0 = reserve1 / totalReserve;
+    const price1 = reserve0 / totalReserve;
+
+    if (shares0 > 0) {
+      unrealizedPnL += shares0 * price0 - shares0 * avgCost0;
+    }
+    if (shares1 > 0) {
+      unrealizedPnL += shares1 * price1 - shares1 * avgCost1;
+    }
+  }
+
+  return unrealizedPnL;
+}
+
+/**
  * Get PnL leaderboard with pagination
+ * For "all" period: includes both realized and unrealized PnL
+ * For weekly/monthly: only realized PnL from settled bets in that period
  */
 export async function getPnLLeaderboard(
   period: LeaderboardPeriod = "all",
@@ -255,42 +328,90 @@ export async function getPnLLeaderboard(
   const skip = (page - 1) * pageSize;
 
   if (period === "all") {
-    const [users, total] = await Promise.all([
-      prisma.user.findMany({
-        where: {
-          OR: [{ realizedPnL: { gt: 0 } }, { realizedPnL: { lt: 0 } }],
+    // Get all users with positions or realized PnL
+    const usersWithActivity = await prisma.user.findMany({
+      where: {
+        OR: [
+          { realizedPnL: { not: 0 } },
+          {
+            positions: {
+              some: {
+                claimedAt: null,
+                OR: [{ shares0: { gt: 0 } }, { shares1: { gt: 0 } }],
+              },
+            },
+          },
+        ],
+      },
+      select: {
+        id: true,
+        handle: true,
+        name: true,
+        profileImageUrl: true,
+        realizedPnL: true,
+        positions: {
+          where: {
+            claimedAt: null, // Only unclaimed positions
+            OR: [{ shares0: { gt: 0 } }, { shares1: { gt: 0 } }],
+          },
+          select: {
+            shares0: true,
+            shares1: true,
+            avgCost0: true,
+            avgCost1: true,
+            market: {
+              select: {
+                status: true,
+                pricingModel: true,
+                reserve0: true,
+                reserve1: true,
+                resolvedOutcome: true,
+                feeBps: true,
+              },
+            },
+          },
         },
-        orderBy: { realizedPnL: "desc" },
-        skip,
-        take: pageSize,
-        select: {
-          id: true,
-          handle: true,
-          name: true,
-          profileImageUrl: true,
-          realizedPnL: true,
-        },
-      }),
-      prisma.user.count({
-        where: {
-          OR: [{ realizedPnL: { gt: 0 } }, { realizedPnL: { lt: 0 } }],
-        },
-      }),
-    ]);
+      },
+    });
 
-    const entries = users.map((user, index) => ({
+    // Calculate total PnL (realized + unrealized) for each user
+    const usersWithTotalPnL = usersWithActivity.map((user) => {
+      const realizedPnL = Number(user.realizedPnL);
+      const unrealizedPnL = user.positions.reduce(
+        (sum, pos) => sum + calculatePositionUnrealizedPnL(pos),
+        0
+      );
+      const totalPnL = realizedPnL + unrealizedPnL;
+
+      return {
+        userId: user.id,
+        handle: user.handle,
+        name: user.name,
+        profileImageUrl: user.profileImageUrl,
+        value: Math.round(totalPnL),
+      };
+    });
+
+    // Filter out zero PnL users and sort
+    const filteredUsers = usersWithTotalPnL.filter((u) => u.value !== 0);
+    filteredUsers.sort((a, b) => b.value - a.value);
+
+    const total = filteredUsers.length;
+    const paginatedUsers = filteredUsers.slice(skip, skip + pageSize);
+
+    const entries = paginatedUsers.map((user, index) => ({
       rank: skip + index + 1,
-      userId: user.id,
+      userId: user.userId,
       handle: user.handle,
       name: user.name,
       profileImageUrl: user.profileImageUrl,
-      value: Number(user.realizedPnL),
+      value: user.value,
     }));
 
     return { entries, total };
   }
 
-  // Weekly/Monthly: Calculate PnL from settled bets
+  // Weekly/Monthly: Calculate PnL from settled bets only
   const startDate = getPeriodStartDate(period);
   if (!startDate) return { entries: [], total: 0 };
 
@@ -319,9 +440,10 @@ export async function getPnLLeaderboard(
   }
 
   // Sort and paginate
-  const sortedEntries = Array.from(pnlByUser.entries())
-    .sort((a, b) => b[1] - a[1]);
-  
+  const sortedEntries = Array.from(pnlByUser.entries()).sort(
+    (a, b) => b[1] - a[1]
+  );
+
   const total = sortedEntries.length;
   const paginatedEntries = sortedEntries.slice(skip, skip + pageSize);
 
@@ -364,29 +486,114 @@ export async function getUserPnLRank(
   period: LeaderboardPeriod = "all"
 ): Promise<UserRankResult | null> {
   if (period === "all") {
+    // Get user's total PnL (realized + unrealized)
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { realizedPnL: true },
-    });
-
-    if (!user) return null;
-    const userValue = Number(user.realizedPnL);
-    if (userValue === 0) return null;
-
-    const rank = await prisma.user.count({
-      where: { realizedPnL: { gt: user.realizedPnL } },
-    });
-
-    const total = await prisma.user.count({
-      where: {
-        OR: [{ realizedPnL: { gt: 0 } }, { realizedPnL: { lt: 0 } }],
+      select: {
+        realizedPnL: true,
+        positions: {
+          where: {
+            claimedAt: null, // Only unclaimed positions
+            OR: [{ shares0: { gt: 0 } }, { shares1: { gt: 0 } }],
+          },
+          select: {
+            shares0: true,
+            shares1: true,
+            avgCost0: true,
+            avgCost1: true,
+            market: {
+              select: {
+                status: true,
+                pricingModel: true,
+                reserve0: true,
+                reserve1: true,
+                resolvedOutcome: true,
+                feeBps: true,
+              },
+            },
+          },
+        },
       },
     });
 
+    if (!user) return null;
+
+    const realizedPnL = Number(user.realizedPnL);
+    const unrealizedPnL = user.positions.reduce(
+      (sum, pos) => sum + calculatePositionUnrealizedPnL(pos),
+      0
+    );
+    const userValue = Math.round(realizedPnL + unrealizedPnL);
+
+    if (userValue === 0) return null;
+
+    // Get all users with PnL to calculate rank
+    const allUsersWithPnL = await prisma.user.findMany({
+      where: {
+        OR: [
+          { realizedPnL: { not: 0 } },
+          {
+            positions: {
+              some: {
+                claimedAt: null,
+                OR: [{ shares0: { gt: 0 } }, { shares1: { gt: 0 } }],
+              },
+            },
+          },
+        ],
+      },
+      select: {
+        id: true,
+        realizedPnL: true,
+        positions: {
+          where: {
+            claimedAt: null, // Only unclaimed positions
+            OR: [{ shares0: { gt: 0 } }, { shares1: { gt: 0 } }],
+          },
+          select: {
+            shares0: true,
+            shares1: true,
+            avgCost0: true,
+            avgCost1: true,
+            market: {
+              select: {
+                status: true,
+                pricingModel: true,
+                reserve0: true,
+                reserve1: true,
+                resolvedOutcome: true,
+                feeBps: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    // Calculate total PnL for each user and count how many are ahead
+    let usersAhead = 0;
+    let totalWithPnL = 0;
+
+    for (const u of allUsersWithPnL) {
+      const uRealized = Number(u.realizedPnL);
+      const uUnrealized = u.positions.reduce(
+        (sum, pos) => sum + calculatePositionUnrealizedPnL(pos),
+        0
+      );
+      const uTotal = Math.round(uRealized + uUnrealized);
+
+      if (uTotal !== 0) {
+        totalWithPnL++;
+        if (uTotal > userValue) {
+          usersAhead++;
+        }
+      }
+    }
+
     return {
-      rank: rank + 1,
+      rank: usersAhead + 1,
       value: userValue,
-      totalUsers: total,
+      totalUsers: totalWithPnL,
     };
   }
 

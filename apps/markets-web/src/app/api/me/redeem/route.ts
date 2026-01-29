@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma, BalanceReason, PricingModel } from "@vault/database";
+import { prisma, BalanceReason, PricingModel, PnLReason } from "@vault/database";
 import { getEffectiveUser } from "@/lib/auth/get-effective-user";
 import { createPnLSnapshot } from "@/lib/services/stats-service";
 import { z } from "zod";
@@ -216,11 +216,30 @@ export async function POST(request: NextRequest) {
 
       // Update user balance and realized PnL
       if (!totalPayout.isZero() || !totalProfit.isZero()) {
+        const newRealizedPnL = currentUser.realizedPnL.plus(totalProfit);
+        
         await tx.user.update({
           where: { id: user.id },
           data: {
             balance: runningBalance,
-            realizedPnL: { increment: totalProfit },
+            realizedPnL: newRealizedPnL,
+          },
+        });
+
+        // Create PnL ledger entry for audit trail
+        await tx.pnLLedger.create({
+          data: {
+            userId: user.id,
+            delta: totalProfit,
+            pnlBefore: currentUser.realizedPnL,
+            pnlAfter: newRealizedPnL,
+            reason: PnLReason.REDEMPTION,
+            correlationId: `redeem-${Date.now()}`,
+            metadata: {
+              positionsRedeemed: positions.length,
+              totalPayout: totalPayout.toNumber(),
+              markets: positions.map((p) => p.marketId),
+            },
           },
         });
       }

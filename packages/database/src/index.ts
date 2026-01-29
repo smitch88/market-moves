@@ -34,6 +34,7 @@ export type {
   PriceSnapshot,
   XPLedger,
   XPConfig,
+  PnLLedger,
 } from "./generated/client";
 
 export {
@@ -48,6 +49,7 @@ export {
   TradeType,
   PricingModel,
   XPReason,
+  PnLReason,
 } from "./generated/client";
 
 // Export Prisma namespace for advanced types

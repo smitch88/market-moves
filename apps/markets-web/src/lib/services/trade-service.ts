@@ -551,6 +551,12 @@ export class TradeService {
         throw new Error("Position not found");
       }
 
+      // Calculate realized PnL from this sell
+      // Realized PnL = proceeds - (shares sold × average cost per share)
+      const avgCost = outcomeIndex === 0 ? position.avgCost0 : position.avgCost1;
+      const costBasis = currency.multiply(shares, avgCost);
+      const realizedPnL = currency.subtract(proceedsAfterFee, costBasis);
+
       const newShares0 = outcomeIndex === 0 ? currency.subtract(position.shares0, shares) : position.shares0;
       const newShares1 = outcomeIndex === 1 ? currency.subtract(position.shares1, shares) : position.shares1;
 
@@ -572,10 +578,10 @@ export class TradeService {
         },
       });
 
-      // Credit user balance
+      // Get user and update balance + realized PnL in single operation
       const user = await tx.user.findUnique({
         where: { id: userId },
-        select: { balance: true },
+        select: { balance: true, realizedPnL: true },
       });
 
       if (!user) {
@@ -583,9 +589,34 @@ export class TradeService {
       }
 
       const newBalance = currency.add(user.balance, proceedsAfterFee);
+      const newRealizedPnL = currency.add(user.realizedPnL, realizedPnL);
+
       await tx.user.update({
         where: { id: userId },
-        data: { balance: newBalance },
+        data: {
+          balance: newBalance,
+          realizedPnL: newRealizedPnL,
+        },
+      });
+
+      // Create PnL ledger entry for audit trail
+      await tx.pnLLedger.create({
+        data: {
+          userId,
+          delta: realizedPnL,
+          pnlBefore: user.realizedPnL,
+          pnlAfter: newRealizedPnL,
+          reason: "TRADE_SELL",
+          correlationId: `sell-${marketId}-${Date.now()}`,
+          marketId,
+          metadata: {
+            shares: currency.toNumber(shares),
+            proceeds: currency.toNumber(proceedsAfterFee),
+            avgCost: currency.toNumber(avgCost),
+            costBasis: currency.toNumber(costBasis),
+            outcomeIndex,
+          },
+        },
       });
 
       // Create balance ledger entry

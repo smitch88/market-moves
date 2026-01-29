@@ -31,6 +31,7 @@ model User {
   balanceLedger    BalanceLedger[]
   xpLedger         XPLedger[]
   xpAdjustments    XPLedger[]        @relation("XPAdminActor")
+  pnlLedger        PnLLedger[]
   bets             Bet[]
   positions        Position[]
   raffleEntries    RaffleEntry[]
@@ -103,6 +104,29 @@ model XPConfig {
   updatedBy   String?  // Admin ID who last updated
 }
 
+// PnL Ledger for audit trail of all PnL changes
+model PnLLedger {
+  id            String    @id @default(cuid())
+  userId        String
+  delta         Decimal   @db.Decimal(19, 4) // PnL change (positive or negative)
+  pnlBefore     Decimal   @db.Decimal(19, 4)
+  pnlAfter      Decimal   @db.Decimal(19, 4)
+  reason        PnLReason
+  correlationId String?   // Links to bet/position ID
+  marketId      String?   // Related market
+  metadata      Json?     // Additional details (shares, price, etc.)
+  createdAt     DateTime  @default(now())
+  user          User      @relation(fields: [userId], references: [id])
+  market        Market?   @relation(fields: [marketId], references: [id])
+
+  @@index([userId])
+  @@index([userId, createdAt])
+  @@index([createdAt])
+  @@index([reason])
+  @@index([correlationId])
+  @@index([marketId])
+}
+
 model Tag {
   id        String   @id @default(cuid())
   slug      String   @unique
@@ -169,6 +193,7 @@ model Market {
   priceSnapshots      PriceSnapshot[]
   raffleEntries       RaffleEntry[]
   tweetProofs         TweetProof[]
+  pnlLedger           PnLLedger[]
 
   @@index([eventId])
   @@index([status])
@@ -216,6 +241,8 @@ model Bet {
   @@index([status])
   @@index([createdAt])
   @@index([tradeType])
+  @@index([userId, tradeType, status]) // For PnL calculations
+  @@index([userId, status, createdAt]) // For time-based PnL queries
 }
 
 model Position {
@@ -240,6 +267,7 @@ model Position {
   @@unique([userId, marketId])
   @@index([userId])
   @@index([marketId])
+  @@index([userId, claimedAt]) // For unclaimed positions queries
 }
 
 model Referral {
@@ -356,6 +384,13 @@ enum BalanceReason {
   REFERRAL_BONUS
   OTHER
   TRADE_SELL
+}
+
+enum PnLReason {
+  TRADE_SELL        // Profit/loss from selling shares
+  REDEMPTION        // Profit/loss from redeeming settled position
+  ADMIN_ADJUST      // Admin adjustment
+  RECALCULATION     // System recalculation/correction
 }
 
 enum TradeType {
