@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma, MarketStatus, AdminAction, PricingModel } from "@vault/database";
+import { prisma, MarketStatus, AdminAction } from "@vault/database";
 import { requireAdmin } from "@vault/auth";
 import { ConstantProductAMM } from "@/lib/services/pricing-engine";
 import { z } from "zod";
@@ -14,13 +14,9 @@ const createMarketSchema = z.object({
   opensAt: z.string().nullable().optional(),
   closesAt: z.string().nullable().optional(),
   feeBps: z.number().int().min(0).max(10000).default(100),
-  // Legacy pari-mutuel seeds (kept for backward compatibility)
-  seed0: z.number().int().min(0).default(1000),
-  seed1: z.number().int().min(0).default(1000),
-  // AMM options
-  pricingModel: z.enum(["PARI_MUTUEL", "CPMM"]).default("CPMM"),
-  reserve0: z.number().min(0).optional(), // Initial shares for outcome 0
-  reserve1: z.number().min(0).optional(), // Initial shares for outcome 1
+  // Initial liquidity (reserves)
+  reserve0: z.number().min(0).optional().default(1000),
+  reserve1: z.number().min(0).optional().default(1000),
 });
 
 export async function GET(request: NextRequest) {
@@ -82,40 +78,18 @@ export async function POST(request: NextRequest) {
     }
 
     const market = await prisma.$transaction(async (tx) => {
-      const isCPMM = data.pricingModel === "CPMM";
       const cpmm = new ConstantProductAMM();
 
-      // Set up reserves for CPMM or seeds for pari-mutuel
-      // For CPMM: reserves represent share liquidity (not scaled)
-      let reserve0: number;
-      let reserve1: number;
+      // Set up reserves for CPMM
+      const reserve0 = data.reserve0 ?? 1000;
+      const reserve1 = data.reserve1 ?? 1000;
       
-      if (isCPMM) {
-        reserve0 = data.reserve0 ?? data.seed0; // Reserves are shares
-        reserve1 = data.reserve1 ?? data.seed1; // Reserves are shares
-      } else {
-        // Pari-mutuel uses seeds directly (in cents)
-        reserve0 = data.seed0;
-        reserve1 = data.seed1;
-      }
-      
-      const k = isCPMM ? ConstantProductAMM.calculateInitialK(reserve0, reserve1) : null;
+      const k = ConstantProductAMM.calculateInitialK(reserve0, reserve1);
 
-      // Calculate initial prices
-      let initialPrice0: string;
-      let initialPrice1: string;
-
-      if (isCPMM) {
-        // CPMM: price is based on reserve ratio
-        const prices = cpmm.calculatePrice(reserve0, reserve1);
-        initialPrice0 = prices.price0.toFixed(4);
-        initialPrice1 = prices.price1.toFixed(4);
-      } else {
-        // Pari-mutuel: price is based on seed ratio
-        const totalSeeds = data.seed0 + data.seed1;
-        initialPrice0 = totalSeeds > 0 ? (data.seed0 / totalSeeds).toFixed(4) : "0.5000";
-        initialPrice1 = totalSeeds > 0 ? (data.seed1 / totalSeeds).toFixed(4) : "0.5000";
-      }
+      // Calculate initial prices (CPMM: price is based on reserve ratio)
+      const prices = cpmm.calculatePrice(reserve0, reserve1);
+      const initialPrice0 = prices.price0.toFixed(4);
+      const initialPrice1 = prices.price1.toFixed(4);
 
       const newMarket = await tx.market.create({
         data: {
@@ -131,11 +105,6 @@ export async function POST(request: NextRequest) {
           opensAt: data.opensAt ? new Date(data.opensAt) : null,
           closesAt: data.closesAt ? new Date(data.closesAt) : null,
           feeBps: data.feeBps,
-          // Pricing model
-          pricingModel: isCPMM ? PricingModel.CPMM : PricingModel.PARI_MUTUEL,
-          // Legacy pari-mutuel fields
-          seed0: data.seed0,
-          seed1: data.seed1,
           // CPMM AMM fields
           reserve0,
           reserve1,
@@ -167,7 +136,6 @@ export async function POST(request: NextRequest) {
           metadata: { 
             eventId: data.eventId,
             question: data.question,
-            pricingModel: data.pricingModel,
             reserve0,
             reserve1,
             k,

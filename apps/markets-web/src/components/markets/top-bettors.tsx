@@ -8,27 +8,18 @@ interface TopBettorsProps {
     user: Pick<User, "id" | "handle" | "name" | "profileImageUrl" | "createdAt">;
   })[];
   outcomes: string[];
-  pricingModel?: string; // 'CPMM' or 'PARI_MUTUEL'
 }
 
-export function TopBettors({ positions, outcomes, pricingModel }: TopBettorsProps) {
-  const isCPMM = pricingModel === "CPMM";
-
-  // Split positions by outcome - use shares for CPMM, amounts for pari-mutuel
+export function TopBettors({ positions, outcomes }: TopBettorsProps) {
+  // Split positions by outcome - use shares
   const outcome0Bettors = positions
-    .filter((p) => isCPMM ? (p.shares0 || 0) > 0 : p.amount0 > 0)
-    .sort((a, b) => isCPMM 
-      ? ((b.shares0 || 0) - (a.shares0 || 0)) 
-      : (b.amount0 - a.amount0)
-    )
+    .filter((p) => Number(p.shares0 || 0) > 0)
+    .sort((a, b) => (Number(b.shares0 || 0) - Number(a.shares0 || 0)))
     .slice(0, 10);
 
   const outcome1Bettors = positions
-    .filter((p) => isCPMM ? (p.shares1 || 0) > 0 : p.amount1 > 0)
-    .sort((a, b) => isCPMM 
-      ? ((b.shares1 || 0) - (a.shares1 || 0)) 
-      : (b.amount1 - a.amount1)
-    )
+    .filter((p) => Number(p.shares1 || 0) > 0)
+    .sort((a, b) => (Number(b.shares1 || 0) - Number(a.shares1 || 0)))
     .slice(0, 10);
 
   if (outcome0Bettors.length === 0 && outcome1Bettors.length === 0) {
@@ -87,10 +78,7 @@ export function TopBettors({ positions, outcomes, pricingModel }: TopBettorsProp
                   </p>
                 </div>
                 <p className="text-sm font-semibold text-chart-2">
-                  {isCPMM 
-                    ? `${(position.shares0 || 0).toFixed(1)} shares`
-                    : `$${position.amount0.toLocaleString()}`
-                  }
+                  {Number(position.shares0 || 0).toFixed(1)} shares
                 </p>
               </div>
             </UserHoverCard>
@@ -144,10 +132,7 @@ export function TopBettors({ positions, outcomes, pricingModel }: TopBettorsProp
                   </p>
                 </div>
                 <p className="text-sm font-semibold text-chart-5">
-                  {isCPMM 
-                    ? `${(position.shares1 || 0).toFixed(1)} shares`
-                    : `$${position.amount1.toLocaleString()}`
-                  }
+                  {Number(position.shares1 || 0).toFixed(1)} shares
                 </p>
               </div>
             </UserHoverCard>

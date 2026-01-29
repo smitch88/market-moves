@@ -16,8 +16,8 @@ const faqCategories: { title: string; items: FAQItem[] }[] = [
       {
         question: "What is a prediction market?",
         answer: [
-          "A prediction market is a platform where you can bet on the outcome of future events. Vault Markets uses a pari-mutuel system where all bets are pooled together and winners share the pool proportionally.",
-          "Each market poses a question with two possible outcomes. The percentage shown for each outcome reflects how much has been bet on that side—a higher percentage means more people are betting on it.",
+          "A prediction market is a platform where you can buy and sell shares in the outcome of future events. Vault Markets uses an Automated Market Maker (AMM) that provides instant liquidity for trading.",
+          "Each market poses a question with two possible outcomes. The price shown for each outcome reflects the market's implied probability—a higher price means the market believes that outcome is more likely.",
         ],
       },
       {
@@ -46,8 +46,8 @@ const faqCategories: { title: string; items: FAQItem[] }[] = [
       {
         question: "What do the percentages mean?",
         answer: [
-          "Percentages represent the current implied probability of each outcome based on how much has been bet on each side. If an outcome shows 65%, the market collectively believes it has approximately a 65% chance of occurring.",
-          "Vault Markets uses a pari-mutuel system: all bets are pooled together, and winners share the total pool proportionally. Your payout depends on how much you bet relative to the total winning pool at settlement, not the percentage shown when you placed your bet.",
+          "Percentages represent the current implied probability of each outcome based on the market's trading activity. If an outcome shows 65%, the market collectively believes it has approximately a 65% chance of occurring.",
+          "Vault Markets uses an Automated Market Maker (AMM): prices adjust automatically as people buy and sell shares. When you buy shares, the price goes up. When you sell, the price goes down. Each winning share pays out $1 at settlement.",
         ],
       },
       {
@@ -69,15 +69,15 @@ const faqCategories: { title: string; items: FAQItem[] }[] = [
       {
         question: "How are odds calculated?",
         answer: [
-          "Vault Markets uses a pari-mutuel betting system. This means odds are determined by the total amount bet on each outcome, not by a bookmaker.",
-          "As more people bet on an outcome, its price increases (and potential payout decreases). Conversely, outcomes with fewer bets offer higher potential returns. This creates a dynamic, market-driven pricing mechanism.",
+          "Vault Markets uses an Automated Market Maker (AMM) with a constant product formula. This means prices are determined automatically based on supply and demand, not by a bookmaker.",
+          "As more people buy shares of an outcome, its price increases (and potential payout decreases). Conversely, outcomes with fewer buyers offer lower prices and higher potential returns. Each winning share pays out $1 at settlement.",
         ],
       },
       {
         question: "What is the pool and how does it work?",
         answer: [
-          "The pool represents the total amount of virtual credits bet on a market across all outcomes. When a market resolves, the pool is distributed among winning bettors proportionally to their stake.",
-          "A small platform fee (typically 1%) is deducted from the pool before distribution. This fee helps maintain the platform and fund future development.",
+          "The market maintains liquidity reserves that allow for instant trading. When you buy shares, you're purchasing from this pool. When you sell, you're selling back to the pool.",
+          "A small platform fee (typically 1%) is applied to trades. This fee helps maintain the platform and fund future development. At settlement, winning shares pay out $1 each (minus fees).",
         ],
       },
       {
@@ -151,7 +151,7 @@ const faqCategories: { title: string; items: FAQItem[] }[] = [
         question: "How do you prevent manipulation?",
         answer: [
           "The tweet verification system creates a public, immutable record of predictions. This transparency makes it difficult for bad actors to manipulate outcomes or claim false predictions.",
-          "Additionally, our pari-mutuel system means that large bets automatically adjust the odds, making manipulation expensive and self-defeating.",
+          "Additionally, our AMM system means that large trades automatically adjust the prices, making manipulation expensive and self-defeating.",
         ],
       },
       {

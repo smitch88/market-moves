@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma, MarketStatus, BetStatus, BalanceReason, RaffleReason, AdminAction, PricingModel } from "@vault/database";
+import { prisma, MarketStatus, BetStatus, RaffleReason, AdminAction } from "@vault/database";
 import { requireAdmin } from "@vault/auth";
 import { randomUUID } from "crypto";
 import { createPnLSnapshot } from "@/lib/services/stats-service";
@@ -51,15 +51,10 @@ export async function POST(
       const winningOutcomeLabel = outcomes[market.resolvedOutcome];
       const isOutcome0 = market.resolvedOutcome === 0;
 
-      // Determine pricing model for settlement calculation
-      const isCPMM = market.pricingModel === PricingModel.CPMM;
-
-      // Calculate pools from seed + confirmed positions (for pari-mutuel)
-      // Convert Decimals to numbers
+      // Calculate pools for logging purposes
       const pool0 = Number(market.seed0) + Number(market.pool0);
       const pool1 = Number(market.seed1) + Number(market.pool1);
       const totalPool = pool0 + pool1;
-      const winningPool = isOutcome0 ? pool0 : pool1;
       const fee = market.feeBps / 10000;
       const netPool = totalPool * (1 - fee);
 
@@ -70,34 +65,23 @@ export async function POST(
       // Track affected users for PnL snapshots
       const affectedUserIds: string[] = [];
       
-      // Calculate potential payouts for logging purposes only
+      // Calculate potential payouts for logging purposes only (CPMM: 1 share = $1)
       let potentialTotalPayout = 0;
       let winnersCount = 0;
       
       for (const position of market.positions) {
-        if (isCPMM) {
-          const userShares = isOutcome0 ? position.shares0 : position.shares1;
-          if (Number(userShares) > 0) {
-            potentialTotalPayout += Math.floor(Number(userShares) * (1 - fee));
-            winnersCount++;
-          }
-        } else {
-          const userStake = isOutcome0 ? Number(position.amount0) : Number(position.amount1);
-          if (userStake > 0 && Number(winningPool) > 0) {
-            potentialTotalPayout += Math.floor((userStake / Number(winningPool)) * Number(netPool));
-            winnersCount++;
-          }
+        const userShares = isOutcome0 ? position.shares0 : position.shares1;
+        if (Number(userShares) > 0) {
+          potentialTotalPayout += Math.floor(Number(userShares) * (1 - fee));
+          winnersCount++;
         }
       }
       
       // Create raffle entries for winners (still automatic as it's a reward, not payment)
       for (const position of market.positions) {
         const userShares = isOutcome0 ? Number(position.shares0) : Number(position.shares1);
-        const userStake = isOutcome0 ? Number(position.amount0) : Number(position.amount1);
         
-        const isWinner = isCPMM ? userShares > 0 : userStake > 0;
-        
-        if (isWinner) {
+        if (userShares > 0) {
           await tx.raffleEntry.upsert({
             where: {
               userId_marketId_reason: {
@@ -121,25 +105,16 @@ export async function POST(
         }
       }
 
-      // Update bet statuses and payouts
-      // Calculate per-bet payouts based on pricing model
+      // Update bet statuses and payouts (CPMM: 1 share = $1)
       const betPayouts = new Map<string, number>();
       
       for (const bet of market.bets) {
         const isWinner = bet.outcomeIndex === market.resolvedOutcome;
         
-        if (isWinner) {
-          let betPayout = 0;
-
-          if (isCPMM && bet.shares) {
-            // CPMM: payout based on shares (1 share = $1, minus fee)
-            const grossPayout = Number(bet.shares); // Convert Decimal to number
-            betPayout = Math.floor(grossPayout * (1 - fee));
-          } else if (!isCPMM && winningPool > 0) {
-            // PARI_MUTUEL: pro-rata from pool
-            betPayout = Math.floor((Number(bet.amount) / winningPool) * netPool);
-          }
-
+        if (isWinner && bet.shares) {
+          // CPMM: payout based on shares (1 share = $1, minus fee)
+          const grossPayout = Number(bet.shares);
+          const betPayout = Math.floor(grossPayout * (1 - fee));
           if (betPayout > 0) {
             betPayouts.set(bet.id, betPayout);
           }
@@ -232,7 +207,6 @@ export async function POST(
           targetId: id,
           metadata: {
             settlementRunId,
-            pricingModel: market.pricingModel,
             totalPool: Number(totalPool),
             netPool: Number(netPool),
             winningOutcome: winningOutcomeLabel,

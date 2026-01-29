@@ -5,7 +5,7 @@ A Web2 prediction markets platform built with Next.js 16, React 19, and a pnpm T
 ## Features
 
 - **Prediction Markets**: Create and participate in 2-outcome prediction markets
-- **Pari-mutuel Settlement**: Weighted pool-based payouts with configurable fees
+- **AMM Settlement**: Automated Market Maker with instant trading and $1 per winning share payouts
 - **Tweet Verification**: RapidAPI-powered tweet verification for bet confirmation
 - **Admin Panel**: Full market management with create, resolve, and settle workflows
 - **SSR-First**: Server-side rendered pages with optimized loading states
@@ -102,9 +102,9 @@ The app will be available at [http://localhost:3000](http://localhost:3000).
 4. **RESOLVED** - Admin selects winning outcome
 5. **SETTLED** - Payouts distributed (one-time, idempotent)
 
-## Pari-mutuel Math
+## AMM Math
 
-For a market with:
+For a CPMM (Constant Product Market Maker) with:
 - Pool A = seedA + Σ(bets on A)
 - Pool B = seedB + Σ(bets on B)
 - Fee = feeBps / 10000 (default 4%)

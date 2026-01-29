@@ -26,7 +26,6 @@ interface Position {
     outcomes: string;
     outcomePrices: string;
     status: string;
-    pricingModel: string;
     reserve0: number;
     reserve1: number;
     resolvedOutcome: number | null;
@@ -96,7 +95,6 @@ function PositionRow({ position, outcomeIndex, shares, avgCost, onSellComplete }
   const unrealizedPnL = currentValue - costBasis;
   const pnlPercent = costBasis > 0 ? ((currentValue - costBasis) / costBasis) * 100 : 0;
 
-  const isCPMM = market.pricingModel === "CPMM";
   const isOpen = market.status === "OPEN" || market.status === "PUBLISHED";
   const isSettled = market.settledAt !== null;
   const isClaimed = position.claimedAt !== null;
@@ -223,7 +221,7 @@ function PositionRow({ position, outcomeIndex, shares, avgCost, onSellComplete }
             </div>
           ) : (
             <>
-              {isCPMM && isOpen && (
+              {isOpen && (
                 <Button
                   variant="ghost"
                   size="sm"
@@ -322,8 +320,11 @@ export function ProfilePositions() {
     avgCost: number;
   }> = [];
 
+  // Minimum shares threshold to filter out dust from floating-point precision
+  const MIN_SHARES_THRESHOLD = 0.01;
+
   positions?.forEach((position) => {
-    if (position.shares0 > 0) {
+    if (position.shares0 >= MIN_SHARES_THRESHOLD) {
       positionRows.push({
         position,
         outcomeIndex: 0,
@@ -331,30 +332,12 @@ export function ProfilePositions() {
         avgCost: position.avgCost0,
       });
     }
-    if (position.shares1 > 0) {
+    if (position.shares1 >= MIN_SHARES_THRESHOLD) {
       positionRows.push({
         position,
         outcomeIndex: 1,
         shares: position.shares1,
         avgCost: position.avgCost1,
-      });
-    }
-    if (position.amount0 > 0 && position.shares0 === 0) {
-      // Legacy pari-mutuel position - amount is already in dollars
-      positionRows.push({
-        position,
-        outcomeIndex: 0,
-        shares: position.amount0, // amount0 is now in dollars (Decimal)
-        avgCost: 1, // $1 per share for pari-mutuel
-      });
-    }
-    if (position.amount1 > 0 && position.shares1 === 0) {
-      // Legacy pari-mutuel position - amount is already in dollars
-      positionRows.push({
-        position,
-        outcomeIndex: 1,
-        shares: position.amount1, // amount1 is now in dollars (Decimal)
-        avgCost: 1, // $1 per share for pari-mutuel
       });
     }
   });

@@ -34,7 +34,6 @@ interface QuickBetModalProps {
     question: string;
     outcomes: string;
     outcomePrices: string;
-    pricingModel?: string;
     status?: string;
     closesAt?: string | null;
   };
@@ -112,9 +111,6 @@ export function QuickBetModal({
   const balance = profile?.balance ?? 10000;
   const amountNum = parseInt(amount, 10) || 0;
   
-  // Check if CPMM market
-  const isCPMM = market.pricingModel === "CPMM";
-  
   // Check if market is open for betting
   const canBet = 
     !market.status || // If no status provided, assume open
@@ -132,20 +128,18 @@ export function QuickBetModal({
       if (!res.ok) return null;
       return res.json();
     },
-    enabled: isCPMM && open && amountNum > 0,
+    enabled: open && amountNum > 0,
     staleTime: 5000,
   });
 
-  const sharesDisplay = isCPMM && quote ? quote.outputAmount?.toFixed(2) : null;
-  const estimatedPayout = isCPMM 
-    ? (quote?.outputAmount ? Math.round(quote.outputAmount) : 0)
-    : (selectedPrice > 0 ? Math.round(amountNum / selectedPrice) : 0);
+  const sharesDisplay = quote ? quote.outputAmount?.toFixed(2) : null;
+  const estimatedPayout = quote?.outputAmount ? Math.round(quote.outputAmount) : 0;
 
   // Place bet mutation
   const placeBetMutation = useMutation({
     mutationFn: async () => {
-      // Use different endpoint for CPMM vs pari-mutuel
-      const endpoint = isCPMM ? "/api/trades/buy" : "/api/bets";
+      // Use CPMM trade endpoint
+      const endpoint = "/api/trades/buy";
       const amountToSend = amountNum; // Now in dollars for both
       const res = await fetch(endpoint, {
         method: "POST",
@@ -154,7 +148,7 @@ export function QuickBetModal({
           marketId: market.id,
           outcomeIndex: selectedOutcomeIndex,
           amount: amountToSend,
-          ...(isCPMM && { maxSlippage: 0.25 }), // 25% max slippage for CPMM trades
+          maxSlippage: 0.25, // 25% max slippage
         }),
       });
       if (!res.ok) {
@@ -166,10 +160,7 @@ export function QuickBetModal({
     onSuccess: (data) => {
       setBetId(data.bet.id);
       setStep("verify");
-      toast.info(isCPMM 
-        ? `Order for ~${sharesDisplay || "?"} shares reserved! Share on X to confirm.`
-        : "Bet reserved! Share your prediction on X to confirm."
-      );
+      toast.info(`Order for ~${sharesDisplay || "?"} shares reserved! Share on X to confirm.`);
     },
     onError: (error: Error) => {
       toast.error(error.message || "Failed to place bet");
@@ -397,26 +388,17 @@ export function QuickBetModal({
                     animate={{ opacity: 1, height: "auto" }}
                     className="p-3 rounded-lg bg-outcome-yes/10 border border-outcome-yes/20"
                   >
-                    {isCPMM ? (
-                      <>
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-muted-foreground">You receive</span>
-                          <span className="font-bold text-outcome-yes">~{sharesDisplay || "?"} shares</span>
-                        </div>
-                        <div className="flex items-center justify-between mt-1">
-                          <span className="text-sm text-muted-foreground">Payout if correct</span>
-                          <span className="font-bold text-outcome-yes">~${estimatedPayout.toLocaleString()}</span>
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          1 winning share = $1 at settlement
-                        </p>
-                      </>
-                    ) : (
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-muted-foreground">Est. return</span>
-                        <span className="font-bold text-outcome-yes">~${estimatedPayout.toLocaleString()}</span>
-                      </div>
-                    )}
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">You receive</span>
+                      <span className="font-bold text-outcome-yes">~{sharesDisplay || "?"} shares</span>
+                    </div>
+                    <div className="flex items-center justify-between mt-1">
+                      <span className="text-sm text-muted-foreground">Payout if correct</span>
+                      <span className="font-bold text-outcome-yes">~${estimatedPayout.toLocaleString()}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      1 winning share = $1 at settlement
+                    </p>
                   </motion.div>
                 )}
 
@@ -432,10 +414,7 @@ export function QuickBetModal({
                     "Sign in to bet"
                   ) : (
                     <>
-                      {isCPMM 
-                        ? `Buy ~${sharesDisplay || "?"} shares`
-                        : `Bet $${amountNum.toLocaleString()} on ${selectedOutcome}`
-                      }
+                      {`Buy ~${sharesDisplay || "?"} shares`}
                       <ChevronRight className="h-4 w-4 ml-1" />
                     </>
                   )}

@@ -108,9 +108,6 @@ export function SportsBettingSidebar({
 
   const balance = profile?.balance ?? 10000;
 
-  // Determine if this is a CPMM market (shares-based)
-  const isCPMM = selectedMarket?.pricingModel === "CPMM";
-
   // Fetch quote for CPMM markets
   const amountNum = parseInt(amount, 10) || 0;
   const { data: quote } = useQuery({
@@ -123,7 +120,7 @@ export function SportsBettingSidebar({
       if (!res.ok) return null;
       return res.json();
     },
-    enabled: isCPMM && !!selectedMarket && selectedOutcome !== null && amountNum > 0,
+    enabled: !!selectedMarket && selectedOutcome !== null && amountNum > 0,
     staleTime: 5000, // Refresh every 5 seconds
   });
 
@@ -136,7 +133,7 @@ export function SportsBettingSidebar({
       if (!res.ok) return null;
       return res.json();
     },
-    enabled: isCPMM && authenticated && !!selectedMarket,
+    enabled: authenticated && !!selectedMarket,
   });
 
   const userShares = useMemo(() => {
@@ -168,15 +165,15 @@ export function SportsBettingSidebar({
       setAmount(String(displayAmount));
       setStep("verify");
     }
-  }, [pendingBetData, betId, step, isCPMM]);
+  }, [pendingBetData, betId, step]);
 
   // Place bet/trade mutation
   const placeBetMutation = useMutation({
     mutationFn: async () => {
       if (!selectedMarket) throw new Error("No market selected");
       
-      // Use different endpoints for CPMM vs pari-mutuel
-      const endpoint = isCPMM ? "/api/trades/buy" : "/api/bets";
+      // Use CPMM trade endpoint
+      const endpoint = "/api/trades/buy";
       const amountToSend = parseInt(amount, 10); // Amount in dollars
       const res = await fetch(endpoint, {
         method: "POST",
@@ -185,7 +182,7 @@ export function SportsBettingSidebar({
           marketId: selectedMarket.id,
           outcomeIndex: selectedOutcome,
           amount: amountToSend,
-          ...(isCPMM && { maxSlippage: 0.25 }), // 25% max slippage for CPMM trades
+          maxSlippage: 0.25, // 25% max slippage
         }),
       });
       if (!res.ok) {
@@ -199,20 +196,17 @@ export function SportsBettingSidebar({
       setStep("verify");
       queryClient.invalidateQueries({ queryKey: ["pendingBet", selectedMarket?.id] });
       queryClient.invalidateQueries({ queryKey: ["quote"] });
-      toast.info(isCPMM 
-        ? `Order for ~${quote?.outputAmount?.toFixed(2) || "?"} shares reserved! Share on X to confirm.`
-        : "Bet reserved! Share on X to confirm."
-      );
+      toast.info(`Order for ~${quote?.outputAmount?.toFixed(2) || "?"} shares reserved! Share on X to confirm.`);
     },
     onError: (error: Error) => {
       toast.error(error.message || "Failed to place bet");
     },
   });
   
-  // Sell shares mutation (CPMM only, no tweet required)
+  // Sell shares mutation (no tweet required)
   const sellSharesMutation = useMutation({
     mutationFn: async () => {
-      if (!selectedMarket || !isCPMM) throw new Error("Invalid market");
+      if (!selectedMarket) throw new Error("Invalid market");
       const res = await fetch("/api/trades/sell", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -328,7 +322,7 @@ export function SportsBettingSidebar({
     }
     if (!amount || parseFloat(amount) <= 0) return;
     
-    if (isCPMM && tradeMode === "sell") {
+    if (tradeMode === "sell") {
       sellSharesMutation.mutate();
     } else {
       placeBetMutation.mutate();
@@ -446,11 +440,9 @@ export function SportsBettingSidebar({
 
   const amountNumLocal = parseInt(amount, 10) || 0;
   
-  // Calculate display values based on pricing model
-  const sharesDisplay = isCPMM && quote ? quote.outputAmount?.toFixed(2) : null;
-  const potentialWin = isCPMM 
-    ? (quote?.outputAmount ? Math.floor(quote.outputAmount) : 0) // 1 share = $1 at settlement
-    : (selectedPrice > 0 ? Math.floor((amountNumLocal / selectedPrice) * 100) : 0);
+  // Calculate display values
+  const sharesDisplay = quote ? quote.outputAmount?.toFixed(2) : null;
+  const potentialWin = quote?.outputAmount ? Math.floor(quote.outputAmount) : 0; // 1 share = $1 at settlement
   const priceImpactDisplay = quote?.priceImpact ? (quote.priceImpact * 100).toFixed(2) : null;
 
   return (
@@ -550,7 +542,7 @@ export function SportsBettingSidebar({
                   </p>
                   
                   {/* Show user's position if they have one */}
-                  {isCPMM && userShares > 0 && (
+                  {userShares > 0 && (
                     <div className="mt-4 p-3 rounded-lg bg-muted/30 border border-border/50">
                       <p className="text-xs text-muted-foreground mb-1">Your position</p>
                       <p className="font-bold text-lg">{userShares.toFixed(2)} shares</p>
@@ -572,8 +564,8 @@ export function SportsBettingSidebar({
                 exit={{ opacity: 0, x: 10 }}
                 className="space-y-4"
               >
-                {/* Buy/Sell toggle for CPMM markets */}
-                {isCPMM && userShares > 0 && (
+                {/* Buy/Sell toggle for markets */}
+                {userShares > 0 && (
                   <div className="flex rounded-lg bg-muted/30 p-1">
                     <button
                       onClick={() => setTradeMode("buy")}
@@ -610,8 +602,8 @@ export function SportsBettingSidebar({
                     <span className="font-bold text-primary">${(balance).toLocaleString()}</span>
                   </div>
                   
-                  {/* Show position for CPMM markets */}
-                  {isCPMM && userShares > 0 && (
+                  {/* Show position for markets */}
+                  {userShares > 0 && (
                     <div className="flex items-center justify-between text-sm">
                       <div className="flex items-center gap-2 text-muted-foreground">
                         <ArrowUpDown className="h-4 w-4" />
@@ -687,50 +679,36 @@ export function SportsBettingSidebar({
                         : "bg-outcome-no/10 border-outcome-no/20"
                     )}
                   >
-                    {isCPMM ? (
-                      <>
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-muted-foreground">
-                            {tradeMode === "buy" ? "You receive" : "You get"}
-                          </span>
-                          <span className={cn(
-                            "font-bold",
-                            tradeMode === "buy" ? "text-outcome-yes" : "text-outcome-no"
-                          )}>
-                            {tradeMode === "buy" 
-                              ? `~${sharesDisplay || "?"} shares`
-                              : `~$${quote?.outputAmount?.toFixed(2) || "?"}`
-                            }
-                          </span>
-                        </div>
-                        {tradeMode === "buy" && (
-                          <div className="flex items-center justify-between mt-1">
-                            <span className="text-sm text-muted-foreground">Payout if correct</span>
-                            <span className="font-bold text-outcome-yes">
-                              ~${potentialWin.toLocaleString()}
-                            </span>
-                          </div>
-                        )}
-                        {priceImpactDisplay && parseFloat(priceImpactDisplay) > 1 && (
-                          <p className="text-xs text-amber-500 mt-1">
-                            Price impact: {priceImpactDisplay}%
-                          </p>
-                        )}
-                        <p className="text-xs text-muted-foreground mt-1">
-                          1 winning share = $1 at settlement
-                        </p>
-                      </>
-                    ) : (
-                      <>
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-muted-foreground">Est. return</span>
-                          <span className="font-bold text-outcome-yes">~${potentialWin.toLocaleString()}</span>
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Final payout based on pool at settlement
-                        </p>
-                      </>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">
+                        {tradeMode === "buy" ? "You receive" : "You get"}
+                      </span>
+                      <span className={cn(
+                        "font-bold",
+                        tradeMode === "buy" ? "text-outcome-yes" : "text-outcome-no"
+                      )}>
+                        {tradeMode === "buy" 
+                          ? `~${sharesDisplay || "?"} shares`
+                          : `~$${quote?.outputAmount?.toFixed(2) || "?"}`
+                        }
+                      </span>
+                    </div>
+                    {tradeMode === "buy" && (
+                      <div className="flex items-center justify-between mt-1">
+                        <span className="text-sm text-muted-foreground">Payout if correct</span>
+                        <span className="font-bold text-outcome-yes">
+                          ~${potentialWin.toLocaleString()}
+                        </span>
+                      </div>
                     )}
+                    {priceImpactDisplay && parseFloat(priceImpactDisplay) > 1 && (
+                      <p className="text-xs text-amber-500 mt-1">
+                        Price impact: {priceImpactDisplay}%
+                      </p>
+                    )}
+                    <p className="text-xs text-muted-foreground mt-1">
+                      1 winning share = $1 at settlement
+                    </p>
                   </motion.div>
                 )}
 
@@ -755,13 +733,10 @@ export function SportsBettingSidebar({
                     tradeMode === "sell" ? "Selling..." : "Placing..."
                   ) : (
                     <span className="flex items-center gap-2">
-                      {isCPMM ? (
-                        tradeMode === "sell" 
-                          ? `Sell ${amount || 0} shares`
-                          : `Buy ~${sharesDisplay || "?"} shares`
-                      ) : (
-                        `Bet on ${selectedOutcome !== null ? outcomes[selectedOutcome] : ""}`
-                      )}
+                      {tradeMode === "sell" 
+                        ? `Sell ${amount || 0} shares`
+                        : `Buy ~${sharesDisplay || "?"} shares`
+                      }
                       <ChevronRight className="h-4 w-4" />
                     </span>
                   )}

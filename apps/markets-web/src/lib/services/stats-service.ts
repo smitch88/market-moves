@@ -8,7 +8,7 @@
  * - Win rate and other metrics
  */
 
-import { prisma, BetStatus, PricingModel } from "@vault/database";
+import { prisma, BetStatus } from "@vault/database";
 import { awardXPForVolume } from "./xp-service";
 
 // ============================================================================
@@ -216,7 +216,6 @@ export async function calculateUnrealizedPnL(userId: string): Promise<number> {
       market: {
         select: {
           status: true,
-          pricingModel: true,
           reserve0: true,
           reserve1: true,
           outcomePrices: true,
@@ -262,30 +261,27 @@ export async function calculateUnrealizedPnL(userId: string): Promise<number> {
         unrealizedPnL -= shares0 * avgCost0; // Lost entire cost basis
       }
     } else if (market.status === "OPEN" || market.status === "PUBLISHED") {
-      // For open markets, use current market prices
-      if (market.pricingModel === PricingModel.CPMM) {
-        const reserve0 = Number(market.reserve0);
-        const reserve1 = Number(market.reserve1);
-        const totalReserve = reserve0 + reserve1;
+      // For open markets, use current market prices (CPMM)
+      const reserve0 = Number(market.reserve0);
+      const reserve1 = Number(market.reserve1);
+      const totalReserve = reserve0 + reserve1;
 
-        if (totalReserve > 0) {
-          const price0 = reserve1 / totalReserve;
-          const price1 = reserve0 / totalReserve;
+      if (totalReserve > 0) {
+        const price0 = reserve1 / totalReserve;
+        const price1 = reserve0 / totalReserve;
 
-          if (shares0 > 0) {
-            const currentValue = shares0 * price0;
-            const costBasis = shares0 * avgCost0;
-            unrealizedPnL += currentValue - costBasis;
-          }
+        if (shares0 > 0) {
+          const currentValue = shares0 * price0;
+          const costBasis = shares0 * avgCost0;
+          unrealizedPnL += currentValue - costBasis;
+        }
 
-          if (shares1 > 0) {
-            const currentValue = shares1 * price1;
-            const costBasis = shares1 * avgCost1;
-            unrealizedPnL += currentValue - costBasis;
-          }
+        if (shares1 > 0) {
+          const currentValue = shares1 * price1;
+          const costBasis = shares1 * avgCost1;
+          unrealizedPnL += currentValue - costBasis;
         }
       }
-      // Skip pari-mutuel for simplicity
     }
     // Skip CLOSED or other statuses
   }
@@ -311,7 +307,6 @@ export async function calculateUnclaimedPayouts(userId: string): Promise<number>
         select: {
           resolvedOutcome: true,
           feeBps: true,
-          pricingModel: true,
         },
       },
     },
@@ -324,12 +319,10 @@ export async function calculateUnclaimedPayouts(userId: string): Promise<number>
     const fee = market.feeBps / 10000;
     const winningOutcome = market.resolvedOutcome;
 
-    if (market.pricingModel === PricingModel.CPMM) {
-      if (winningOutcome === 0 && Number(position.shares0) > 0) {
-        unclaimedPayout += Number(position.shares0) * (1 - fee);
-      } else if (winningOutcome === 1 && Number(position.shares1) > 0) {
-        unclaimedPayout += Number(position.shares1) * (1 - fee);
-      }
+    if (winningOutcome === 0 && Number(position.shares0) > 0) {
+      unclaimedPayout += Number(position.shares0) * (1 - fee);
+    } else if (winningOutcome === 1 && Number(position.shares1) > 0) {
+      unclaimedPayout += Number(position.shares1) * (1 - fee);
     }
   }
 

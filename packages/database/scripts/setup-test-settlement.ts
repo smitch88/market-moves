@@ -26,7 +26,6 @@ async function main() {
   const markets = await prisma.market.findMany({
     where: {
       status: "OPEN",
-      pricingModel: "CPMM",
     },
     take: 3,
   });

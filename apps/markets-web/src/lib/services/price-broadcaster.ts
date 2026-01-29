@@ -5,8 +5,6 @@ import { EventEmitter } from "events";
  * 
  * In-memory event emitter for broadcasting real-time price updates.
  * Used by SSE endpoint to push updates to connected clients.
- * 
- * Supports both pari-mutuel (pools) and CPMM (reserves) pricing models.
  */
 
 export interface PriceUpdateEvent {
@@ -14,10 +12,9 @@ export interface PriceUpdateEvent {
   marketId: string;
   eventId: string;
   prices: [number, number];
-  pools: [number, number]; // For pari-mutuel or combined totals
-  reserves?: [number, number]; // For CPMM markets
-  k?: number; // CPMM invariant
-  pricingModel?: "PARI_MUTUEL" | "CPMM";
+  pools: [number, number];
+  reserves?: [number, number];
+  k?: number;
   timestamp: string;
 }
 
@@ -57,7 +54,6 @@ class PriceBroadcaster {
     options?: {
       reserves?: [number, number];
       k?: number;
-      pricingModel?: "PARI_MUTUEL" | "CPMM";
     }
   ): void {
     const event: PriceUpdateEvent = {
@@ -68,7 +64,6 @@ class PriceBroadcaster {
       pools,
       reserves: options?.reserves,
       k: options?.k,
-      pricingModel: options?.pricingModel,
       timestamp: new Date().toISOString(),
     };
 
@@ -106,7 +101,6 @@ export function broadcastPriceChange(
   options?: {
     reserves?: [number, number];
     k?: number;
-    pricingModel?: "PARI_MUTUEL" | "CPMM";
   }
 ): void {
   priceBroadcaster.broadcastPriceChange(marketId, eventId, prices, pools, options);

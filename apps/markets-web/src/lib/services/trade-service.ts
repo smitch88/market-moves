@@ -10,7 +10,7 @@
  * NOW USING PRISMA.DECIMAL FOR EXACT PRECISION WITH REAL MONEY
  */
 
-import { prisma, BetStatus, BalanceReason, TradeType, PricingModel, Prisma } from "@vault/database";
+import { prisma, BetStatus, BalanceReason, TradeType, Prisma } from "@vault/database";
 import type { Market, User, Bet, Position } from "@vault/database";
 import { ConstantProductAMM, QuoteResult } from "./pricing-engine";
 import { createPriceSnapshot } from "./price-snapshot-service";
@@ -88,10 +88,6 @@ export class TradeService {
       throw new Error("Market not found");
     }
 
-    if (market.pricingModel !== PricingModel.CPMM) {
-      throw new Error("Market does not support share trading");
-    }
-
     if (!market.k) {
       throw new Error("Market k-invariant not set");
     }
@@ -147,10 +143,6 @@ export class TradeService {
 
     if (!market) {
       return { valid: false, error: "Market not found", code: "MARKET_NOT_FOUND" };
-    }
-
-    if (market.pricingModel !== PricingModel.CPMM) {
-      return { valid: false, error: "Market does not support share trading", code: "NOT_CPMM" };
     }
 
     if (market.status !== "OPEN" && market.status !== "PUBLISHED") {
@@ -456,7 +448,6 @@ export class TradeService {
       {
         reserves: [newReserve0, newReserve1],
         k: market.k || undefined,
-        pricingModel: "CPMM",
       }
     );
 
@@ -665,7 +656,6 @@ export class TradeService {
         {
           reserves: [newReserve0, newReserve1],
           k: market.k || undefined,
-          pricingModel: "CPMM",
         }
       );
 

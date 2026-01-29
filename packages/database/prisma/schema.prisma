@@ -324,7 +324,7 @@ model Position {
   userId   String
   marketId String
 
-  // Pari-mutuel fields (legacy)
+  // Legacy fields (deprecated)
   amount0   Decimal @default(0.00) @db.Decimal(19, 2)
   amount1   Decimal @default(0.00) @db.Decimal(19, 2)
   weighted0 Float   @default(0)
@@ -516,7 +516,6 @@ enum TradeType {
 }
 
 enum PricingModel {
-  PARI_MUTUEL // Traditional pool betting (legacy)
   CPMM // Constant Product Market Maker (AMM)
 }
 

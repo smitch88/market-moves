@@ -13,7 +13,7 @@ import { config } from "dotenv";
 // Load .env
 config({ path: resolve(__dirname, "../.env") });
 
-import { PrismaClient, MarketCategory, MarketStatus, UserRole, PricingModel, EventType } from "../src/generated/client";
+import { PrismaClient, MarketCategory, MarketStatus, UserRole, EventType } from "../src/generated/client";
 
 const prisma = new PrismaClient();
 
@@ -640,8 +640,6 @@ async function seedDatabase() {
         closesAt: bettingCloseTime,
         outcomes: JSON.stringify(outcomes),
         outcomePrices: JSON.stringify([price0, price1]),
-        // CPMM pricing model
-        pricingModel: PricingModel.CPMM,
         reserve0,
         reserve1,
         k,
@@ -959,7 +957,6 @@ async function seedDatabase() {
         closesAt: new Date("2026-02-08T23:55:00Z"),
         outcomes: JSON.stringify(outcomes),
         outcomePrices: JSON.stringify([price0, price1]),
-        pricingModel: PricingModel.CPMM,
         reserve0,
         reserve1,
         k,
@@ -1337,7 +1334,6 @@ async function seedDatabase() {
         closesAt: new Date("2026-02-09T00:00:00Z"),
         outcomes: JSON.stringify(outcomes),
         outcomePrices: JSON.stringify([price0, price1]),
-        pricingModel: PricingModel.CPMM,
         reserve0,
         reserve1,
         k,
@@ -1484,7 +1480,6 @@ async function seedDatabase() {
         closesAt: new Date("2026-02-08T00:00:00Z"),
         outcomes: JSON.stringify(outcomes),
         outcomePrices: JSON.stringify([price0, price1]),
-        pricingModel: PricingModel.CPMM,
         reserve0,
         reserve1,
         k,

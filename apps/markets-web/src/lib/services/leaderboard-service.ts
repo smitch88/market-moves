@@ -8,7 +8,7 @@
  * (from current open positions) for a complete picture.
  */
 
-import { prisma, BetStatus, PricingModel } from "@vault/database";
+import { prisma, BetStatus } from "@vault/database";
 import { calculateLevel } from "./xp-service";
 
 // ============================================================================
@@ -435,17 +435,12 @@ function calculatePositionUnrealizedPnL(position: {
   avgCost1: unknown;
   market: {
     status: string;
-    pricingModel: string;
     reserve0: unknown;
     reserve1: unknown;
     resolvedOutcome?: number | null;
     feeBps?: number;
   };
 }): number {
-  if (position.market.pricingModel !== PricingModel.CPMM) {
-    return 0; // Skip pari-mutuel
-  }
-
   const shares0 = Number(position.shares0);
   const shares1 = Number(position.shares1);
   const avgCost0 = Number(position.avgCost0);
@@ -539,7 +534,6 @@ export async function getPnLLeaderboard(
             market: {
               select: {
                 status: true,
-                pricingModel: true,
                 reserve0: true,
                 reserve1: true,
                 resolvedOutcome: true,
@@ -681,7 +675,6 @@ export async function getUserPnLRank(
             market: {
               select: {
                 status: true,
-                pricingModel: true,
                 reserve0: true,
                 reserve1: true,
                 resolvedOutcome: true,
@@ -735,7 +728,6 @@ export async function getUserPnLRank(
             market: {
               select: {
                 status: true,
-                pricingModel: true,
                 reserve0: true,
                 reserve1: true,
                 resolvedOutcome: true,

@@ -20,7 +20,7 @@ All enum types grouped together with inline documentation:
 - `BalanceReason` - Reasons for balance changes
 - `PnLReason` - Reasons for profit/loss changes
 - `TradeType` - Buy or sell
-- `PricingModel` - PARI_MUTUEL or CPMM (AMM)
+- `PricingModel` - CPMM (AMM)
 - `RaffleReason` - Raffle entry reasons
 - `TweetProofMethod` - Social verification methods
 - `AdminAction` - Admin action types for audit log

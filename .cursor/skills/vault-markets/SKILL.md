@@ -7,7 +7,7 @@ description: Vault Markets prediction market platform development. Use when work
 
 ## Overview
 
-Vault Markets is a Web2-based prediction market platform built with Next.js 16, featuring pari-mutuel betting mechanics, Twitter/X integration, and Privy authentication.
+Vault Markets is a Web2-based prediction market platform built with Next.js 16, featuring AMM (Automated Market Maker) trading mechanics, Twitter/X integration, and Privy authentication.
 
 ## Project Structure
 
@@ -102,11 +102,12 @@ export async function GET() {
 DRAFT → OPEN → CLOSED → RESOLVED → SETTLED
 ```
 
-## Pari-Mutuel Betting
+## AMM Trading
 
-Markets use pari-mutuel pooling:
-- All bets go into a shared pool
-- Winners split the pool proportionally
+Markets use CPMM (Constant Product Market Maker):
+- Buy and sell shares instantly at market prices
+- Prices adjust automatically based on supply and demand
+- Each winning share pays out $1 at settlement
 - Platform takes a configurable fee (default 1%)
 - Seed liquidity prevents extreme odds
 

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma, BalanceReason, PricingModel, PnLReason } from "@vault/database";
+import { prisma, BalanceReason, PnLReason } from "@vault/database";
 import { getEffectiveUser } from "@/lib/auth/get-effective-user";
 import { createPnLSnapshot } from "@/lib/services/stats-service";
 import { z } from "zod";
@@ -73,11 +73,6 @@ export async function POST(request: NextRequest) {
               outcomes: true,
               resolvedOutcome: true,
               feeBps: true,
-              pricingModel: true,
-              pool0: true,
-              pool1: true,
-              seed0: true,
-              seed1: true,
             },
           },
         },
@@ -114,7 +109,6 @@ export async function POST(request: NextRequest) {
         const outcomes = JSON.parse(market.outcomes) as string[];
         const resolvedOutcome = market.resolvedOutcome;
         const fee = market.feeBps / 10000;
-        const isCPMM = market.pricingModel === PricingModel.CPMM;
 
         // Process both outcomes for this position
         for (const outcomeIndex of [0, 1] as const) {
@@ -124,36 +118,18 @@ export async function POST(request: NextRequest) {
           const avgCost = outcomeIndex === 0 
             ? new Prisma.Decimal(position.avgCost0) 
             : new Prisma.Decimal(position.avgCost1);
-          const amount = outcomeIndex === 0 
-            ? new Prisma.Decimal(position.amount0) 
-            : new Prisma.Decimal(position.amount1);
 
-          // Skip if no position on this outcome
-          if (shares.isZero() && amount.isZero()) continue;
+          // Skip if no shares on this outcome
+          if (shares.isZero()) continue;
 
           const isWinner = resolvedOutcome === outcomeIndex;
           let payout = new Prisma.Decimal(0);
-          let costBasis = new Prisma.Decimal(0);
 
-          if (isCPMM) {
-            // CPMM: Each winning share = $1 (minus fee)
-            if (isWinner && !shares.isZero()) {
-              payout = shares.mul(1 - fee).floor();
-            }
-            costBasis = shares.mul(avgCost);
-          } else {
-            // PARI_MUTUEL: Pro-rata from pool
-            const pool0 = new Prisma.Decimal(market.pool0).plus(market.seed0);
-            const pool1 = new Prisma.Decimal(market.pool1).plus(market.seed1);
-            const totalPool = pool0.plus(pool1);
-            const winningPool = resolvedOutcome === 0 ? pool0 : pool1;
-            const netPool = totalPool.mul(1 - fee);
-
-            if (isWinner && !amount.isZero() && !winningPool.isZero()) {
-              payout = amount.div(winningPool).mul(netPool).floor();
-            }
-            costBasis = amount;
+          // CPMM: Each winning share = $1 (minus fee)
+          if (isWinner && !shares.isZero()) {
+            payout = shares.mul(1 - fee).floor();
           }
+          const costBasis = shares.mul(avgCost);
 
           const profit = payout.minus(costBasis);
 
@@ -193,7 +169,7 @@ export async function POST(request: NextRequest) {
           }
 
           // Create balance ledger entry for losers (tracking entry with delta=0)
-          if (!isWinner && (!shares.isZero() || !amount.isZero())) {
+          if (!isWinner && !shares.isZero()) {
             await tx.balanceLedger.create({
               data: {
                 userId: user.id,
@@ -304,11 +280,6 @@ export async function GET() {
             outcomes: true,
             resolvedOutcome: true,
             feeBps: true,
-            pricingModel: true,
-            pool0: true,
-            pool1: true,
-            seed0: true,
-            seed1: true,
           },
         },
       },
@@ -323,41 +294,22 @@ export async function GET() {
       const outcomes = JSON.parse(market.outcomes) as string[];
       const resolvedOutcome = market.resolvedOutcome;
       const fee = market.feeBps / 10000;
-      const isCPMM = market.pricingModel === PricingModel.CPMM;
 
       let payout = 0;
       let isWinner = false;
 
-      // Check outcome 0
+      // Check outcome 0 (CPMM: 1 share = $1)
       const shares0 = Number(position.shares0);
-      const amount0 = Number(position.amount0);
-      if (resolvedOutcome === 0 && (shares0 > 0 || amount0 > 0)) {
+      if (resolvedOutcome === 0 && shares0 > 0) {
         isWinner = true;
-        if (isCPMM) {
-          payout += Math.floor(shares0 * (1 - fee));
-        } else {
-          const pool0 = Number(market.pool0) + Number(market.seed0);
-          const pool1 = Number(market.pool1) + Number(market.seed1);
-          const totalPool = pool0 + pool1;
-          const netPool = totalPool * (1 - fee);
-          payout += Math.floor((amount0 / pool0) * netPool);
-        }
+        payout += Math.floor(shares0 * (1 - fee));
       }
 
-      // Check outcome 1
+      // Check outcome 1 (CPMM: 1 share = $1)
       const shares1 = Number(position.shares1);
-      const amount1 = Number(position.amount1);
-      if (resolvedOutcome === 1 && (shares1 > 0 || amount1 > 0)) {
+      if (resolvedOutcome === 1 && shares1 > 0) {
         isWinner = true;
-        if (isCPMM) {
-          payout += Math.floor(shares1 * (1 - fee));
-        } else {
-          const pool0 = Number(market.pool0) + Number(market.seed0);
-          const pool1 = Number(market.pool1) + Number(market.seed1);
-          const totalPool = pool0 + pool1;
-          const netPool = totalPool * (1 - fee);
-          payout += Math.floor((amount1 / pool1) * netPool);
-        }
+        payout += Math.floor(shares1 * (1 - fee));
       }
 
       if (isWinner) {

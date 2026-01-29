@@ -2,7 +2,6 @@
  * Pricing Engine Interface
  * 
  * This abstraction allows swapping between different pricing mechanisms:
- * - PariMutuelPricing (legacy implementation)
  * - ConstantProductAMM (shares-based trading)
  * - OnChainAMMPricing (future on-chain integration)
  * 
@@ -99,67 +98,6 @@ export interface PricingEngine {
 }
 
 // ============================================================================
-// PARI-MUTUEL PRICING (LEGACY)
-// ============================================================================
-
-/**
- * Pari-Mutuel Pricing Implementation
- * 
- * Classic pari-mutuel betting where:
- * - All bets are pooled together
- * - Odds are determined by pool distribution
- * - Winners share the net pool proportionally
- * - Fee is deducted at settlement
- */
-export class PariMutuelPricing implements PricingEngine {
-  getType(): string {
-    return "pari-mutuel";
-  }
-
-  calculatePrice(pool0: Prisma.Decimal, pool1: Prisma.Decimal): PriceResult {
-    const total = currency.add(pool0, pool1);
-    
-    if (currency.isZero(total)) {
-      return { 
-        price0: currency.decimal("0.5"), 
-        price1: currency.decimal("0.5") 
-      };
-    }
-
-    return {
-      price0: currency.divide(pool0, total),
-      price1: currency.divide(pool1, total),
-    };
-  }
-
-  calculatePayout(
-    stake: Prisma.Decimal,
-    winningPool: Prisma.Decimal,
-    totalPool: Prisma.Decimal,
-    feeBps: number
-  ): PayoutResult {
-    if (currency.isZero(winningPool)) {
-      return { 
-        payout: currency.zero(), 
-        netPool: currency.zero(), 
-        fee: currency.zero() 
-      };
-    }
-
-    const fee = currency.calculateFee(totalPool, feeBps);
-    const netPool = currency.subtract(totalPool, fee);
-    const payout = currency.floor(
-      currency.multiply(
-        currency.divide(stake, winningPool),
-        netPool
-      )
-    );
-
-    return { payout, netPool, fee };
-  }
-}
-
-// ============================================================================
 // CONSTANT PRODUCT AMM (CPMM)
 // ============================================================================
 
@@ -229,7 +167,6 @@ export class ConstantProductAMM implements PricingEngine {
    * Calculate payout for shares in CPMM
    * 
    * In AMM: 1 winning share = $1 (after fees)
-   * This is different from pari-mutuel where payout is proportional to pool
    */
   calculatePayout(
     shares: Prisma.Decimal,
@@ -526,10 +463,10 @@ export class ConstantProductAMM implements PricingEngine {
 // ============================================================================
 
 /**
- * Get the default pricing engine (pari-mutuel for legacy)
+ * Get the default pricing engine (CPMM)
  */
 export function getDefaultPricingEngine(): PricingEngine {
-  return new PariMutuelPricing();
+  return new ConstantProductAMM();
 }
 
 /**
@@ -540,23 +477,16 @@ export function getCPMMEngine(): ConstantProductAMM {
 }
 
 /**
- * Get pricing engine based on model type
+ * Get pricing engine (always returns CPMM)
  */
-export function getPricingEngine(model: "PARI_MUTUEL" | "CPMM"): PricingEngine {
-  switch (model) {
-    case "CPMM":
-      return new ConstantProductAMM();
-    case "PARI_MUTUEL":
-    default:
-      return new PariMutuelPricing();
-  }
+export function getPricingEngine(): PricingEngine {
+  return new ConstantProductAMM();
 }
 
 /**
- * Singleton instances for convenience
+ * Singleton instance for convenience
  */
-export const pariMutuelEngine = new PariMutuelPricing();
 export const cpmmEngine = new ConstantProductAMM();
 
-// Legacy export for backward compatibility
-export const pricingEngine = pariMutuelEngine;
+// Default export
+export const pricingEngine = cpmmEngine;

@@ -101,7 +101,6 @@ function serializeMarket(market: any) {
     pool0: pool0Val,
     pool1: pool1Val,
     k: toNum(market.k),
-    pricingModel: market.pricingModel,
     reserve0: toNum(market.reserve0),
     reserve1: toNum(market.reserve1),
     outcomes: market.outcomes,

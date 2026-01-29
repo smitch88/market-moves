@@ -18,9 +18,7 @@ function serializePosition(position: {
     question: string;
     outcomes: string;
     outcomePrices: string;
-    outcomeColors?: string | null;
     status: string;
-    pricingModel: string;
     reserve0: unknown;
     reserve1: unknown;
     resolvedOutcome?: number | null;
@@ -48,9 +46,7 @@ function serializePosition(position: {
       question: position.market.question,
       outcomes: position.market.outcomes,
       outcomePrices: position.market.outcomePrices,
-      outcomeColors: position.market.outcomeColors,
       status: position.market.status,
-      pricingModel: position.market.pricingModel,
       reserve0: Number(position.market.reserve0),
       reserve1: Number(position.market.reserve1),
       resolvedOutcome: position.market.resolvedOutcome ?? null,
@@ -93,7 +89,6 @@ export async function GET(request: NextRequest) {
               outcomes: true,
               outcomePrices: true,
               status: true,
-              pricingModel: true,
               reserve0: true,
               reserve1: true,
             },
@@ -122,7 +117,6 @@ export async function GET(request: NextRequest) {
           outcomes: position.market.outcomes,
           outcomePrices: position.market.outcomePrices,
           status: position.market.status,
-          pricingModel: position.market.pricingModel,
           reserve0: Number(position.market.reserve0),
           reserve1: Number(position.market.reserve1),
         },
@@ -153,7 +147,6 @@ export async function GET(request: NextRequest) {
             outcomes: true,
             outcomePrices: true,
             status: true,
-            pricingModel: true,
             reserve0: true,
             reserve1: true,
             resolvedOutcome: true,
