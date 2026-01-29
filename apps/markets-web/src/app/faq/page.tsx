@@ -9,9 +9,9 @@ export const metadata: Metadata = {
 
 export default function FAQPage() {
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
       <Header />
-      <main className="max-w-7xl mx-auto px-4 py-6">
+      <main className="container mx-auto px-4 py-8">
         <FAQContent />
       </main>
     </div>
