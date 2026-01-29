@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import Link from "next/link";
 import {
   Avatar,
   AvatarImage,
@@ -157,19 +158,13 @@ function LeaderboardRow({
   metric: Metric;
   isCurrentUser?: boolean;
 }) {
-  const displayName = entry.name || entry.handle || "Anonymous";
+  const displayName = entry.name || entry.handle || `${entry.userId.slice(0, 8)}...`;
   const rankIcon = getRankIcon(entry.rank);
+  // Link using handle if available, otherwise use userId
+  const profileLink = entry.handle ? `/u/${entry.handle}` : `/u/${entry.userId}`;
 
-  return (
-    <motion.div
-      variants={itemVariants}
-      className={cn(
-        "flex items-center px-4 py-3 transition-colors rounded-lg",
-        isCurrentUser
-          ? "bg-primary/10 border border-primary/20"
-          : "hover:bg-muted/20"
-      )}
-    >
+  const content = (
+    <>
       {/* Rank */}
       <div className="w-12 flex items-center gap-1.5">
         {rankIcon}
@@ -197,7 +192,11 @@ function LeaderboardRow({
           </AvatarFallback>
         </Avatar>
         <div className="min-w-0">
-          <p className={cn("font-medium truncate", isCurrentUser && "text-primary")}>
+          <p className={cn(
+            "font-medium truncate",
+            isCurrentUser && "text-primary",
+            "group-hover:text-primary transition-colors"
+          )}>
             {displayName}
             {isCurrentUser && (
               <span className="ml-2 text-xs text-primary/70">(You)</span>
@@ -238,6 +237,23 @@ function LeaderboardRow({
           {metric === "xp" ? formatXp(entry.value) : formatPnl(entry.value)}
         </span>
       </div>
+    </>
+  );
+
+  // Always wrap in Link - can link by handle or userId
+  return (
+    <motion.div variants={itemVariants}>
+      <Link
+        href={profileLink}
+        className={cn(
+          "group flex items-center px-4 py-3 transition-colors rounded-lg",
+          isCurrentUser
+            ? "bg-primary/10 border border-primary/20"
+            : "hover:bg-muted/20"
+        )}
+      >
+        {content}
+      </Link>
     </motion.div>
   );
 }
@@ -420,6 +436,27 @@ export function LeaderboardContent() {
         </div>
       )}
 
+      {/* Search Header - Outside AnimatePresence to prevent state issues */}
+      {data && !isLoading && (
+        <div className="flex items-center px-4 py-2 text-xs text-muted-foreground/60 uppercase tracking-wider">
+          <div className="w-12" />
+          <div className="flex-1 relative">
+            <Search className="absolute left-0 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/40" />
+            <input
+              type="text"
+              placeholder="Search users..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-6 py-1 text-sm font-normal normal-case tracking-normal bg-transparent border-none outline-none focus:outline-none placeholder:text-muted-foreground/40"
+            />
+          </div>
+          {metric === "xp" && (
+            <div className="w-16 text-center hidden sm:block">Level</div>
+          )}
+          <div className="w-28 text-right">{metric === "xp" ? "XP" : "PnL"}</div>
+        </div>
+      )}
+
       {/* Content */}
       {data && !isLoading && (
         <AnimatePresence mode="wait">
@@ -431,35 +468,11 @@ export function LeaderboardContent() {
             transition={{ duration: 0.3 }}
             className="space-y-4"
           >
-            {/* Table Header with Search */}
-            <div className="flex items-center px-4 py-2 text-xs text-muted-foreground/60 uppercase tracking-wider">
-              <div className="w-12" />
-              <div className="flex-1 relative">
-                <Search className="absolute left-0 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/40" />
-                <input
-                  type="text"
-                  placeholder="Search users..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-6 py-1 text-sm font-normal normal-case tracking-normal bg-transparent border-none outline-none focus:outline-none placeholder:text-muted-foreground/40"
-                />
-              </div>
-              {metric === "xp" && (
-                <div className="w-16 text-center hidden sm:block">Level</div>
-              )}
-              <div className="w-28 text-right">{metric === "xp" ? "XP" : "PnL"}</div>
-            </div>
-
             {/* Entries */}
-            <motion.div
-              variants={containerVariants}
-              initial="hidden"
-              animate="visible"
-              className="divide-y divide-border/20"
-            >
+            <div className="divide-y divide-border/20">
               {filteredEntries.length === 0 ? (
                 <div className="py-12 text-center text-muted-foreground">
-                  No users found
+                  {searchQuery ? "No users found matching your search" : "No users found"}
                 </div>
               ) : (
                 filteredEntries.map((entry, index) => (
@@ -471,7 +484,7 @@ export function LeaderboardContent() {
                   />
                 ))
               )}
-            </motion.div>
+            </div>
 
             {/* Current User Position (if not in current page) */}
             {data.currentUserEntry && !currentUserInPage && (

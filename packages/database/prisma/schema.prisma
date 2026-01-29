@@ -14,7 +14,7 @@ model User {
   email            String?
   walletAddress    String?
   twitterSubject   String?
-  handle           String?
+  handle           String?           @unique
   name             String?
   profileImageUrl  String?
   role             UserRole          @default(USER)
@@ -43,6 +43,7 @@ model User {
   @@index([email])
   @@index([twitterSubject])
   @@index([referralCode])
+  @@index([handle])
 }
 
 model BalanceLedger {
@@ -420,6 +421,7 @@ enum AdminAction {
   MARKET_RESOLVE
   MARKET_SETTLE
   USER_ROLE_UPDATE
+  USER_UPDATE
   USER_XP_ADJUST
   CONFIG_UPDATE
   EVENT_CREATE

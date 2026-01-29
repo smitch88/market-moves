@@ -1,23 +1,41 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma, BalanceReason } from "@vault/database";
-import { requireUser } from "@vault/auth";
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const user = await requireUser();
     const { id } = await params;
 
-    // Users can only view their own activity
-    if (user.id !== id) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    // Try to find user by ID first, then by handle
+    let targetUser = await prisma.user.findUnique({
+      where: { id },
+      select: { id: true },
+    });
+
+    // If not found by ID, try by handle (case-insensitive)
+    if (!targetUser) {
+      targetUser = await prisma.user.findFirst({
+        where: {
+          handle: {
+            equals: id,
+            mode: "insensitive",
+          },
+        },
+        select: { id: true },
+      });
     }
 
-    const [bets, positions, redemptions] = await Promise.all([
+    if (!targetUser) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
+    const userId = targetUser.id;
+
+    const [bets, redemptions] = await Promise.all([
       prisma.bet.findMany({
-        where: { userId: id },
+        where: { userId },
         include: {
           market: {
             select: { 
@@ -36,29 +54,10 @@ export async function GET(
         orderBy: { createdAt: "desc" },
         take: 50,
       }),
-      prisma.position.findMany({
-        where: { userId: id },
-        include: {
-          market: {
-            select: { 
-              question: true, 
-              status: true,
-              outcomes: true,
-              event: {
-                select: {
-                  slug: true,
-                  title: true,
-                },
-              },
-            },
-          },
-        },
-        orderBy: { lastBetAt: "desc" },
-      }),
       // Fetch redemption ledger entries (SETTLEMENT_PAYOUT)
       prisma.balanceLedger.findMany({
         where: {
-          userId: id,
+          userId,
           reason: BalanceReason.SETTLEMENT_PAYOUT,
         },
         orderBy: { createdAt: "desc" },
