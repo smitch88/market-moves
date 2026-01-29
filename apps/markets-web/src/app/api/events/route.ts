@@ -48,7 +48,10 @@ export async function GET(request: NextRequest) {
     const endDateMax = searchParams.get("end_date_max");
 
     // Build where clause
-    const where: Record<string, unknown> = {};
+    const where: Record<string, unknown> = {
+      // Only show published events on public API
+      isPublished: true,
+    };
     
     if (active !== null) where.active = active === "true";
     if (closed !== null) where.closed = closed === "true";
@@ -95,6 +98,7 @@ export async function GET(request: NextRequest) {
           },
           markets: {
             where: {
+              isPublished: true,
               status: { in: ["PUBLISHED", "OPEN", "CLOSED", "RESOLVED"] },
             },
             select: {

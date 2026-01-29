@@ -105,7 +105,7 @@ export default function AdminNewMarketForEventPage({ params }: PageProps) {
 
       <form onSubmit={handleSubmit} className="space-y-8">
         {/* Market question */}
-        <GlassCard>
+        <GlassCard variant="solid">
           <GlassCardHeader>
             <h2 className="text-lg font-semibold">Market Question</h2>
           </GlassCardHeader>
@@ -125,7 +125,7 @@ export default function AdminNewMarketForEventPage({ params }: PageProps) {
         </GlassCard>
 
         {/* Outcomes */}
-        <GlassCard>
+        <GlassCard variant="solid">
           <GlassCardHeader>
             <h2 className="text-lg font-semibold">Outcomes</h2>
             <p className="text-sm text-muted-foreground">
@@ -161,7 +161,7 @@ export default function AdminNewMarketForEventPage({ params }: PageProps) {
         </GlassCard>
 
         {/* Details */}
-        <GlassCard>
+        <GlassCard variant="solid">
           <GlassCardHeader>
             <h2 className="text-lg font-semibold">Market Details (Rules)</h2>
             <p className="text-sm text-muted-foreground">
@@ -179,7 +179,7 @@ export default function AdminNewMarketForEventPage({ params }: PageProps) {
         </GlassCard>
 
         {/* Timing */}
-        <GlassCard>
+        <GlassCard variant="solid">
           <GlassCardHeader>
             <h2 className="text-lg font-semibold">Schedule</h2>
           </GlassCardHeader>
@@ -221,7 +221,7 @@ export default function AdminNewMarketForEventPage({ params }: PageProps) {
         </GlassCard>
 
         {/* Economics */}
-        <GlassCard>
+        <GlassCard variant="solid">
           <GlassCardHeader>
             <h2 className="text-lg font-semibold">Economics</h2>
           </GlassCardHeader>

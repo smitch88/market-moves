@@ -141,9 +141,12 @@ export async function GET(
     headers.set("Pragma", "no-cache");
     headers.set("Expires", "0");
 
-    // Find event by slug
-    const event = await prisma.event.findUnique({
-      where: { slug },
+    // Find event by slug - only show published events
+    const event = await prisma.event.findFirst({
+      where: { 
+        slug,
+        isPublished: true, // Only show published events
+      },
       include: {
         tags: {
           select: {
@@ -153,6 +156,9 @@ export async function GET(
           },
         },
         markets: {
+          where: {
+            isPublished: true, // Only show published markets
+          },
           include: {
             bets: {
               where: { status: "CONFIRMED" },

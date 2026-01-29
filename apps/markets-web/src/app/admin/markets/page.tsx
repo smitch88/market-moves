@@ -4,6 +4,10 @@ import { format } from "date-fns";
 import { Button, Badge, GlassCard, GlassCardContent } from "@vault/ui";
 import { Plus } from "lucide-react";
 import { getAdminMarketUrl, getAdminMarketEditUrl } from "@/lib/urls";
+import { PublishToggle } from "@/components/admin/publish-toggle";
+
+// Force dynamic rendering - requires database access
+export const dynamic = "force-dynamic";
 
 // Helper to parse outcomes
 function parseOutcomes(outcomes: string): string[] {
@@ -17,9 +21,20 @@ function parseOutcomes(outcomes: string): string[] {
 export default async function AdminMarketsPage() {
   // Fetch events with their markets
   const events = await prisma.event.findMany({
-    include: {
+    select: {
+      id: true,
+      slug: true,
+      title: true,
+      description: true,
+      category: true,
+      isPublished: true,
       markets: {
-        include: {
+        select: {
+          id: true,
+          question: true,
+          outcomes: true,
+          status: true,
+          isPublished: true,
           _count: {
             select: { bets: { where: { status: "CONFIRMED" } } },
           },
@@ -47,7 +62,7 @@ export default async function AdminMarketsPage() {
         </Button>
       </div>
 
-      <GlassCard>
+      <GlassCard variant="solid">
         <GlassCardContent className="p-0">
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -61,6 +76,9 @@ export default async function AdminMarketsPage() {
                   </th>
                   <th className="text-left p-4 font-medium text-muted-foreground">
                     Markets
+                  </th>
+                  <th className="text-left p-4 font-medium text-muted-foreground">
+                    Published
                   </th>
                   <th className="text-left p-4 font-medium text-muted-foreground">
                     Status
@@ -102,6 +120,13 @@ export default async function AdminMarketsPage() {
                       </td>
                       <td className="p-4">{event._count.markets}</td>
                       <td className="p-4">
+                        <PublishToggle
+                          id={event.id}
+                          type="event"
+                          isPublished={event.isPublished}
+                        />
+                      </td>
+                      <td className="p-4">
                         {primaryMarket && (
                           <Badge
                             variant={
@@ -142,7 +167,7 @@ export default async function AdminMarketsPage() {
                 })}
                 {events.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="p-8 text-center text-muted-foreground">
+                    <td colSpan={7} className="p-8 text-center text-muted-foreground">
                       No events yet. Create your first event!
                     </td>
                   </tr>

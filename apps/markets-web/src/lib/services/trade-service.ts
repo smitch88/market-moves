@@ -139,10 +139,20 @@ export class TradeService {
     // Check market exists and is open
     const market = await prisma.market.findUnique({
       where: { id: marketId },
+      include: {
+        event: {
+          select: { isPublished: true },
+        },
+      },
     });
 
     if (!market) {
       return { valid: false, error: "Market not found", code: "MARKET_NOT_FOUND" };
+    }
+
+    // Check if market and event are published
+    if (!market.isPublished || !market.event.isPublished) {
+      return { valid: false, error: "Market is not available for trading", code: "MARKET_UNPUBLISHED" };
     }
 
     if (market.status !== "OPEN" && market.status !== "PUBLISHED") {

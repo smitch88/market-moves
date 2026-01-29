@@ -23,11 +23,15 @@ function parseOutcomes(outcomes: string | undefined): string[] {
   }
 }
 
-export function RecentActivity() {
+interface RecentActivityProps {
+  limit?: number;
+}
+
+export function RecentActivity({ limit = 5 }: RecentActivityProps) {
   const { data, isLoading } = useQuery({
-    queryKey: ["adminActivity"],
+    queryKey: ["adminActivity", limit],
     queryFn: async () => {
-      const res = await fetch("/api/admin/activity?limit=30");
+      const res = await fetch(`/api/admin/activity?limit=${limit}`);
       if (!res.ok) throw new Error("Failed to fetch activity");
       return res.json();
     },

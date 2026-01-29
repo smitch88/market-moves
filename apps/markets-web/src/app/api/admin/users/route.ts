@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@vault/database";
 import { requireAdmin } from "@vault/auth";
+import { Prisma } from "@vault/database";
+
+// Valid sort fields
+const validSortFields = ["createdAt", "balance", "xp", "name"] as const;
+type SortField = (typeof validSortFields)[number];
 
 export async function GET(request: NextRequest) {
   try {
@@ -13,14 +18,34 @@ export async function GET(request: NextRequest) {
       Math.max(1, parseInt(searchParams.get("pageSize") || "50", 10))
     );
     const role = searchParams.get("role");
+    const search = searchParams.get("search")?.trim();
+    const sortBy = searchParams.get("sortBy") || "createdAt";
+    const sortOrder = searchParams.get("sortOrder") || "desc";
 
     const skip = (page - 1) * pageSize;
 
+    // Build where clause with search
+    const whereClause: Record<string, unknown> = {};
+    if (role) {
+      whereClause.role = role;
+    }
+    if (search) {
+      whereClause.OR = [
+        { name: { contains: search, mode: "insensitive" } },
+        { handle: { contains: search, mode: "insensitive" } },
+        { email: { contains: search, mode: "insensitive" } },
+        { twitterSubject: { contains: search } },
+      ];
+    }
+
+    // Build orderBy clause
+    const orderByField = validSortFields.includes(sortBy as SortField) ? sortBy : "createdAt";
+    const orderByDirection: Prisma.SortOrder = sortOrder === "asc" ? "asc" : "desc";
+    const orderBy = { [orderByField]: orderByDirection };
+
     const [users, total] = await Promise.all([
       prisma.user.findMany({
-        where: {
-          ...(role && { role: role as never }),
-        },
+        where: whereClause,
         select: {
           id: true,
           email: true,
@@ -29,6 +54,8 @@ export async function GET(request: NextRequest) {
           role: true,
           balance: true,
           xp: true,
+          twitterSubject: true,
+          profileImageUrl: true,
           createdAt: true,
           _count: {
             select: {
@@ -37,14 +64,12 @@ export async function GET(request: NextRequest) {
             },
           },
         },
-        orderBy: { createdAt: "desc" },
+        orderBy,
         skip,
         take: pageSize,
       }),
       prisma.user.count({
-        where: {
-          ...(role && { role: role as never }),
-        },
+        where: whereClause,
       }),
     ]);
 

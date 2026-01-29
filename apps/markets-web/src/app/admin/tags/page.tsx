@@ -177,7 +177,7 @@ export default function AdminTagsPage() {
         </Button>
       </div>
 
-      <GlassCard>
+      <GlassCard variant="solid">
         <GlassCardContent className="p-0">
           {isLoading ? (
             <div className="flex items-center justify-center p-12">

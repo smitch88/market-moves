@@ -102,7 +102,7 @@ export function ProfileActivity({ bets, redemptions = [], isLoading }: ProfileAc
   }
 
   return (
-    <div>
+    <div className="space-y-3">
       {allActivity.map((entry) => {
         if (entry.entryType === "redemption") {
           return <RedemptionRow key={entry.id} redemption={entry} />;
@@ -127,7 +127,7 @@ function BetRow({ bet }: { bet: BetEntry }) {
   return (
     <Link
       href={getMarketUrl(eventSlug)}
-      className="flex items-center gap-4 py-4 border-b border-border/50 last:border-0 group hover:bg-muted/30 -mx-2 px-2 rounded-lg transition-colors"
+      className="flex items-center gap-4 p-4 rounded-lg border border-border/50 bg-card/50 group transition-all duration-200 hover:border-border hover:bg-card/80 hover:shadow-lg hover:shadow-black/5 hover:-translate-y-0.5"
     >
       {/* Content */}
       <div className="flex-1 min-w-0">
@@ -184,7 +184,7 @@ function RedemptionRow({ redemption }: { redemption: RedemptionEntry }) {
   const timeAgo = formatDistanceToNow(new Date(redemption.createdAt), { addSuffix: true });
 
   const content = (
-    <div className="flex items-center gap-4 py-4 border-b border-border/50 last:border-0 group hover:bg-muted/30 -mx-2 px-2 rounded-lg transition-colors">
+    <div className="flex items-center gap-4 p-4 rounded-lg border border-border/50 bg-card/50 group transition-all duration-200 hover:border-border hover:bg-card/80 hover:shadow-lg hover:shadow-black/5 hover:-translate-y-0.5 cursor-pointer">
       {/* Gift icon for redemption */}
       <div className="w-6 h-6 rounded-full bg-green-500/20 flex items-center justify-center flex-shrink-0">
         <Gift className="h-3.5 w-3.5 text-green-500" />

@@ -164,7 +164,7 @@ export default function AdminNewEventPage() {
 
       <form onSubmit={handleSubmit} className="space-y-8">
         {/* Event info */}
-        <GlassCard>
+        <GlassCard variant="solid">
           <GlassCardHeader>
             <h2 className="text-lg font-semibold">Event Information</h2>
           </GlassCardHeader>
@@ -271,7 +271,7 @@ export default function AdminNewEventPage() {
 
         {/* Tags */}
         {availableTags.length > 0 && (
-          <GlassCard>
+          <GlassCard variant="solid">
             <GlassCardHeader>
               <h2 className="text-lg font-semibold">Tags</h2>
             </GlassCardHeader>
@@ -297,7 +297,7 @@ export default function AdminNewEventPage() {
         )}
 
         {/* First market */}
-        <GlassCard>
+        <GlassCard variant="solid">
           <GlassCardHeader>
             <h2 className="text-lg font-semibold">First Market</h2>
             <p className="text-sm text-muted-foreground">

@@ -105,18 +105,18 @@
   content: '';
   position: fixed;
   top: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 100%;
-  max-width: 1200px;
+  left: 0;
+  right: 0;
+  width: 100vw;
   height: 600px;
   z-index: -1;
   background: radial-gradient(
-    ellipse 80% 50% at 50% -20%,
+    ellipse 60% 50% at 50% -20%,
     hsl(var(--primary) / 0.08),
     transparent
   );
   animation: glow-pulse 8s ease-in-out infinite;
+  pointer-events: none;
 }
 
 @keyframes grid-drift {

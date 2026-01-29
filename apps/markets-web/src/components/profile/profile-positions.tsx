@@ -137,18 +137,18 @@ function PositionRow({ position, outcomeIndex, shares, avgCost, onSellComplete, 
   return (
     <>
       <div className={cn(
-        "py-4 border-b border-border/50 last:border-0",
-        isClaimed && "opacity-60"
+        "p-4 rounded-lg border border-border/50 bg-card/50 transition-all duration-200 hover:border-border hover:bg-card/80 hover:shadow-lg hover:shadow-black/5 hover:-translate-y-0.5 cursor-pointer group",
+        isClaimed && "opacity-60 hover:opacity-70"
       )}>
         <div className="flex items-center gap-4">
           {/* Market info */}
           <div className="flex-1 min-w-0">
             <Link
               href={getMarketUrl(eventSlug)}
-              className="font-medium hover:text-primary transition-colors inline-flex items-center gap-1 group/link"
+              className="font-medium hover:text-primary group-hover:text-primary transition-colors inline-flex items-center gap-1"
             >
               <span className="truncate">{title}</span>
-              <ArrowUpRight className="h-3 w-3 opacity-0 group-hover/link:opacity-100 transition-opacity flex-shrink-0" />
+              <ArrowUpRight className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
             </Link>
             <div className="flex items-center gap-2 mt-0.5 text-sm text-muted-foreground flex-wrap">
               <span style={{ color: outcomeColor }} className="font-medium">
@@ -519,7 +519,7 @@ export function ProfilePositions() {
       </div>
 
       {/* Position list */}
-      <div>
+      <div className="space-y-3">
         {positionRows.map((row) => {
           const positionKey = `${row.position.market.id}-${row.outcomeIndex}`;
           const unsharedBet = unsharedBetMap.get(positionKey);

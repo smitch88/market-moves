@@ -40,7 +40,13 @@ export async function GET(request: NextRequest) {
     const endDateMax = searchParams.get("end_date_max");
 
     // Build where clause
-    const where: Record<string, unknown> = {};
+    const where: Record<string, unknown> = {
+      // Only show published markets from published events
+      isPublished: true,
+      event: {
+        isPublished: true,
+      },
+    };
     
     // Status filter based on active/closed
     if (active === "true") {
@@ -53,7 +59,7 @@ export async function GET(request: NextRequest) {
     }
     
     if (eventId) where.eventId = eventId;
-    if (category) where.event = { category: category as never };
+    if (category) (where.event as Record<string, unknown>).category = category;
     
     // Search
     if (query) {

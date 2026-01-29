@@ -18,13 +18,23 @@ export async function POST(request: NextRequest) {
 
     const { marketId, outcomeIndex, amount } = placeBetSchema.parse(body);
 
-    // Validate market exists and is open
+    // Validate market exists, is published, and is open
     const market = await prisma.market.findUnique({
       where: { id: marketId },
+      include: {
+        event: {
+          select: { isPublished: true },
+        },
+      },
     });
 
     if (!market) {
       return NextResponse.json({ error: "Market not found" }, { status: 404 });
+    }
+
+    // Check if market and event are published
+    if (!market.isPublished || !market.event.isPublished) {
+      return NextResponse.json({ error: "Market is not available for betting" }, { status: 400 });
     }
 
     if (market.status !== "OPEN" && market.status !== "PUBLISHED") {

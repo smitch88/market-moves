@@ -16,6 +16,10 @@ import {
   getAdminMarketUrl,
   getMarketUrl,
 } from "@/lib/urls";
+import { PublishToggle } from "@/components/admin/publish-toggle";
+
+// Force dynamic rendering - requires database access
+export const dynamic = "force-dynamic";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -38,7 +42,16 @@ export default async function AdminEventDetailPage({ params }: PageProps) {
     include: {
       tags: true,
       markets: {
-        include: {
+        select: {
+          id: true,
+          question: true,
+          outcomes: true,
+          status: true,
+          isPublished: true,
+          pool0: true,
+          pool1: true,
+          seed0: true,
+          seed1: true,
           _count: {
             select: {
               bets: { where: { status: "CONFIRMED" } },
@@ -98,7 +111,7 @@ export default async function AdminEventDetailPage({ params }: PageProps) {
         {/* Main content */}
         <div className="lg:col-span-2 space-y-6">
           {/* Markets list */}
-          <GlassCard>
+          <GlassCard variant="solid">
             <GlassCardHeader>
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-semibold">
@@ -116,6 +129,9 @@ export default async function AdminEventDetailPage({ params }: PageProps) {
                       </th>
                       <th className="text-left p-4 text-sm font-medium text-muted-foreground">
                         Outcomes
+                      </th>
+                      <th className="text-left p-4 text-sm font-medium text-muted-foreground">
+                        Published
                       </th>
                       <th className="text-left p-4 text-sm font-medium text-muted-foreground">
                         Status
@@ -157,6 +173,13 @@ export default async function AdminEventDetailPage({ params }: PageProps) {
                             </div>
                           </td>
                           <td className="p-4">
+                            <PublishToggle
+                              id={market.id}
+                              type="market"
+                              isPublished={market.isPublished}
+                            />
+                          </td>
+                          <td className="p-4">
                             <Badge
                               variant={
                                 market.status === "OPEN"
@@ -190,7 +213,7 @@ export default async function AdminEventDetailPage({ params }: PageProps) {
                     {event.markets.length === 0 && (
                       <tr>
                         <td
-                          colSpan={6}
+                          colSpan={7}
                           className="p-8 text-center text-muted-foreground"
                         >
                           No markets yet. Add your first market!
@@ -207,11 +230,19 @@ export default async function AdminEventDetailPage({ params }: PageProps) {
         {/* Sidebar */}
         <div className="space-y-6">
           {/* Event info */}
-          <GlassCard>
+          <GlassCard variant="solid">
             <GlassCardHeader>
               <h3 className="text-sm font-semibold">Event Details</h3>
             </GlassCardHeader>
             <GlassCardContent className="space-y-3">
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-muted-foreground">Published</span>
+                <PublishToggle
+                  id={event.id}
+                  type="event"
+                  isPublished={event.isPublished}
+                />
+              </div>
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Category</span>
                 <Badge variant="secondary">{event.category}</Badge>
@@ -252,7 +283,7 @@ export default async function AdminEventDetailPage({ params }: PageProps) {
           </GlassCard>
 
           {/* Tags */}
-          <GlassCard>
+          <GlassCard variant="solid">
             <GlassCardHeader>
               <h3 className="text-sm font-semibold">Tags</h3>
             </GlassCardHeader>
@@ -272,7 +303,7 @@ export default async function AdminEventDetailPage({ params }: PageProps) {
           </GlassCard>
 
           {/* Stats */}
-          <GlassCard>
+          <GlassCard variant="solid">
             <GlassCardHeader>
               <h3 className="text-sm font-semibold">Statistics</h3>
             </GlassCardHeader>
@@ -296,7 +327,7 @@ export default async function AdminEventDetailPage({ params }: PageProps) {
 
           {/* Media */}
           {(event.bannerUrl || event.logoUrl) && (
-            <GlassCard>
+            <GlassCard variant="solid">
               <GlassCardHeader>
                 <h3 className="text-sm font-semibold">Media</h3>
               </GlassCardHeader>

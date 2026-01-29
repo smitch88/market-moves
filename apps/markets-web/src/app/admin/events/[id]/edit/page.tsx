@@ -2,6 +2,9 @@ import { notFound } from "next/navigation";
 import { prisma } from "@vault/database";
 import { EventForm } from "@/components/admin/event-form";
 
+// Force dynamic rendering - requires database access
+export const dynamic = "force-dynamic";
+
 interface PageProps {
   params: Promise<{ id: string }>;
 }

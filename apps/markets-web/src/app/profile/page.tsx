@@ -5,6 +5,9 @@ import { ProfileContent } from "@/components/profile/profile-content";
 import { ProfileSkeleton } from "@/components/profile/profile-skeleton";
 import { getSessionUser } from "@vault/auth";
 
+// Force dynamic rendering - requires auth/cookies
+export const dynamic = "force-dynamic";
+
 export default async function ProfilePage() {
   const user = await getSessionUser();
 

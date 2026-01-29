@@ -167,53 +167,55 @@ export function ProfileContent({ userId }: ProfileContentProps) {
       </div>
 
       {/* Tabs */}
-      <Tabs defaultValue={defaultTab} className="w-full">
-        <div className="border-b border-border mb-6">
-          <TabsList className="h-auto p-0 bg-transparent gap-6">
-            <TabsTrigger
-              value="positions"
-              className="relative pb-3 px-0 bg-transparent rounded-none data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-foreground text-muted-foreground hover:text-foreground transition-colors after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-primary after:scale-x-0 data-[state=active]:after:scale-x-100 after:transition-transform"
-            >
-              Positions
-            </TabsTrigger>
-            <TabsTrigger
-              value="activity"
-              className="relative pb-3 px-0 bg-transparent rounded-none data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-foreground text-muted-foreground hover:text-foreground transition-colors after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-primary after:scale-x-0 data-[state=active]:after:scale-x-100 after:transition-transform"
-            >
-              Activity
-            </TabsTrigger>
-            <TabsTrigger
-              value="referrals"
-              className="relative pb-3 px-0 bg-transparent rounded-none data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-foreground text-muted-foreground hover:text-foreground transition-colors after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-primary after:scale-x-0 data-[state=active]:after:scale-x-100 after:transition-transform"
-            >
-              Referrals
-            </TabsTrigger>
-            <TabsTrigger
-              value="settings"
-              className="relative pb-3 px-0 bg-transparent rounded-none data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-foreground text-muted-foreground hover:text-foreground transition-colors after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-primary after:scale-x-0 data-[state=active]:after:scale-x-100 after:transition-transform"
-            >
-              Settings
-            </TabsTrigger>
-          </TabsList>
-        </div>
+      <div className="bg-background rounded-xl p-6 -mx-2">
+        <Tabs defaultValue={defaultTab} className="w-full">
+          <div className="border-b border-border mb-6">
+            <TabsList className="h-auto p-0 bg-transparent gap-6">
+              <TabsTrigger
+                value="positions"
+                className="relative pb-3 px-0 bg-transparent rounded-none data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-foreground text-muted-foreground hover:text-foreground transition-colors after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-primary after:scale-x-0 data-[state=active]:after:scale-x-100 after:transition-transform"
+              >
+                Positions
+              </TabsTrigger>
+              <TabsTrigger
+                value="activity"
+                className="relative pb-3 px-0 bg-transparent rounded-none data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-foreground text-muted-foreground hover:text-foreground transition-colors after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-primary after:scale-x-0 data-[state=active]:after:scale-x-100 after:transition-transform"
+              >
+                Activity
+              </TabsTrigger>
+              <TabsTrigger
+                value="referrals"
+                className="relative pb-3 px-0 bg-transparent rounded-none data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-foreground text-muted-foreground hover:text-foreground transition-colors after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-primary after:scale-x-0 data-[state=active]:after:scale-x-100 after:transition-transform"
+              >
+                Referrals
+              </TabsTrigger>
+              <TabsTrigger
+                value="settings"
+                className="relative pb-3 px-0 bg-transparent rounded-none data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-foreground text-muted-foreground hover:text-foreground transition-colors after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-primary after:scale-x-0 data-[state=active]:after:scale-x-100 after:transition-transform"
+              >
+                Settings
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
-        <TabsContent value="positions" className="mt-0">
-          <ProfilePositions />
-        </TabsContent>
-        <TabsContent value="activity" className="mt-0">
-          <ProfileActivity
-            bets={activity?.bets || []}
-            redemptions={activity?.redemptions || []}
-            isLoading={activityLoading}
-          />
-        </TabsContent>
-        <TabsContent value="settings" className="mt-0">
-          <ProfileSettings profile={profile} showReferrals={false} />
-        </TabsContent>
-        <TabsContent value="referrals" className="mt-0">
-          <ProfileSettings profile={profile} onlyReferrals={true} />
-        </TabsContent>
-      </Tabs>
+          <TabsContent value="positions" className="mt-0">
+            <ProfilePositions />
+          </TabsContent>
+          <TabsContent value="activity" className="mt-0">
+            <ProfileActivity
+              bets={activity?.bets || []}
+              redemptions={activity?.redemptions || []}
+              isLoading={activityLoading}
+            />
+          </TabsContent>
+          <TabsContent value="settings" className="mt-0">
+            <ProfileSettings profile={profile} showReferrals={false} />
+          </TabsContent>
+          <TabsContent value="referrals" className="mt-0">
+            <ProfileSettings profile={profile} onlyReferrals={true} />
+          </TabsContent>
+        </Tabs>
+      </div>
     </div>
   );
 }

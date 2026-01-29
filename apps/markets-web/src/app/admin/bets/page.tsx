@@ -62,21 +62,21 @@ export default function AdminBetsPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Bets</h1>
-        <p className="text-muted-foreground">View and manage all bets</p>
+        <h1 className="text-2xl sm:text-3xl font-bold">Bets</h1>
+        <p className="text-sm sm:text-base text-muted-foreground">View and manage all bets</p>
       </div>
 
       {/* Filters */}
-      <GlassCard>
-        <GlassCardHeader>
-          <h2 className="text-lg font-semibold">Filters</h2>
+      <GlassCard variant="solid">
+        <GlassCardHeader className="p-4 sm:p-6">
+          <h2 className="text-base sm:text-lg font-semibold">Filters</h2>
         </GlassCardHeader>
-        <GlassCardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <GlassCardContent className="p-4 sm:p-6 pt-0 sm:pt-0">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
             <div>
-              <label className="text-sm font-medium mb-2 block">Status</label>
+              <label className="text-xs sm:text-sm font-medium mb-1.5 sm:mb-2 block">Status</label>
               <Select
                 value={statusFilter}
                 onValueChange={(value) => {
@@ -84,7 +84,7 @@ export default function AdminBetsPage() {
                   handleFilterChange();
                 }}
               >
-                <SelectTrigger>
+                <SelectTrigger className="h-9 sm:h-10">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -97,7 +97,7 @@ export default function AdminBetsPage() {
               </Select>
             </div>
             <div>
-              <label className="text-sm font-medium mb-2 block">Market ID</label>
+              <label className="text-xs sm:text-sm font-medium mb-1.5 sm:mb-2 block">Market ID</label>
               <Input
                 placeholder="Filter by market ID"
                 value={marketFilter}
@@ -105,10 +105,11 @@ export default function AdminBetsPage() {
                   setMarketFilter(e.target.value);
                   handleFilterChange();
                 }}
+                className="h-9 sm:h-10"
               />
             </div>
-            <div>
-              <label className="text-sm font-medium mb-2 block">User ID</label>
+            <div className="sm:col-span-2 md:col-span-1">
+              <label className="text-xs sm:text-sm font-medium mb-1.5 sm:mb-2 block">User ID</label>
               <Input
                 placeholder="Filter by user ID"
                 value={userFilter}
@@ -116,19 +117,20 @@ export default function AdminBetsPage() {
                   setUserFilter(e.target.value);
                   handleFilterChange();
                 }}
+                className="h-9 sm:h-10"
               />
             </div>
           </div>
         </GlassCardContent>
       </GlassCard>
 
-      {/* Bets Table */}
-      <GlassCard>
-        <GlassCardHeader>
+      {/* Bets */}
+      <GlassCard variant="solid">
+        <GlassCardHeader className="p-4 sm:p-6">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">All Bets</h2>
-            <span className="text-sm text-muted-foreground">
-              Showing {bets.length > 0 ? (currentPage - 1) * pageSize + 1 : 0}-
+            <h2 className="text-base sm:text-lg font-semibold">All Bets</h2>
+            <span className="text-xs sm:text-sm text-muted-foreground">
+              {bets.length > 0 ? (currentPage - 1) * pageSize + 1 : 0}-
               {Math.min(currentPage * pageSize, total)} of {total}
             </span>
           </div>
@@ -139,129 +141,195 @@ export default function AdminBetsPage() {
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-border">
-                    <th className="text-left p-4 font-medium text-muted-foreground text-sm">User</th>
-                    <th className="text-left p-4 font-medium text-muted-foreground text-sm">Market</th>
-                    <th className="text-left p-4 font-medium text-muted-foreground text-sm">Outcome</th>
-                    <th className="text-left p-4 font-medium text-muted-foreground text-sm">Amount</th>
-                    <th className="text-left p-4 font-medium text-muted-foreground text-sm">Status</th>
-                    <th className="text-left p-4 font-medium text-muted-foreground text-sm">Tweet</th>
-                    <th className="text-left p-4 font-medium text-muted-foreground text-sm">Date</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {bets.map((bet: any) => (
-                    <tr
-                      key={bet.id}
-                      className="border-b border-border/50 hover:bg-muted/30 transition-colors"
-                    >
-                      <td className="p-4">
-                        <div>
-                          <p className="font-medium text-sm">
-                            {bet.user.name || bet.user.handle || "Anonymous"}
-                          </p>
-                          {bet.user.handle && (
-                            <p className="text-xs text-muted-foreground">@{bet.user.handle}</p>
-                          )}
-                        </div>
-                      </td>
-                      <td className="p-4">
-                        <Link
-                          href={getMarketUrl(bet.market.event?.slug || bet.market.slug)}
-                          className="text-sm font-medium hover:underline"
-                        >
-                          {bet.market.event?.title || bet.market.question}
-                        </Link>
-                      </td>
-                      <td className="p-4">
-                        <span className="text-sm">{bet.outcomeLabel}</span>
-                      </td>
-                      <td className="p-4">
-                        <span className="font-semibold text-sm">${bet.amount.toLocaleString()}</span>
-                      </td>
-                      <td className="p-4">
-                        <span
-                          className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-medium ${
-                            statusColors[bet.status as BetStatus] || ""
-                          }`}
-                        >
-                          {bet.status}
-                        </span>
-                      </td>
-                      <td className="p-4">
-                        {bet.tweetProof?.tweetUrl ? (
-                          <a
-                            href={bet.tweetProof.tweetUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
-                          >
-                            View Tweet
-                            <ExternalLink className="h-3 w-3" />
-                          </a>
-                        ) : bet.tweetProof?.tweetId ? (
-                          <a
-                            href={`https://x.com/i/web/status/${bet.tweetProof.tweetId}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
-                          >
-                            View Tweet
-                            <ExternalLink className="h-3 w-3" />
-                          </a>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">-</span>
+            <>
+              {/* Mobile Card View */}
+              <div className="sm:hidden p-4 space-y-3">
+                {bets.map((bet: any) => (
+                  <div
+                    key={bet.id}
+                    className="p-4 rounded-lg border border-border bg-card/50"
+                  >
+                    <div className="flex items-start justify-between gap-3 mb-3">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm truncate">
+                          {bet.user.name || bet.user.handle || "Anonymous"}
+                        </p>
+                        {bet.user.handle && (
+                          <p className="text-xs text-muted-foreground">@{bet.user.handle}</p>
                         )}
-                      </td>
-                      <td className="p-4">
-                        <span className="text-xs text-muted-foreground">
-                          {format(new Date(bet.createdAt), "MMM d, yyyy HH:mm")}
-                        </span>
-                      </td>
+                      </div>
+                      <span
+                        className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium ${
+                          statusColors[bet.status as BetStatus] || ""
+                        }`}
+                      >
+                        {bet.status}
+                      </span>
+                    </div>
+                    <Link
+                      href={getMarketUrl(bet.market.event?.slug || bet.market.slug)}
+                      className="text-sm font-medium hover:underline line-clamp-2 mb-3 block"
+                    >
+                      {bet.market.event?.title || bet.market.question}
+                    </Link>
+                    <div className="grid grid-cols-3 gap-2 pt-3 border-t border-border/50">
+                      <div>
+                        <p className="text-xs text-muted-foreground">Outcome</p>
+                        <p className="text-sm font-medium truncate">{bet.outcomeLabel}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Amount</p>
+                        <p className="text-sm font-semibold">${bet.amount.toLocaleString()}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Date</p>
+                        <p className="text-xs">{format(new Date(bet.createdAt), "MMM d")}</p>
+                      </div>
+                    </div>
+                    {(bet.tweetProof?.tweetUrl || bet.tweetProof?.tweetId) && (
+                      <a
+                        href={bet.tweetProof.tweetUrl || `https://x.com/i/web/status/${bet.tweetProof.tweetId}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-3 inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                      >
+                        View Tweet
+                        <ExternalLink className="h-3 w-3" />
+                      </a>
+                    )}
+                  </div>
+                ))}
+                {bets.length === 0 && (
+                  <p className="p-8 text-center text-muted-foreground">No bets found</p>
+                )}
+              </div>
+
+              {/* Desktop Table View */}
+              <div className="hidden sm:block overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-border">
+                      <th className="text-left p-4 font-medium text-muted-foreground text-sm">User</th>
+                      <th className="text-left p-4 font-medium text-muted-foreground text-sm">Market</th>
+                      <th className="text-left p-4 font-medium text-muted-foreground text-sm">Outcome</th>
+                      <th className="text-left p-4 font-medium text-muted-foreground text-sm">Amount</th>
+                      <th className="text-left p-4 font-medium text-muted-foreground text-sm">Status</th>
+                      <th className="text-left p-4 font-medium text-muted-foreground text-sm">Tweet</th>
+                      <th className="text-left p-4 font-medium text-muted-foreground text-sm">Date</th>
                     </tr>
-                  ))}
-                  {bets.length === 0 && (
-                    <tr>
-                      <td colSpan={7} className="p-8 text-center text-muted-foreground">
-                        No bets found
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {bets.map((bet: any) => (
+                      <tr
+                        key={bet.id}
+                        className="border-b border-border/50 hover:bg-muted/30 transition-colors"
+                      >
+                        <td className="p-4">
+                          <div>
+                            <p className="font-medium text-sm">
+                              {bet.user.name || bet.user.handle || "Anonymous"}
+                            </p>
+                            {bet.user.handle && (
+                              <p className="text-xs text-muted-foreground">@{bet.user.handle}</p>
+                            )}
+                          </div>
+                        </td>
+                        <td className="p-4">
+                          <Link
+                            href={getMarketUrl(bet.market.event?.slug || bet.market.slug)}
+                            className="text-sm font-medium hover:underline"
+                          >
+                            {bet.market.event?.title || bet.market.question}
+                          </Link>
+                        </td>
+                        <td className="p-4">
+                          <span className="text-sm">{bet.outcomeLabel}</span>
+                        </td>
+                        <td className="p-4">
+                          <span className="font-semibold text-sm">${bet.amount.toLocaleString()}</span>
+                        </td>
+                        <td className="p-4">
+                          <span
+                            className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-medium ${
+                              statusColors[bet.status as BetStatus] || ""
+                            }`}
+                          >
+                            {bet.status}
+                          </span>
+                        </td>
+                        <td className="p-4">
+                          {bet.tweetProof?.tweetUrl ? (
+                            <a
+                              href={bet.tweetProof.tweetUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+                            >
+                              View Tweet
+                              <ExternalLink className="h-3 w-3" />
+                            </a>
+                          ) : bet.tweetProof?.tweetId ? (
+                            <a
+                              href={`https://x.com/i/web/status/${bet.tweetProof.tweetId}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+                            >
+                              View Tweet
+                              <ExternalLink className="h-3 w-3" />
+                            </a>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">-</span>
+                          )}
+                        </td>
+                        <td className="p-4">
+                          <span className="text-xs text-muted-foreground">
+                            {format(new Date(bet.createdAt), "MMM d, yyyy HH:mm")}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                    {bets.length === 0 && (
+                      <tr>
+                        <td colSpan={7} className="p-8 text-center text-muted-foreground">
+                          No bets found
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
 
           {/* Pagination */}
           {totalPages > 1 && (
-            <div className="flex items-center justify-between p-4 border-t border-border">
-              <div className="text-sm text-muted-foreground">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 border-t border-border">
+              <div className="text-xs sm:text-sm text-muted-foreground order-2 sm:order-1">
                 Page {currentPage} of {totalPages}
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 sm:gap-2 order-1 sm:order-2 w-full sm:w-auto justify-center sm:justify-end">
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
                   disabled={currentPage === 1 || isLoading}
+                  className="h-8 px-2 sm:px-3"
                 >
                   <ChevronLeft className="h-4 w-4" />
-                  Previous
+                  <span className="hidden sm:inline ml-1">Previous</span>
                 </Button>
                 <div className="flex items-center gap-1">
-                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  {Array.from({ length: Math.min(3, totalPages) }, (_, i) => {
                     let pageNum: number;
-                    if (totalPages <= 5) {
+                    if (totalPages <= 3) {
                       pageNum = i + 1;
-                    } else if (currentPage <= 3) {
+                    } else if (currentPage <= 2) {
                       pageNum = i + 1;
-                    } else if (currentPage >= totalPages - 2) {
-                      pageNum = totalPages - 4 + i;
+                    } else if (currentPage >= totalPages - 1) {
+                      pageNum = totalPages - 2 + i;
                     } else {
-                      pageNum = currentPage - 2 + i;
+                      pageNum = currentPage - 1 + i;
                     }
                     return (
                       <Button
@@ -270,7 +338,7 @@ export default function AdminBetsPage() {
                         size="sm"
                         onClick={() => setPage(pageNum)}
                         disabled={isLoading}
-                        className="min-w-[40px]"
+                        className="min-w-[32px] sm:min-w-[40px] h-8"
                       >
                         {pageNum}
                       </Button>
@@ -282,8 +350,9 @@ export default function AdminBetsPage() {
                   size="sm"
                   onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                   disabled={currentPage === totalPages || isLoading}
+                  className="h-8 px-2 sm:px-3"
                 >
-                  Next
+                  <span className="hidden sm:inline mr-1">Next</span>
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               </div>

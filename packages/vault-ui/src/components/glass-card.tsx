@@ -13,6 +13,8 @@ const glassCardVariants = cva(
           "bg-white/10 backdrop-blur-lg border-white/15 shadow-2xl",
         subtle:
           "bg-white/[0.02] backdrop-blur-sm border-white/5 shadow-lg",
+        solid:
+          "bg-background border-border/50 shadow-sm",
       },
       hover: {
         true: "hover:bg-white/10 hover:border-white/20 hover:shadow-2xl cursor-pointer",

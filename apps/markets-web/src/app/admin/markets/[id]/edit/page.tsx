@@ -2,6 +2,9 @@ import { notFound } from "next/navigation";
 import { prisma } from "@vault/database";
 import { MarketForm } from "@/components/admin/market-form";
 
+// Force dynamic rendering - requires database access
+export const dynamic = "force-dynamic";
+
 interface PageProps {
   params: Promise<{ id: string }>;
 }

@@ -7,8 +7,8 @@ interface RouteContext {
 }
 
 /**
- * POST /api/admin/markets/[id]/publish
- * Toggle the isPublished status of a market
+ * POST /api/admin/events/[id]/publish
+ * Toggle the isPublished status of an event and its markets
  */
 export async function POST(request: NextRequest, { params }: RouteContext) {
   try {
@@ -25,62 +25,60 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       );
     }
 
-    // Get the market with its event
-    const market = await prisma.market.findUnique({
+    // Get the event
+    const event = await prisma.event.findUnique({
       where: { id },
       include: {
-        event: {
-          select: { id: true, title: true, isPublished: true },
+        markets: {
+          select: { id: true },
         },
       },
     });
 
-    if (!market) {
-      return NextResponse.json({ error: "Market not found" }, { status: 404 });
+    if (!event) {
+      return NextResponse.json({ error: "Event not found" }, { status: 404 });
     }
 
-    // Cannot publish a market if its parent event is unpublished
-    if (isPublished && !market.event.isPublished) {
-      return NextResponse.json(
-        { 
-          error: "Cannot publish market when parent event is unpublished",
-          eventId: market.event.id,
-          eventTitle: market.event.title,
-        },
-        { status: 400 }
-      );
-    }
-
-    // Update the market
+    // Update event and cascade to markets if unpublishing
     const result = await prisma.$transaction(async (tx) => {
-      const updatedMarket = await tx.market.update({
+      // Update the event
+      const updatedEvent = await tx.event.update({
         where: { id },
         data: { isPublished },
       });
+
+      // If unpublishing, also unpublish all markets
+      if (!isPublished) {
+        await tx.market.updateMany({
+          where: { eventId: id },
+          data: { isPublished: false },
+        });
+      }
 
       // Log admin action
       await tx.adminActionLog.create({
         data: {
           adminUserId: admin.id,
-          action: "MARKET_UPDATE",
-          targetType: "Market",
+          action: "EVENT_UPDATE",
+          targetType: "Event",
           targetId: id,
           metadata: {
             action: isPublished ? "publish" : "unpublish",
-            question: market.question,
+            marketCount: event.markets.length,
+            cascadeToMarkets: !isPublished,
           },
         },
       });
 
-      return updatedMarket;
+      return updatedEvent;
     });
 
     return NextResponse.json({
       success: true,
-      market: result,
+      event: result,
       message: isPublished
-        ? `Market is now published`
-        : `Market is now unpublished`,
+        ? `Event "${result.title}" is now published`
+        : `Event "${result.title}" and its ${event.markets.length} market(s) are now unpublished`,
     });
   } catch (error) {
     if (
@@ -89,7 +87,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     ) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    console.error("Error toggling market publish status:", error);
+    console.error("Error toggling event publish status:", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

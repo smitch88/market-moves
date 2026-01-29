@@ -15,6 +15,9 @@ import type { MarketStatus } from "@vault/database";
 import { MarketActions } from "@/components/admin/market-actions";
 import { AdminPriceChart } from "@/components/admin/admin-price-chart";
 
+// Force dynamic rendering - requires database access
+export const dynamic = "force-dynamic";
+
 // Helper to parse outcomes
 function parseOutcomes(outcomes: string): string[] {
   try {
@@ -138,7 +141,7 @@ export default async function AdminMarketDetailPage({ params }: PageProps) {
         {/* Main content */}
         <div className="lg:col-span-2 space-y-6">
           {/* Stats */}
-          <GlassCard>
+          <GlassCard variant="solid">
             <GlassCardHeader>
               <h2 className="text-lg font-semibold">Market Stats</h2>
             </GlassCardHeader>
@@ -183,7 +186,7 @@ export default async function AdminMarketDetailPage({ params }: PageProps) {
           </GlassCard>
 
           {/* Price History Chart */}
-          <GlassCard>
+          <GlassCard variant="solid">
             <GlassCardHeader>
               <h2 className="text-lg font-semibold">Price History</h2>
             </GlassCardHeader>
@@ -193,7 +196,7 @@ export default async function AdminMarketDetailPage({ params }: PageProps) {
           </GlassCard>
 
           {/* Bets ledger */}
-          <GlassCard>
+          <GlassCard variant="solid">
             <GlassCardHeader>
               <h2 className="text-lg font-semibold">
                 Bets Ledger ({serializedMarket.bets.length})
@@ -264,7 +267,7 @@ export default async function AdminMarketDetailPage({ params }: PageProps) {
           <MarketActions market={serializedMarket} outcomes={outcomes} />
 
           {/* Timeline */}
-          <GlassCard>
+          <GlassCard variant="solid">
             <GlassCardContent className="pt-6">
               <MarketTimeline
                 currentStatus={serializedMarket.status as MarketStatus}
@@ -278,7 +281,7 @@ export default async function AdminMarketDetailPage({ params }: PageProps) {
           </GlassCard>
 
           {/* Config */}
-          <GlassCard>
+          <GlassCard variant="solid">
             <GlassCardHeader>
               <h3 className="text-sm font-semibold">Configuration</h3>
             </GlassCardHeader>

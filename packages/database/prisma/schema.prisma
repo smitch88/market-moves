@@ -198,6 +198,7 @@ model Event {
   active      Boolean        @default(true)
   closed      Boolean        @default(false)
   featured    Boolean        @default(false) // Show in featured carousel
+  isPublished Boolean        @default(false) // Whether event is visible on public site
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
 
@@ -211,6 +212,7 @@ model Event {
   @@index([closed])
   @@index([startTime])
   @@index([featured])
+  @@index([isPublished])
 }
 
 /// Markets are individual prediction questions within an event
@@ -218,6 +220,7 @@ model Market {
   id                  String       @id @default(cuid())
   question            String
   status              MarketStatus @default(DRAFT)
+  isPublished         Boolean      @default(false) // Whether market is visible on public site
   detailsMarkdown     String?
   resolutionSourceUrl String?
   publishedAt         DateTime?
@@ -264,6 +267,7 @@ model Market {
   @@index([closesAt])
   @@index([publishedAt])
   @@index([pricingModel])
+  @@index([isPublished])
 }
 
 /// Price snapshots for historical price tracking
@@ -544,6 +548,8 @@ enum AdminAction {
   CONFIG_UPDATE
   EVENT_CREATE
   EVENT_UPDATE
+  UPDATE_ROLE
+  ADD_ADMIN
 }
 
 enum XPReason {

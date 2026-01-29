@@ -5,7 +5,17 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "outputs": [".next/**", "!.next/cache/**", "dist/**"]
+      "outputs": [".next/**", "!.next/cache/**", "dist/**"],
+      "env": [
+        "DATABASE_URL",
+        "PRIVY_APP_ID",
+        "PRIVY_APP_SECRET",
+        "RAPID_API_KEY",
+        "APP_URL",
+        "ADMIN_TWITTER_IDS",
+        "ADMIN_EMAILS",
+        "NODE_ENV"
+      ]
     },
     "dev": {
       "cache": false,
