@@ -17,6 +17,7 @@ import {
   PlayerPropRow,
 } from "./sports-market-row";
 import { SportsBettingSidebar } from "./sports-betting-sidebar";
+import { MobileBettingSheet } from "./mobile-betting-sheet";
 import { groupByTeam } from "./market-utils";
 import {
   getSportConfig,
@@ -449,6 +450,7 @@ export function SportsEventView({ event, sport }: SportsEventViewProps) {
   const [selectedMarketId, setSelectedMarketId] = useState<string | null>(null);
   const [selectedOutcome, setSelectedOutcome] = useState<number | null>(null);
   const [expandedMarketId, setExpandedMarketId] = useState<string | null>(null);
+  const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
 
   // Fetch live data (polling as fallback)
   const { data } = useQuery({
@@ -523,11 +525,14 @@ export function SportsEventView({ event, sport }: SportsEventViewProps) {
       setSelectedMarketId(null);
       setSelectedOutcome(null);
       setExpandedMarketId(null);
+      setMobileSheetOpen(false);
     } else {
       // Selecting a new outcome - update selection and expand that market's chart
       setSelectedMarketId(marketId);
       setSelectedOutcome(outcomeIndex);
       setExpandedMarketId(marketId);
+      // Auto-open sheet on mobile when selecting an outcome
+      setMobileSheetOpen(true);
     }
   };
 
@@ -535,6 +540,7 @@ export function SportsEventView({ event, sport }: SportsEventViewProps) {
     setSelectedMarketId(null);
     setSelectedOutcome(null);
     setExpandedMarketId(null);
+    setMobileSheetOpen(false);
   };
 
   const handleToggleExpand = (marketId: string) => {
@@ -680,18 +686,43 @@ export function SportsEventView({ event, sport }: SportsEventViewProps) {
         </div>
       </div>
 
-      {/* Mobile fixed bottom bar - shown when outcome is selected */}
-      {selectedMarket && selectedOutcome !== null && (
-        <div className="lg:hidden fixed bottom-20 md:bottom-0 left-0 right-0 z-[60] bg-background/95 backdrop-blur-xl border-t border-border px-4 py-4 shadow-2xl">
-          <SportsBettingSidebar
-            event={event}
-            selectedMarket={selectedMarket}
-            selectedOutcome={selectedOutcome}
-            onClearSelection={handleClearSelection}
-            compact
-          />
-        </div>
-      )}
+      {/* Mobile betting sheet */}
+      <div className="lg:hidden">
+        <MobileBettingSheet
+          event={event}
+          selectedMarket={selectedMarket}
+          selectedOutcome={selectedOutcome}
+          onClearSelection={handleClearSelection}
+          isOpen={mobileSheetOpen}
+          onOpenChange={setMobileSheetOpen}
+        />
+
+        {/* Mobile trigger button - shown when selection exists but sheet is closed */}
+        {selectedMarket && selectedOutcome !== null && !mobileSheetOpen && (
+          <motion.button
+            initial={{ y: 100, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 100, opacity: 0 }}
+            onClick={() => setMobileSheetOpen(true)}
+            className="fixed bottom-24 md:bottom-6 left-4 right-4 z-[30] bg-primary text-primary-foreground py-4 px-6 rounded-2xl shadow-2xl flex items-center justify-between"
+          >
+            <div className="flex flex-col items-start">
+              <span className="text-xs opacity-80">Selected</span>
+              <span className="font-bold">
+                {(() => {
+                  try {
+                    const outcomes = JSON.parse(selectedMarket.outcomes);
+                    return outcomes[selectedOutcome];
+                  } catch {
+                    return selectedOutcome === 0 ? "Yes" : "No";
+                  }
+                })()}
+              </span>
+            </div>
+            <span className="font-semibold">Place Bet →</span>
+          </motion.button>
+        )}
+      </div>
     </div>
   );
 }

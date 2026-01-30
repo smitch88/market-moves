@@ -5,6 +5,7 @@ export { SportsEventView } from "./sports-event-view";
 export { SportsEventHeader } from "./sports-event-header";
 export { PropEventHeader } from "./prop-event-header";
 export { SportsBettingSidebar } from "./sports-betting-sidebar";
+export { MobileBettingSheet } from "./mobile-betting-sheet";
 
 // UI components
 export { LineSelector } from "./line-selector";
