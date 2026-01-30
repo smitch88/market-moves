@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma, AdminAction } from "@vault/database";
+import { prisma, AdminAction, Prisma } from "@vault/database";
 import { requireAdmin } from "@vault/auth";
 import { z } from "zod";
 
@@ -104,27 +104,34 @@ export async function PATCH(
 
       const isVerifying = data.isVerified === true && !existing.isVerified;
 
+      // Build update object explicitly to avoid Prisma type issues with spread operators
+      const updateData: Parameters<typeof tx.resolutionDataPoint.update>[0]["data"] = {};
+      
+      if (data.key !== undefined) updateData.key = data.key;
+      if (data.label !== undefined) updateData.label = data.label;
+      if (data.value !== undefined) updateData.value = data.value;
+      if (data.valueType !== undefined) updateData.valueType = data.valueType;
+      if (data.marketId !== undefined) updateData.marketId = data.marketId;
+      if (data.externalValue !== undefined) updateData.externalValue = data.externalValue;
+      if (data.metadata !== undefined) {
+        updateData.metadata = data.metadata === null 
+          ? Prisma.JsonNull 
+          : (data.metadata as Prisma.InputJsonValue);
+      }
+      if (data.notes !== undefined) updateData.notes = data.notes;
+      if (data.effectiveAt !== undefined) updateData.effectiveAt = new Date(data.effectiveAt);
+      if (data.expiresAt !== undefined) updateData.expiresAt = data.expiresAt ? new Date(data.expiresAt) : null;
+      if (data.isVerified !== undefined) {
+        updateData.isVerified = data.isVerified;
+        if (isVerifying) {
+          updateData.verifiedAt = new Date();
+          updateData.verifiedBy = admin.id;
+        }
+      }
+
       const updated = await tx.resolutionDataPoint.update({
         where: { id: dataId },
-        data: {
-          ...(data.key !== undefined && { key: data.key }),
-          ...(data.label !== undefined && { label: data.label }),
-          ...(data.value !== undefined && { value: data.value }),
-          ...(data.valueType !== undefined && { valueType: data.valueType }),
-          ...(data.marketId !== undefined && { marketId: data.marketId }),
-          ...(data.externalValue !== undefined && { externalValue: data.externalValue }),
-          ...(data.metadata !== undefined && { metadata: data.metadata }),
-          ...(data.notes !== undefined && { notes: data.notes }),
-          ...(data.effectiveAt !== undefined && { effectiveAt: new Date(data.effectiveAt) }),
-          ...(data.expiresAt !== undefined && { expiresAt: data.expiresAt ? new Date(data.expiresAt) : null }),
-          ...(data.isVerified !== undefined && { 
-            isVerified: data.isVerified,
-            ...(isVerifying && { 
-              verifiedAt: new Date(),
-              verifiedBy: admin.id,
-            }),
-          }),
-        },
+        data: updateData,
       });
 
       await tx.adminActionLog.create({
@@ -135,8 +142,8 @@ export async function PATCH(
           targetId: dataId,
           metadata: {
             sourceId: id,
-            changes: data,
-          },
+            changes: JSON.parse(JSON.stringify(data)),
+          } as Prisma.InputJsonValue,
         },
       });
 

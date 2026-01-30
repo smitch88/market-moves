@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma, AdminAction } from "@vault/database";
+import { prisma, AdminAction, Prisma } from "@vault/database";
 import { requireAdmin } from "@vault/auth";
 import { z } from "zod";
 
@@ -64,7 +64,9 @@ export async function POST(request: NextRequest) {
           description: data.description || null,
           type: data.type as "INTERNAL" | "EXTERNAL" | "HYBRID",
           externalApiUrl: data.externalApiUrl || null,
-          externalApiHeaders: data.externalApiHeaders || null,
+          externalApiHeaders: data.externalApiHeaders 
+            ? (data.externalApiHeaders as Prisma.InputJsonValue)
+            : Prisma.JsonNull,
           logoUrl: data.logoUrl || null,
           websiteUrl: data.websiteUrl || null,
           isActive: data.isActive,

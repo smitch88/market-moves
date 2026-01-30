@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma, AdminAction } from "@vault/database";
+import { prisma, AdminAction, Prisma } from "@vault/database";
 import { requireAdmin } from "@vault/auth";
 import { z } from "zod";
 
@@ -87,20 +87,27 @@ export async function PATCH(
         throw new Error("Resolution source not found");
       }
 
+      // Build update object explicitly to avoid Prisma type issues with spread operators
+      const updateData: Parameters<typeof tx.resolutionSource.update>[0]["data"] = {};
+      
+      if (data.slug !== undefined) updateData.slug = data.slug;
+      if (data.name !== undefined) updateData.name = data.name;
+      if (data.description !== undefined) updateData.description = data.description || null;
+      if (data.type !== undefined) updateData.type = data.type;
+      if (data.externalApiUrl !== undefined) updateData.externalApiUrl = data.externalApiUrl || null;
+      if (data.externalApiHeaders !== undefined) {
+        updateData.externalApiHeaders = data.externalApiHeaders 
+          ? (data.externalApiHeaders as Prisma.InputJsonValue)
+          : Prisma.JsonNull;
+      }
+      if (data.logoUrl !== undefined) updateData.logoUrl = data.logoUrl || null;
+      if (data.websiteUrl !== undefined) updateData.websiteUrl = data.websiteUrl || null;
+      if (data.isActive !== undefined) updateData.isActive = data.isActive;
+      if (data.isPublic !== undefined) updateData.isPublic = data.isPublic;
+
       const updated = await tx.resolutionSource.update({
         where: { id },
-        data: {
-          ...(data.slug !== undefined && { slug: data.slug }),
-          ...(data.name !== undefined && { name: data.name }),
-          ...(data.description !== undefined && { description: data.description || null }),
-          ...(data.type !== undefined && { type: data.type }),
-          ...(data.externalApiUrl !== undefined && { externalApiUrl: data.externalApiUrl || null }),
-          ...(data.externalApiHeaders !== undefined && { externalApiHeaders: data.externalApiHeaders }),
-          ...(data.logoUrl !== undefined && { logoUrl: data.logoUrl || null }),
-          ...(data.websiteUrl !== undefined && { websiteUrl: data.websiteUrl || null }),
-          ...(data.isActive !== undefined && { isActive: data.isActive }),
-          ...(data.isPublic !== undefined && { isPublic: data.isPublic }),
-        },
+        data: updateData,
       });
 
       await tx.adminActionLog.create({

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma, AdminAction } from "@vault/database";
+import { prisma, AdminAction, Prisma } from "@vault/database";
 import { requireAdmin } from "@vault/auth";
 import { z } from "zod";
 
@@ -106,7 +106,9 @@ export async function POST(
           valueType: data.valueType,
           marketId: data.marketId || null,
           externalValue: data.externalValue || null,
-          metadata: data.metadata || null,
+          metadata: data.metadata 
+            ? (data.metadata as Prisma.InputJsonValue)
+            : Prisma.JsonNull,
           notes: data.notes || null,
           effectiveAt: data.effectiveAt ? new Date(data.effectiveAt) : new Date(),
           expiresAt: data.expiresAt ? new Date(data.expiresAt) : null,
