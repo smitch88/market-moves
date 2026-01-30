@@ -170,10 +170,7 @@ export function SportsBettingSidebar({
       // Store bet ID for potential share-for-XP
       setBetId(data.bet.id);
       
-      // Show toast immediately
-      toast.success("Bet confirmed!");
-      
-      // Show success modal
+      // Show success modal (no toast needed - modal is shown)
       setConfirmedBetAmount(parseInt(amount, 10));
       setConfirmedOutcome(selectedOutcome);
       setShowSuccessModal(true);

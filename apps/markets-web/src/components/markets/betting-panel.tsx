@@ -100,9 +100,6 @@ export function BettingPanel({ market, event, stats }: BettingPanelProps) {
       // Store bet ID for potential share-for-XP
       setBetId(data.bet.id);
       
-      // Show toast immediately
-      toast.success("Bet confirmed!");
-      
       // Invalidate and refetch queries
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["profile"] }),
@@ -114,7 +111,7 @@ export function BettingPanel({ market, event, stats }: BettingPanelProps) {
         queryClient.invalidateQueries({ queryKey: ["xp"] });
       }, 500);
       
-      // Show success modal
+      // Show success modal (no toast needed - modal is shown)
       setConfirmedBetAmount(parseInt(amount, 10));
       setConfirmedOutcome(selectedOutcome);
       setShowSuccessModal(true);

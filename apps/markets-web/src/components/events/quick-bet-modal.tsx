@@ -71,6 +71,7 @@ function parseOutcomePrices(outcomePrices: string): string[] {
 
 const QUICK_AMOUNTS = [10, 50, 100, 500];
 const SHARE_XP_BONUS = 50;
+const XP_PER_DOLLAR = 10;
 
 type BetStep = "amount" | "success";
 
@@ -187,7 +188,7 @@ export function QuickBetModal({
     onSuccess: async (data) => {
       setBetId(data.bet.id);
       setConfirmedAmount(amountNum);
-      toast.success("Bet confirmed!");
+      // No toast needed - success step is shown in modal
       setStep("success");
       await queryClient.invalidateQueries({ queryKey: ["profile"] });
       // Small delay to allow async XP award to complete on backend
@@ -503,6 +504,38 @@ export function QuickBetModal({
                 animate={{ opacity: 1, scale: 1 }}
                 className="space-y-4"
               >
+                {/* XP Earned Animation */}
+                <motion.div
+                  initial={{ opacity: 0, y: 10, scale: 0.9 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  transition={{ 
+                    type: "spring",
+                    stiffness: 300,
+                    damping: 20,
+                    delay: 0.2,
+                  }}
+                  className="flex justify-center"
+                >
+                  <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-amber-500/20 to-yellow-500/20 border border-amber-500/30">
+                    <motion.div
+                      animate={{ 
+                        rotate: [0, 15, -15, 0],
+                        scale: [1, 1.2, 1],
+                      }}
+                      transition={{ 
+                        duration: 0.6,
+                        repeat: 2,
+                        repeatDelay: 0.5,
+                      }}
+                    >
+                      <Sparkles className="h-5 w-5 text-amber-500" />
+                    </motion.div>
+                    <span className="text-base font-bold text-amber-500">
+                      +{(confirmedAmount * XP_PER_DOLLAR).toLocaleString()} XP
+                    </span>
+                  </div>
+                </motion.div>
+
                 {/* Ticket Preview */}
                 <div className="flex justify-center">
                   <BettingTicket

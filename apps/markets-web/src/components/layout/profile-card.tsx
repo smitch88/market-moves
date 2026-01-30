@@ -23,6 +23,7 @@ import {
 } from "@vault/ui";
 import { User, LogOut, ChevronDown, Bug, Gift, Check, Copy, Users, Shield, Sun, Moon, HelpCircle } from "lucide-react";
 import { useAuthFetch } from "@/lib/auth/auth-fetch";
+import { AnimatedXPRing, useXPChangeWatcher, useXPAnimation } from "./xp-animation";
 
 // Custom X (Twitter) logo icon
 function XIcon({ className }: { className?: string }) {
@@ -75,6 +76,10 @@ export function ProfileCard() {
   const xpInCurrentLevel = xpData?.xpInCurrentLevel ?? 0;
   const xpNeededForNext = xpData?.xpNeededForNext ?? 1;
 
+  // Watch for XP changes and trigger animation
+  useXPChangeWatcher(xpData?.xp);
+  const { isAnimating } = useXPAnimation();
+
   // Check impersonation state separately
   const { data: impersonationData } = useQuery({
     queryKey: ["dev-impersonation"],
@@ -124,34 +129,9 @@ export function ProfileCard() {
     <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
         <button className={`flex items-center gap-2 px-3 py-1.5 rounded-full glass glass-hover ${isImpersonating ? "ring-2 ring-amber-500/50" : ""}`}>
-          {/* Avatar with progress ring */}
-          <div className="relative h-9 w-9 flex items-center justify-center">
-            {/* Progress ring SVG */}
-            <svg className="absolute inset-0 h-9 w-9 -rotate-90" viewBox="0 0 36 36">
-              {/* Background circle */}
-              <circle
-                cx="18"
-                cy="18"
-                r="16"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                className="text-muted/30"
-              />
-              {/* Progress circle */}
-              <circle
-                cx="18"
-                cy="18"
-                r="16"
-                fill="none"
-                stroke="#df2421"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeDasharray={`${progress * 100.5} 100.5`}
-              />
-            </svg>
-            {/* Avatar */}
-            <div className="relative h-7 w-7 rounded-full overflow-hidden bg-muted">
+          {/* Avatar with animated progress ring */}
+          <div className="relative">
+            <AnimatedXPRing progress={progress} size="sm" isAnimating={isAnimating}>
               {avatarUrl ? (
                 <Image src={avatarUrl} alt={displayName} fill className="object-cover" />
               ) : (
@@ -159,7 +139,7 @@ export function ProfileCard() {
                   <User className="h-3.5 w-3.5 text-white" />
                 </div>
               )}
-            </div>
+            </AnimatedXPRing>
             {isImpersonating && (
               <div className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full bg-amber-500 border-2 border-background flex items-center justify-center">
                 <Bug className="h-2 w-2 text-amber-950" />
@@ -186,43 +166,16 @@ export function ProfileCard() {
         )}
         {/* User info with avatar and XP ring */}
         <div className="px-3 py-3 flex items-center gap-3">
-          {/* Avatar with progress ring */}
-          <div className="relative h-12 w-12 flex items-center justify-center flex-shrink-0">
-            {/* Progress ring SVG */}
-            <svg className="absolute inset-0 h-12 w-12 -rotate-90" viewBox="0 0 48 48">
-              {/* Background circle */}
-              <circle
-                cx="24"
-                cy="24"
-                r="21"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                className="text-muted/30"
-              />
-              {/* Progress circle */}
-              <circle
-                cx="24"
-                cy="24"
-                r="21"
-                fill="none"
-                stroke="#df2421"
-                strokeWidth="3"
-                strokeLinecap="round"
-                strokeDasharray={`${progress * 132} 132`}
-              />
-            </svg>
-            {/* Avatar */}
-            <div className="relative h-9 w-9 rounded-full overflow-hidden bg-muted">
-              {avatarUrl ? (
-                <Image src={avatarUrl} alt={displayName} fill className="object-cover" />
-              ) : (
-                <div className="h-full w-full flex items-center justify-center bg-gradient-to-br from-violet-500 to-purple-600">
-                  <User className="h-4 w-4 text-white" />
-                </div>
-              )}
-            </div>
-          </div>
+          {/* Avatar with animated progress ring */}
+          <AnimatedXPRing progress={progress} size="md" isAnimating={isAnimating}>
+            {avatarUrl ? (
+              <Image src={avatarUrl} alt={displayName} fill className="object-cover" />
+            ) : (
+              <div className="h-full w-full flex items-center justify-center bg-gradient-to-br from-violet-500 to-purple-600">
+                <User className="h-4 w-4 text-white" />
+              </div>
+            )}
+          </AnimatedXPRing>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium truncate">{displayName}</p>
             <p className="text-xs text-foreground font-semibold">Lvl {level}</p>
