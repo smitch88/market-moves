@@ -14,7 +14,9 @@
         "APP_URL",
         "ADMIN_TWITTER_IDS",
         "ADMIN_EMAILS",
-        "NODE_ENV"
+        "NODE_ENV",
+        "OPENAI_API_KEY",
+        "BLOB_READ_WRITE_TOKEN"
       ]
     },
     "dev": {

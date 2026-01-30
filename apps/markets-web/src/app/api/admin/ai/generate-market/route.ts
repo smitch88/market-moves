@@ -10,11 +10,6 @@ const requestSchema = z.object({
   sourceUrl: z.string().optional(),
 });
 
-// Initialize OpenAI client
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
 export async function POST(request: NextRequest) {
   try {
     await requireAdmin();
@@ -26,6 +21,11 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       );
     }
+
+    // Initialize OpenAI client lazily (not at module level to avoid build errors)
+    const openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    });
 
     const body = await request.json();
     const data = requestSchema.parse(body);
