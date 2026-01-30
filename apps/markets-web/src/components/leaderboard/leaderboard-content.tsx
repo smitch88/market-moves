@@ -263,10 +263,10 @@ function LeaderboardRow({
       <Link
         href={profileLink}
         className={cn(
-          "group flex items-center px-4 py-3 transition-colors rounded-lg",
+          "group flex items-center px-4 py-3 transition-all duration-200",
           isCurrentUser
-            ? "bg-primary/10 border border-primary/20"
-            : "hover:bg-muted/20"
+            ? "bg-primary/10"
+            : "hover:bg-muted/50"
         )}
       >
         {content}
@@ -455,7 +455,7 @@ export function LeaderboardContent() {
 
       {/* Search Header - Outside AnimatePresence to prevent state issues */}
       {data && !isLoading && (
-        <div className="flex items-center px-4 py-2 text-xs text-muted-foreground/60 uppercase tracking-wider">
+        <div className="flex items-center px-4 py-3 text-xs text-muted-foreground/60 uppercase tracking-wider bg-card rounded-t-xl border border-border/50 border-b-0">
           <div className="w-12" />
           <div className="flex-1 relative">
             <Search className="absolute left-0 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/40" />
@@ -488,7 +488,7 @@ export function LeaderboardContent() {
             className="space-y-4"
           >
             {/* Entries */}
-            <div className="divide-y divide-border/20">
+            <div className="bg-card rounded-b-xl border border-border/50 border-t-0 divide-y divide-border/30 overflow-hidden">
               {filteredEntries.length === 0 ? (
                 <div className="py-12 text-center text-muted-foreground">
                   {searchQuery ? "No users found matching your search" : "No users found"}
@@ -507,17 +507,19 @@ export function LeaderboardContent() {
 
             {/* Current User Position (if not in current page) */}
             {data.currentUserEntry && !currentUserInPage && (
-              <div className="pt-4 border-t border-border/30">
+              <div className="mt-4">
                 <div className="flex items-center gap-2 px-4 py-2 text-sm text-muted-foreground mb-2">
                   <User className="h-4 w-4" />
                   <span>Your Position</span>
                 </div>
-                <LeaderboardRow
-                  entry={data.currentUserEntry}
-                  index={data.currentUserEntry.rank}
-                  metric={metric}
-                  isCurrentUser
-                />
+                <div className="bg-card rounded-xl border border-primary/30 overflow-hidden">
+                  <LeaderboardRow
+                    entry={data.currentUserEntry}
+                    index={data.currentUserEntry.rank}
+                    metric={metric}
+                    isCurrentUser
+                  />
+                </div>
               </div>
             )}
 
