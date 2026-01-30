@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useState, useCallback, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Sparkles } from "lucide-react";
+import { Zap } from "lucide-react";
 
 // ============================================================================
 // XP Animation Context
@@ -74,27 +74,69 @@ function XPFloater({ amount, show }: XPFloaterProps) {
     <AnimatePresence>
       {show && (
         <motion.div
-          initial={{ opacity: 0, y: 20, scale: 0.8 }}
+          initial={{ opacity: 0, y: 30, scale: 0.7 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: -40, scale: 0.9 }}
-          transition={{ duration: 0.5 }}
+          exit={{ opacity: 0, y: -50, scale: 0.8 }}
+          transition={{ 
+            type: "spring",
+            stiffness: 400,
+            damping: 25,
+          }}
           className="fixed top-20 right-4 z-[100] pointer-events-none"
         >
+          {/* Outer glow pulse */}
           <motion.div
+            initial={{ opacity: 0.6, scale: 1 }}
             animate={{ 
-              y: [0, -8, 0],
+              opacity: [0.6, 0.2, 0.6],
+              scale: [1, 1.3, 1],
             }}
             transition={{ 
               duration: 1.5,
               repeat: Infinity,
               ease: "easeInOut"
             }}
-            className="flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-amber-500/90 to-yellow-500/90 shadow-lg shadow-amber-500/30"
+            className="absolute inset-0 rounded-2xl bg-[hsl(358,85%,58%)] blur-xl"
+          />
+          
+          {/* Main container */}
+          <motion.div
+            animate={{ y: [0, -4, 0] }}
+            transition={{ 
+              duration: 2,
+              repeat: Infinity,
+              ease: "easeInOut"
+            }}
+            className="relative flex items-center gap-2.5 px-5 py-2.5 rounded-2xl border border-white/20"
+            style={{
+              background: "linear-gradient(135deg, hsl(358 85% 52%) 0%, hsl(358 85% 45%) 50%, hsl(358 85% 38%) 100%)",
+              boxShadow: "0 4px 24px -4px hsl(358 85% 58% / 0.5), inset 0 1px 0 0 hsl(358 85% 70% / 0.3)",
+            }}
           >
-            <Sparkles className="h-5 w-5 text-white animate-pulse" />
-            <span className="text-lg font-bold text-white">
+            {/* Icon with pulse */}
+            <motion.div
+              animate={{ 
+                scale: [1, 1.15, 1],
+              }}
+              transition={{ 
+                duration: 0.8,
+                repeat: Infinity,
+                ease: "easeInOut"
+              }}
+              className="relative"
+            >
+              <Zap className="h-5 w-5 text-white fill-white drop-shadow-sm" />
+            </motion.div>
+            
+            {/* Text */}
+            <motion.span
+              initial={{ opacity: 0, x: -5 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.1 }}
+              className="text-lg font-bold text-white tracking-tight drop-shadow-sm"
+            >
               +{amount.toLocaleString()} XP
-            </span>
+            </motion.span>
           </motion.div>
         </motion.div>
       )}

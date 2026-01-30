@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { usePrivy } from "@privy-io/react-auth";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, Input, Label } from "@vault/ui";
 import { 
   Copy, 
@@ -15,6 +15,7 @@ import {
   User,
   AtSign,
   Image as ImageIcon,
+  TrendingUp,
 } from "lucide-react";
 import { cn } from "@vault/ui/lib/utils";
 import Image from "next/image";
@@ -43,11 +44,28 @@ interface HandleCheckResult {
   reason?: string;
 }
 
+interface ReferralStats {
+  totalReferrals: number;
+  qualifiedReferrals: number;
+  totalReferredVolume: number;
+}
+
 export function ProfileSettings({ profile, showReferrals = true, onlyReferrals = false }: ProfileSettingsProps) {
   const { logout, linkTwitter, user } = usePrivy();
   const queryClient = useQueryClient();
   const [copied, setCopied] = useState(false);
   const authFetch = useAuthFetch();
+
+  // Fetch referral stats
+  const { data: referralStats, isLoading: referralStatsLoading } = useQuery<ReferralStats>({
+    queryKey: ["referral-stats"],
+    queryFn: async () => {
+      const res = await authFetch("/api/me/referral-stats");
+      if (!res.ok) throw new Error("Failed to fetch referral stats");
+      return res.json();
+    },
+    enabled: onlyReferrals || showReferrals,
+  });
 
   // Profile editing state
   const [handle, setHandle] = useState(profile.handle || "");
@@ -261,6 +279,30 @@ export function ProfileSettings({ profile, showReferrals = true, onlyReferrals =
               <span className="font-semibold text-lg">{friendsInvited}</span>
               <span className="text-sm text-muted-foreground">invited</span>
             </div>
+          </div>
+        </div>
+
+        {/* Total Referred Volume */}
+        <div className="pt-6 border-t border-border">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-medium">Total Volume from Referrals</span>
+            </div>
+            <div className="flex items-baseline gap-1">
+              {referralStatsLoading ? (
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              ) : (
+                <>
+                  <span className="text-3xl font-bold">
+                    ${(referralStats?.totalReferredVolume ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Combined trading volume from all users you&apos;ve referred
+            </p>
           </div>
         </div>
       </div>

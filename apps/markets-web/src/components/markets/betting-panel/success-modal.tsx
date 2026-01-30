@@ -1,17 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { Button, Dialog, DialogContent, Input, toast } from "@vault/ui";
-import { Loader2, Copy, Download, Check, Sparkles } from "lucide-react";
+import { Loader2, Copy, Download, Check } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { motion, AnimatePresence } from "framer-motion";
 import { XIcon } from "../x-icon";
 import { BettingTicket } from "../betting-ticket";
 import type { Market, Event } from "@vault/database";
-
-// XP earned per dollar bet (matches backend rate)
-const XP_PER_DOLLAR = 10;
 
 interface SuccessModalProps {
   open: boolean;
@@ -106,23 +102,6 @@ export function SuccessModal({
     },
   });
 
-  // Calculate XP earned from this bet
-  const xpEarned = confirmedBetAmount * XP_PER_DOLLAR;
-
-  // State to control XP animation
-  const [showXPAnimation, setShowXPAnimation] = useState(false);
-  
-  // Trigger XP animation when modal opens
-  useEffect(() => {
-    if (open && confirmedBetAmount > 0) {
-      // Small delay for better visual effect
-      const timer = setTimeout(() => setShowXPAnimation(true), 300);
-      return () => clearTimeout(timer);
-    } else {
-      setShowXPAnimation(false);
-    }
-  }, [open, confirmedBetAmount]);
-
   if (confirmedOutcome === null) return null;
 
   const confirmedOutcomeLabel = outcomes[confirmedOutcome];
@@ -131,47 +110,9 @@ export function SuccessModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md overflow-hidden p-0 max-h-[90vh]">
         <div className="p-4 sm:p-6 space-y-4 sm:space-y-5 overflow-y-auto max-h-[calc(90vh-2rem)]">
-          {/* Header with XP Animation */}
-          <div className="text-center space-y-2">
+          {/* Header */}
+          <div className="text-center">
             <h2 className="text-xl font-bold">Bet Confirmed!</h2>
-            
-            {/* XP Earned Animation */}
-            <AnimatePresence>
-              {showXPAnimation && (
-                <motion.div
-                  initial={{ opacity: 0, y: 10, scale: 0.9 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  transition={{ 
-                    type: "spring",
-                    stiffness: 300,
-                    damping: 20,
-                  }}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-amber-500/20 to-yellow-500/20 border border-amber-500/30"
-                >
-                  <motion.div
-                    animate={{ 
-                      rotate: [0, 15, -15, 0],
-                      scale: [1, 1.2, 1],
-                    }}
-                    transition={{ 
-                      duration: 0.6,
-                      repeat: 2,
-                      repeatDelay: 0.5,
-                    }}
-                  >
-                    <Sparkles className="h-5 w-5 text-amber-500" />
-                  </motion.div>
-                  <motion.span
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: 0.2 }}
-                    className="text-base font-bold text-amber-500"
-                  >
-                    +{xpEarned.toLocaleString()} XP
-                  </motion.span>
-                </motion.div>
-              )}
-            </AnimatePresence>
           </div>
 
           {/* Ticket Preview */}
