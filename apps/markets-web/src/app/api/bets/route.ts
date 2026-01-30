@@ -71,6 +71,19 @@ export async function POST(request: NextRequest) {
     const result = await prisma.$transaction(async (tx) => {
       const isOutcome0 = outcomeIndex === 0;
 
+      // Calculate current price BEFORE the bet (this is the price user is buying at)
+      const seed0Num = Number(market.seed0);
+      const seed1Num = Number(market.seed1);
+      const pool0Num = Number(market.pool0);
+      const pool1Num = Number(market.pool1);
+      const totalPoolBefore = seed0Num + seed1Num + pool0Num + pool1Num;
+      const priceAtPurchase = totalPoolBefore > 0
+        ? (isOutcome0 ? (seed0Num + pool0Num) : (seed1Num + pool1Num)) / totalPoolBefore
+        : 0.5;
+
+      // Calculate shares: amount / price (how many shares you get for your money)
+      const sharesReceived = priceAtPurchase > 0 ? amount / priceAtPurchase : amount;
+
       // Create the bet (confirmed immediately - no tweet required)
       const bet = await tx.bet.create({
         data: {
@@ -78,6 +91,8 @@ export async function POST(request: NextRequest) {
           marketId: market.id,
           outcomeIndex,
           amount,
+          pricePerShare: priceAtPurchase,
+          shares: sharesReceived,
           status: BetStatus.CONFIRMED,
           confirmedAt: new Date(),
         },
@@ -102,7 +117,30 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      // Update or create position (pari-mutuel style)
+      // Get existing position to calculate weighted average cost
+      const existingPosition = await tx.position.findUnique({
+        where: {
+          userId_marketId: {
+            userId: user.id,
+            marketId: market.id,
+          },
+        },
+      });
+
+      const currentShares = isOutcome0
+        ? Number(existingPosition?.shares0 || 0)
+        : Number(existingPosition?.shares1 || 0);
+      const currentAvgCost = isOutcome0
+        ? Number(existingPosition?.avgCost0 || 0)
+        : Number(existingPosition?.avgCost1 || 0);
+
+      // Calculate new weighted average cost
+      const newTotalShares = currentShares + sharesReceived;
+      const newAvgCost = newTotalShares > 0
+        ? (currentShares * currentAvgCost + sharesReceived * priceAtPurchase) / newTotalShares
+        : priceAtPurchase;
+
+      // Update or create position
       await tx.position.upsert({
         where: {
           userId_marketId: {
@@ -113,10 +151,14 @@ export async function POST(request: NextRequest) {
         update: {
           ...(isOutcome0
             ? {
+                shares0: { increment: sharesReceived },
+                avgCost0: newAvgCost,
                 amount0: { increment: amount },
                 weighted0: { increment: amount * bet.weight },
               }
             : {
+                shares1: { increment: sharesReceived },
+                avgCost1: newAvgCost,
                 amount1: { increment: amount },
                 weighted1: { increment: amount * bet.weight },
               }),
@@ -125,6 +167,10 @@ export async function POST(request: NextRequest) {
         create: {
           userId: user.id,
           marketId: market.id,
+          shares0: isOutcome0 ? sharesReceived : 0,
+          shares1: isOutcome0 ? 0 : sharesReceived,
+          avgCost0: isOutcome0 ? priceAtPurchase : 0,
+          avgCost1: isOutcome0 ? 0 : priceAtPurchase,
           amount0: isOutcome0 ? amount : 0,
           amount1: isOutcome0 ? 0 : amount,
           weighted0: isOutcome0 ? amount * bet.weight : 0,
@@ -143,15 +189,13 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      // Calculate new prices (pari-mutuel style)
-      const seed0Num = Number(updatedMarket.seed0);
-      const seed1Num = Number(updatedMarket.seed1);
-      const pool0Num = Number(updatedMarket.pool0);
-      const pool1Num = Number(updatedMarket.pool1);
+      // Calculate new prices (pari-mutuel style) - after pool update
+      const newPool0 = Number(updatedMarket.pool0);
+      const newPool1 = Number(updatedMarket.pool1);
       
-      const totalPool = seed0Num + seed1Num + pool0Num + pool1Num;
-      const price0 = totalPool > 0 ? (seed0Num + pool0Num) / totalPool : 0.5;
-      const price1 = totalPool > 0 ? (seed1Num + pool1Num) / totalPool : 0.5;
+      const totalPool = seed0Num + seed1Num + newPool0 + newPool1;
+      const price0 = totalPool > 0 ? (seed0Num + newPool0) / totalPool : 0.5;
+      const price1 = totalPool > 0 ? (seed1Num + newPool1) / totalPool : 0.5;
 
       // Persist new prices to database
       await tx.market.update({
@@ -176,7 +220,7 @@ export async function POST(request: NextRequest) {
         market.id,
         market.eventId,
         [price0, price1],
-        [seed0Num + pool0Num, seed1Num + pool1Num]
+        [seed0Num + newPool0, seed1Num + newPool1]
       );
 
       return bet;

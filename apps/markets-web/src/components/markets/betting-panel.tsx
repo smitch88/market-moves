@@ -83,13 +83,14 @@ export function BettingPanel({ market, event, stats }: BettingPanelProps) {
   // Place bet mutation - bet is confirmed immediately (no tweet required)
   const placeBetMutation = useMutation({
     mutationFn: async () => {
-      const res = await authFetch("/api/bets", {
+      const res = await authFetch("/api/trades/buy", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           marketId: market.id,
           outcomeIndex: selectedOutcome,
           amount: parseInt(amount, 10),
+          maxSlippage: 0.25, // 25% max slippage
         }),
       });
       if (!res.ok) {

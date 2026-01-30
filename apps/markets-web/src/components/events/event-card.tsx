@@ -52,16 +52,16 @@ export function EventCard({ event, index = 0 }: EventCardProps) {
         delay: index * 0.05,
         ease: [0.25, 0.1, 0.25, 1] as const,
       }}
+      whileHover={{
+        y: -4,
+        transition: { duration: 0.2, ease: "easeOut" },
+      }}
+      whileTap={{ scale: 0.98 }}
       className="relative h-full"
     >
       <Link href={getMarketUrl(event.slug)} className="block group relative h-full">
-        <motion.div
+        <div
           className="relative overflow-hidden rounded-2xl bg-card/60 backdrop-blur-sm border border-border/40 shadow-lg hover:shadow-xl transition-shadow duration-300 h-full flex flex-col"
-          whileHover={{
-            y: -4,
-            transition: { duration: 0.2, ease: "easeOut" },
-          }}
-          whileTap={{ scale: 0.98 }}
         >
           {/* Banner Image */}
           {event.bannerUrl && (
@@ -155,11 +155,11 @@ export function EventCard({ event, index = 0 }: EventCardProps) {
               </div>
             </div>
           </div>
-        </motion.div>
+        </div>
       </Link>
       
       {/* Action buttons - positioned outside Link to prevent click propagation */}
-      <div className="absolute bottom-[1.35rem] right-5 flex items-center gap-2 z-10">
+      <div className="absolute bottom-[0.75rem] right-5 flex items-center gap-2 z-10">
         <BookmarkButton eventId={event.id} />
         <QuickBetButton eventId={event.id} eventTitle={event.title} />
       </div>
