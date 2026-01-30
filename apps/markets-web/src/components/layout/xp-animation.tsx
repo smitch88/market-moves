@@ -242,19 +242,19 @@ export function AnimatedXPDisplay({ xp, isLoading }: AnimatedXPDisplayProps) {
               setShowChange(false);
               clearActiveXP();
             }}
-            className="absolute top-full left-0 right-0 mt-1 whitespace-nowrap pointer-events-none text-center"
+            className="absolute top-full left-0 right-0 whitespace-nowrap pointer-events-none text-center"
           >
             <motion.span
               animate={{
                 textShadow: [
-                  "0 0 4px rgba(34, 197, 94, 0.8)",
-                  "0 0 16px rgba(34, 197, 94, 1)",
-                  "0 0 8px rgba(34, 197, 94, 0.9)",
+                  "0 0 3px rgba(34, 197, 94, 0.8)",
+                  "0 0 10px rgba(34, 197, 94, 1)",
+                  "0 0 6px rgba(34, 197, 94, 0.9)",
                 ],
-                scale: [1, 1.15, 1],
+                scale: [1, 1.1, 1],
               }}
               transition={{ duration: 0.6, repeat: 2, ease: "easeInOut" }}
-              className="text-sm font-bold text-[#22C55E] drop-shadow-lg"
+              className="text-xs font-semibold text-[#22C55E] drop-shadow-md"
             >
               +{displayedChange.toLocaleString()} XP
             </motion.span>
@@ -317,25 +317,25 @@ export function AnimatedBalanceDisplay({ balance, isLoading }: AnimatedBalanceDi
               setShowChange(false);
               clearActiveBalance();
             }}
-            className="absolute top-full left-0 right-0 mt-1 whitespace-nowrap pointer-events-none text-center"
+            className="absolute top-full left-0 right-0 whitespace-nowrap pointer-events-none text-center"
           >
             <motion.span
               animate={{
                 textShadow: displayedChange < 0 
                   ? [
-                      "0 0 4px rgba(239, 68, 68, 0.8)",
-                      "0 0 16px rgba(239, 68, 68, 1)",
-                      "0 0 8px rgba(239, 68, 68, 0.9)",
+                      "0 0 3px rgba(239, 68, 68, 0.8)",
+                      "0 0 10px rgba(239, 68, 68, 1)",
+                      "0 0 6px rgba(239, 68, 68, 0.9)",
                     ]
                   : [
-                      "0 0 4px rgba(34, 197, 94, 0.8)",
-                      "0 0 16px rgba(34, 197, 94, 1)",
-                      "0 0 8px rgba(34, 197, 94, 0.9)",
+                      "0 0 3px rgba(34, 197, 94, 0.8)",
+                      "0 0 10px rgba(34, 197, 94, 1)",
+                      "0 0 6px rgba(34, 197, 94, 0.9)",
                     ],
-                scale: [1, 1.15, 1],
+                scale: [1, 1.1, 1],
               }}
               transition={{ duration: 0.6, repeat: 2, ease: "easeInOut" }}
-              className={`text-sm font-bold drop-shadow-lg ${displayedChange < 0 ? "text-red-500" : "text-[#22C55E]"}`}
+              className={`text-xs font-semibold drop-shadow-md ${displayedChange < 0 ? "text-red-500" : "text-[#22C55E]"}`}
             >
               {displayedChange < 0 ? "-" : "+"}${Math.abs(displayedChange).toLocaleString()}
             </motion.span>

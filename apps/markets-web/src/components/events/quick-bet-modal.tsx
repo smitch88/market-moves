@@ -335,26 +335,26 @@ export function QuickBetModal({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md p-0 overflow-hidden">
-        <div className="p-4 sm:p-6 space-y-4">
+      <DialogContent className="max-w-[100vw] sm:max-w-lg w-full h-[100dvh] sm:h-auto max-h-[100dvh] sm:max-h-[90vh] left-0 top-0 sm:left-[50%] sm:top-[50%] translate-x-0 translate-y-0 sm:translate-x-[-50%] sm:translate-y-[-50%] p-0 overflow-hidden rounded-none sm:rounded-lg">
+        <div className="p-4 sm:p-6 space-y-4 h-full overflow-y-auto pb-safe">
           {/* Header */}
           <div className="flex items-center gap-3">
             {(actualStep === "outcome" || actualStep === "amount") && (
               <button
                 onClick={handleBack}
-                className="p-1.5 -ml-1.5 rounded-lg hover:bg-muted transition-colors"
+                className="p-1.5 -ml-1.5 rounded-lg hover:bg-muted transition-colors flex-shrink-0"
               >
                 <ChevronLeft className="h-5 w-5" />
               </button>
             )}
             <div className="flex-1 min-w-0">
-              <h2 className="text-lg font-bold truncate">Quick Bet</h2>
-              <p className="text-sm text-muted-foreground truncate">{eventTitle}</p>
+              <h2 className="text-lg font-bold">Quick Bet</h2>
+              <p className="text-sm text-muted-foreground line-clamp-1">{eventTitle}</p>
             </div>
             {authenticated && actualStep !== "success" && (
-              <div className="text-right">
+              <div className="text-right flex-shrink-0">
                 <p className="text-xs text-muted-foreground">Balance</p>
-                <p className="text-sm font-semibold text-[#df2421]">${balance.toLocaleString()}</p>
+                <p className="text-sm font-semibold text-[#22C55E]">${balance.toLocaleString()}</p>
               </div>
             )}
           </div>
@@ -382,7 +382,7 @@ export function QuickBetModal({
             // Market Selection Step
             <div className="space-y-3">
               <p className="text-sm text-muted-foreground">Select a market:</p>
-              <div className="space-y-2 max-h-[50vh] overflow-y-auto">
+              <div className="space-y-2 max-h-[60vh] sm:max-h-[50vh] overflow-y-auto -mx-1 px-1">
                 {markets.map((market) => {
                   const marketOutcomes = parseOutcomes(market.outcomes);
                   return (
@@ -391,14 +391,14 @@ export function QuickBetModal({
                       onClick={() => handleSelectMarket(market)}
                       className="w-full p-4 rounded-xl border border-border bg-card hover:bg-muted/50 transition-colors text-left"
                     >
-                      <p className="font-medium text-sm line-clamp-2 mb-2">
+                      <p className="font-medium text-sm mb-3">
                         {market.question}
                       </p>
-                      <div className="flex items-center gap-2 text-xs">
-                        <span className="px-2 py-1 rounded bg-outcome-yes/10 text-outcome-yes">
+                      <div className="flex flex-wrap items-center gap-2 text-xs">
+                        <span className="px-2.5 py-1.5 rounded-lg bg-outcome-yes/10 text-outcome-yes font-medium whitespace-nowrap">
                           {marketOutcomes[0]} {market.stats.percent0}%
                         </span>
-                        <span className="px-2 py-1 rounded bg-outcome-no/10 text-outcome-no">
+                        <span className="px-2.5 py-1.5 rounded-lg bg-outcome-no/10 text-outcome-no font-medium whitespace-nowrap">
                           {marketOutcomes[1]} {market.stats.percent1}%
                         </span>
                       </div>
@@ -410,8 +410,8 @@ export function QuickBetModal({
           ) : actualStep === "outcome" && effectiveMarket ? (
             // Outcome Selection Step
             <div className="space-y-4">
-              <div className="text-center py-2 px-4 rounded-lg bg-muted/30 border border-border">
-                <p className="text-sm font-medium line-clamp-2">
+              <div className="text-center py-3 px-4 rounded-lg bg-muted/30 border border-border">
+                <p className="text-sm font-medium">
                   {effectiveMarket.question}
                 </p>
               </div>

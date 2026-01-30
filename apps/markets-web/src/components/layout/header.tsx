@@ -12,7 +12,7 @@ import { SearchModal } from "./search-modal";
 import { Search, Bug } from "lucide-react";
 import { useAuthFetch } from "@/lib/auth/auth-fetch";
 import { useState, Suspense } from "react";
-import { AnimatedXPDisplay, AnimatedBalanceDisplay, useXPChangeWatcher, useBalanceChangeWatcher } from "./xp-animation";
+import { AnimatedXPDisplay, AnimatedBalanceDisplay } from "./xp-animation";
 import { cn } from "@vault/ui/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -79,10 +79,6 @@ export function Header() {
   const balance = profile?.balance ?? 0;
   // Show loading state while Privy is initializing or data is loading
   const isLoadingUserData = !canFetchAuthData || profileLoading || xpLoading;
-
-  // Watch for XP and balance changes (queued, triggered when modal closes)
-  useXPChangeWatcher(xpData?.xp);
-  useBalanceChangeWatcher(profile?.balance);
 
   return (
     <motion.header
