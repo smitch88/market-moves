@@ -298,12 +298,12 @@ model Market {
   // AMM/CPMM fields
   pool0        Decimal      @default(0.00) @db.Decimal(19, 2)
   pool1        Decimal      @default(0.00) @db.Decimal(19, 2)
-  seed0        Decimal      @default(1000.00) @db.Decimal(19, 2)
-  seed1        Decimal      @default(1000.00) @db.Decimal(19, 2)
+  seed0        Decimal      @default(100000.00) @db.Decimal(19, 2)
+  seed1        Decimal      @default(100000.00) @db.Decimal(19, 2)
   k            Decimal?     @db.Decimal(38, 4) // Constant product k = reserve0 * reserve1
   pricingModel PricingModel @default(CPMM)
-  reserve0     Decimal      @default(1000) @db.Decimal(19, 2)
-  reserve1     Decimal      @default(1000) @db.Decimal(19, 2)
+  reserve0     Decimal      @default(100000) @db.Decimal(19, 2)
+  reserve1     Decimal      @default(100000) @db.Decimal(19, 2)
 
   // Timestamps
   createdAt DateTime @default(now())
