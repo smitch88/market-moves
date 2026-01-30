@@ -50,10 +50,8 @@ const categoryFilters = [
   { label: "NBA", value: "NBA", icon: Volleyball },
   { label: "UFC", value: "UFC", icon: Dumbbell },
   { label: "Soccer", value: "SOCCER", icon: Volleyball },
-  { label: "Entertainment", value: "ENTERTAINMENT", icon: Tv },
   { label: "Politics", value: "POLITICS", icon: Vote },
   { label: "Crypto", value: "CRYPTO", icon: Bitcoin },
-  { label: "Other", value: "OTHER", icon: Gamepad2 },
 ];
 
 const sortOptions = [
@@ -323,33 +321,43 @@ export function MarketFilters() {
 
       {/* Desktop: Inline buttons */}
       <div className="hidden sm:flex flex-wrap items-center gap-3">
-        {/* View filters */}
-        <motion.div 
-          className="flex items-center gap-2 overflow-x-auto scrollbar-none"
-          variants={containerVariants}
-        >
-          {availableViewFilters.map((filter) => {
-            const Icon = filter.icon;
-            const isActive = currentView === filter.value || (filter.value === "trending" && !searchParams.get("view"));
-            return (
-              <motion.div key={filter.value} variants={itemVariants} className="flex-shrink-0">
-                <Button
-                  variant={isActive ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => handleViewFilter(filter.value)}
-                  className={cn(
-                    "gap-1.5 h-9 px-3 rounded-full",
-                    isActive && "bg-primary text-primary-foreground shadow-md shadow-primary/20",
-                    !isActive && "bg-transparent border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted/50",
-                    isPending && "opacity-50 pointer-events-none"
-                  )}
-                >
-                  <Icon className="h-3.5 w-3.5" />
-                  {filter.label}
-                </Button>
-              </motion.div>
-            );
-          })}
+        {/* View filters dropdown */}
+        <motion.div variants={itemVariants}>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className={cn(
+                  "gap-2 h-9 px-3 rounded-full bg-transparent border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted/50",
+                  isPending && "opacity-50 pointer-events-none"
+                )}
+              >
+                <ViewIcon className="h-3.5 w-3.5" />
+                <span className="font-medium text-foreground">{currentViewOption.label}</span>
+                <ChevronDown className="h-3.5 w-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-48">
+              {availableViewFilters.map((filter) => {
+                const Icon = filter.icon;
+                const isActive = currentView === filter.value || (filter.value === "trending" && !searchParams.get("view"));
+                return (
+                  <DropdownMenuItem
+                    key={filter.value}
+                    onClick={() => handleViewFilter(filter.value)}
+                    className="flex items-center justify-between cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Icon className="h-4 w-4 text-muted-foreground" />
+                      <span>{filter.label}</span>
+                    </div>
+                    {isActive && <Check className="h-4 w-4 text-primary" />}
+                  </DropdownMenuItem>
+                );
+              })}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </motion.div>
 
         {/* Divider */}
