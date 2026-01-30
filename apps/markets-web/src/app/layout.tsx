@@ -17,7 +17,7 @@ import { XPAnimationProvider } from "@/components/layout/xp-animation";
 import { DevTools } from "@/components/dev/dev-tools";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { WelcomeModal } from "@/components/welcome/welcome-modal";
-import { Toaster } from "@vault/ui";
+import { ThemedToaster } from "@/components/providers/themed-toaster";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -56,7 +56,7 @@ export default function RootLayout({
                 <MobileNav />
                 <WelcomeModal />
                 <DevTools />
-                <Toaster position="top-right" richColors closeButton />
+                <ThemedToaster />
               </XPAnimationProvider>
             </PrivyProvider>
           </QueryProvider>

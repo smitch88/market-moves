@@ -16,6 +16,7 @@ import type { Market, Event } from "@vault/database";
 import { cn } from "@vault/ui/lib/utils";
 import { SuccessModal } from "../markets/betting-panel/success-modal";
 import { useAuthFetch } from "@/lib/auth/auth-fetch";
+import { useXPAnimation } from "@/components/layout/xp-animation";
 
 interface SportsBettingSidebarProps {
   event: Event;
@@ -53,6 +54,7 @@ export function SportsBettingSidebar({
   const { login, authenticated } = usePrivy();
   const queryClient = useQueryClient();
   const authFetch = useAuthFetch();
+  const { queueXPGain, queueBalanceChange } = useXPAnimation();
 
   const [amount, setAmount] = useState("");
   const [betId, setBetId] = useState<string | null>(null);
@@ -167,11 +169,19 @@ export function SportsBettingSidebar({
       return res.json();
     },
     onSuccess: async (data) => {
+      const betAmount = parseInt(amount, 10);
+      
       // Store bet ID for potential share-for-XP
       setBetId(data.bet.id);
       
+      // Queue animations for when modal closes
+      queueBalanceChange(-betAmount);
+      if (data.xpAwarded && data.xpAwarded > 0) {
+        queueXPGain(data.xpAwarded);
+      }
+      
       // Show success modal (no toast needed - modal is shown)
-      setConfirmedBetAmount(parseInt(amount, 10));
+      setConfirmedBetAmount(betAmount);
       setConfirmedOutcome(selectedOutcome);
       setShowSuccessModal(true);
       
@@ -182,13 +192,9 @@ export function SportsBettingSidebar({
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["profile"] }),
         queryClient.invalidateQueries({ queryKey: ["quote"] }),
+        queryClient.invalidateQueries({ queryKey: ["xp"] }),
         queryClient.refetchQueries({ queryKey: ["market", event.slug] }),
       ]);
-      
-      // Small delay to allow async XP award to complete on backend
-      setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: ["xp"] });
-      }, 200);
     },
     onError: (error: Error) => {
       toast.error(error.message || "Failed to place bet");
@@ -221,6 +227,10 @@ export function SportsBettingSidebar({
       const sharesNum = typeof data.shares === 'number' 
         ? data.shares 
         : parseFloat(String(data.shares));
+      
+      // Queue balance increase animation (selling adds to balance)
+      queueBalanceChange(Math.round(proceedsNum));
+      
       toast.success(`Sold ${sharesNum.toFixed(2)} shares for $${proceedsNum.toFixed(2)}`);
       setAmount("");
       setTradeMode("buy");

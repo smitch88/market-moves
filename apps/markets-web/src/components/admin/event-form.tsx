@@ -21,6 +21,7 @@ import {
 } from "@vault/ui";
 import { Loader2, X } from "lucide-react";
 import type { Event, Tag, MarketCategory } from "@vault/database";
+import { ImageUpload } from "./image-upload";
 
 interface EventFormProps {
   event?: Event & { tags: Tag[] };
@@ -244,43 +245,23 @@ export function EventForm({ event }: EventFormProps) {
           <h2 className="text-lg font-semibold">Media</h2>
         </GlassCardHeader>
         <GlassCardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="bannerUrl">Banner URL</Label>
-              <Input
-                id="bannerUrl"
-                name="bannerUrl"
-                value={formData.bannerUrl}
-                onChange={handleChange}
-                placeholder="https://..."
-                type="url"
-              />
-              {formData.bannerUrl && (
-                <img
-                  src={formData.bannerUrl}
-                  alt="Banner preview"
-                  className="w-full h-20 object-cover rounded-md mt-2"
-                />
-              )}
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="logoUrl">Logo URL</Label>
-              <Input
-                id="logoUrl"
-                name="logoUrl"
-                value={formData.logoUrl}
-                onChange={handleChange}
-                placeholder="https://..."
-                type="url"
-              />
-              {formData.logoUrl && (
-                <img
-                  src={formData.logoUrl}
-                  alt="Logo preview"
-                  className="w-12 h-12 object-cover rounded-md mt-2"
-                />
-              )}
-            </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <ImageUpload
+              label="Banner Image"
+              value={formData.bannerUrl}
+              onChange={(url) => setFormData((prev) => ({ ...prev, bannerUrl: url }))}
+              folder="events/banners"
+              aspectRatio="banner"
+              placeholder="https://..."
+            />
+            <ImageUpload
+              label="Logo Image"
+              value={formData.logoUrl}
+              onChange={(url) => setFormData((prev) => ({ ...prev, logoUrl: url }))}
+              folder="events/logos"
+              aspectRatio="square"
+              placeholder="https://..."
+            />
           </div>
         </GlassCardContent>
       </GlassCard>

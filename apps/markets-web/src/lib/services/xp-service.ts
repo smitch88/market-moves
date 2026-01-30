@@ -4,6 +4,7 @@
  * Handles XP (experience points) calculations and management:
  * - XP rate configuration (with in-memory caching)
  * - Awarding XP for trading volume (atomic operations)
+ * - Anti-abuse protections: daily caps, market cooldowns, diminishing returns
  * - Admin XP adjustments
  * - Level calculations (pure functions)
  *
@@ -15,7 +16,7 @@
  * - Comprehensive error handling
  */
 
-import { prisma, XPReason } from "@vault/database";
+import { prisma, XPReason, Prisma } from "@vault/database";
 
 // ============================================================================
 // TYPES
@@ -35,6 +36,18 @@ export interface XPAwardResult {
   newXp: number;
   newLevel: number;
   leveledUp: boolean;
+  /** Reason if XP was reduced or blocked */
+  reason?: string;
+  /** Volume traded in this market today (after this trade) */
+  marketVolume?: number;
+}
+
+export interface XPProtectionConfig {
+  xpPerDollar: number;
+  dailyXpCap: number;
+  marketCooldownSeconds: number;
+  /** Volume threshold per market per day before diminishing returns kick in (in dollars) */
+  marketVolumeThreshold: number;
 }
 
 // ============================================================================
@@ -85,80 +98,126 @@ export function getLevelInfo(xp: number): LevelInfo {
 // CONFIGURATION (with in-memory caching)
 // ============================================================================
 
-const DEFAULT_XP_PER_DOLLAR = 10;
+// Default configuration values
+const DEFAULT_CONFIG: XPProtectionConfig = {
+  xpPerDollar: 10,
+  dailyXpCap: 50000, // 50k XP cap (equivalent to $5k volume at 100%)
+  marketCooldownSeconds: 300, // 5 minutes
+  marketVolumeThreshold: 10000, // $10k per tier before diminishing returns (fake money system)
+};
+
 const CONFIG_CACHE_TTL_MS = 60 * 1000; // 1 minute cache
 
 interface CachedConfig {
-  value: number;
+  config: XPProtectionConfig;
   expiresAt: number;
 }
 
-// Simple in-memory cache for XP rate
-let xpRateCache: CachedConfig | null = null;
+// Simple in-memory cache for XP config
+let configCache: CachedConfig | null = null;
+
+/**
+ * Get all XP protection configuration values
+ * Uses in-memory caching to reduce database reads
+ */
+export async function getXPConfig(): Promise<XPProtectionConfig> {
+  const now = Date.now();
+
+  // Return cached value if valid
+  if (configCache && configCache.expiresAt > now) {
+    return configCache.config;
+  }
+
+  try {
+    const configs = await prisma.xPConfig.findMany({
+      where: {
+        key: {
+          in: [
+            "xp_per_dollar_volume",
+            "daily_xp_cap",
+            "market_cooldown_seconds",
+            "market_volume_threshold",
+          ],
+        },
+      },
+    });
+
+    const configMap = new Map(configs.map((c) => [c.key, c.value]));
+
+    const config: XPProtectionConfig = {
+      xpPerDollar: parseInt(configMap.get("xp_per_dollar_volume") || "", 10) || DEFAULT_CONFIG.xpPerDollar,
+      dailyXpCap: parseInt(configMap.get("daily_xp_cap") || "", 10) || DEFAULT_CONFIG.dailyXpCap,
+      marketCooldownSeconds:
+        parseInt(configMap.get("market_cooldown_seconds") || "", 10) || DEFAULT_CONFIG.marketCooldownSeconds,
+      marketVolumeThreshold:
+        parseInt(configMap.get("market_volume_threshold") || "", 10) || DEFAULT_CONFIG.marketVolumeThreshold,
+    };
+
+    // Update cache
+    configCache = {
+      config,
+      expiresAt: now + CONFIG_CACHE_TTL_MS,
+    };
+
+    return config;
+  } catch (error) {
+    console.error("Failed to fetch XP config, using defaults:", error);
+    return DEFAULT_CONFIG;
+  }
+}
 
 /**
  * Get the current XP rate per dollar of volume
  * Uses in-memory caching to reduce database reads
  */
 export async function getXPRate(): Promise<number> {
-  const now = Date.now();
-
-  // Return cached value if valid
-  if (xpRateCache && xpRateCache.expiresAt > now) {
-    return xpRateCache.value;
-  }
-
-  try {
-    const config = await prisma.xPConfig.findUnique({
-      where: { key: "xp_per_dollar_volume" },
-    });
-
-    const rate = config ? parseInt(config.value, 10) : DEFAULT_XP_PER_DOLLAR;
-    const validRate = isNaN(rate) ? DEFAULT_XP_PER_DOLLAR : rate;
-
-    // Update cache
-    xpRateCache = {
-      value: validRate,
-      expiresAt: now + CONFIG_CACHE_TTL_MS,
-    };
-
-    return validRate;
-  } catch (error) {
-    console.error("Failed to fetch XP rate, using default:", error);
-    return DEFAULT_XP_PER_DOLLAR;
-  }
+  const config = await getXPConfig();
+  return config.xpPerDollar;
 }
 
 /**
- * Invalidate the XP rate cache (call after updates)
+ * Invalidate the XP config cache (call after updates)
  */
-export function invalidateXPRateCache(): void {
-  xpRateCache = null;
+export function invalidateXPConfigCache(): void {
+  configCache = null;
 }
 
+// Legacy alias
+export const invalidateXPRateCache = invalidateXPConfigCache;
+
 /**
- * Update the XP rate per dollar of volume
+ * Update an XP configuration value
  */
-export async function setXPRate(
-  rate: number,
+export async function setXPConfigValue(
+  key: string,
+  value: number,
+  description: string,
   adminUserId?: string
 ): Promise<void> {
   await prisma.xPConfig.upsert({
-    where: { key: "xp_per_dollar_volume" },
+    where: { key },
     update: {
-      value: String(rate),
+      value: String(value),
+      description,
       updatedBy: adminUserId,
     },
     create: {
-      key: "xp_per_dollar_volume",
-      value: String(rate),
-      description: "XP awarded per $1 of trading volume",
+      key,
+      value: String(value),
+      description,
       updatedBy: adminUserId,
     },
   });
 
   // Invalidate cache after update
-  invalidateXPRateCache();
+  invalidateXPConfigCache();
+}
+
+/**
+ * Update the XP rate per dollar of volume
+ */
+export async function setXPRate(rate: number, adminUserId?: string): Promise<void> {
+  await setXPConfigValue("xp_per_dollar_volume", rate, "XP awarded per $1 of trading volume", adminUserId);
 }
 
 /**
@@ -178,18 +237,209 @@ export async function getAllXPConfig(): Promise<
 }
 
 // ============================================================================
-// XP AWARDING (with atomic operations and idempotency)
+// PROTECTION CHECKS
 // ============================================================================
 
 /**
- * Award XP for trading volume
+ * Get today's date as a Date object at midnight UTC
+ */
+function getTodayDate(): Date {
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+}
+
+/**
+ * Check if user is on cooldown for a market
+ * Returns seconds remaining if on cooldown, 0 if not
+ */
+export async function checkMarketCooldown(
+  userId: string,
+  marketId: string,
+  cooldownSeconds: number
+): Promise<number> {
+  const today = getTodayDate();
+
+  const tracker = await prisma.xPTradeTracker.findUnique({
+    where: {
+      userId_marketId_date: {
+        userId,
+        marketId,
+        date: today,
+      },
+    },
+    select: {
+      lastTradeAt: true,
+    },
+  });
+
+  if (!tracker) return 0;
+
+  const secondsSinceLastTrade = Math.floor((Date.now() - tracker.lastTradeAt.getTime()) / 1000);
+  const remainingCooldown = cooldownSeconds - secondsSinceLastTrade;
+
+  return remainingCooldown > 0 ? remainingCooldown : 0;
+}
+
+/**
+ * Get current trade count for user in a specific market today
+ */
+export async function getMarketTradeCount(userId: string, marketId: string): Promise<number> {
+  const today = getTodayDate();
+
+  const tracker = await prisma.xPTradeTracker.findUnique({
+    where: {
+      userId_marketId_date: {
+        userId,
+        marketId,
+        date: today,
+      },
+    },
+    select: {
+      tradeCount: true,
+    },
+  });
+
+  return tracker?.tradeCount ?? 0;
+}
+
+/**
+ * Get current volume for user in a specific market today
+ */
+export async function getMarketVolume(userId: string, marketId: string): Promise<number> {
+  const today = getTodayDate();
+
+  const tracker = await prisma.xPTradeTracker.findUnique({
+    where: {
+      userId_marketId_date: {
+        userId,
+        marketId,
+        date: today,
+      },
+    },
+    select: {
+      totalVolume: true,
+    },
+  });
+
+  return tracker ? Number(tracker.totalVolume) : 0;
+}
+
+/**
+ * Get user's daily XP total
+ */
+export async function getDailyXPTotal(userId: string): Promise<number> {
+  const today = getTodayDate();
+
+  const daily = await prisma.xPDailyTotal.findUnique({
+    where: {
+      userId_date: {
+        userId,
+        date: today,
+      },
+    },
+    select: {
+      totalXpEarned: true,
+    },
+  });
+
+  return daily?.totalXpEarned ?? 0;
+}
+
+/**
+ * Calculate XP multiplier based on cumulative volume in a market (diminishing returns)
+ * This is fairer than trade count - someone betting $100 once gets the same XP
+ * as someone betting $20 five times.
+ * 
+ * Tier 0 ($0 - threshold): 100% XP
+ * Tier 1 (threshold - 2x): 80% XP
+ * Tier 2 (2x - 3x): 60% XP
+ * Tier 3 (3x - 4x): 40% XP
+ * Tier 4 (4x - 5x): 20% XP
+ * Tier 5+ (5x+): 0% XP
+ * 
+ * @param currentVolume - Volume already traded in this market today (before this trade)
+ * @param tradeAmount - The current trade amount
+ * @param threshold - Volume per tier (e.g., $100)
+ * @returns Weighted average multiplier for this trade
+ */
+function getVolumeBasedXPMultiplier(
+  currentVolume: number,
+  tradeAmount: number,
+  threshold: number
+): number {
+  const multipliers = [1.0, 0.8, 0.6, 0.4, 0.2, 0]; // Tier multipliers
+  const maxTiers = multipliers.length - 1; // 5 tiers before 0%
+  
+  // Calculate how much of the trade falls into each tier
+  let remainingAmount = tradeAmount;
+  let totalXP = 0;
+  let volumeProcessed = currentVolume;
+  
+  while (remainingAmount > 0) {
+    const currentTier = Math.floor(volumeProcessed / threshold);
+    
+    if (currentTier >= maxTiers) {
+      // All remaining volume gets 0% XP
+      break;
+    }
+    
+    const tierCeiling = (currentTier + 1) * threshold;
+    const amountInThisTier = Math.min(remainingAmount, tierCeiling - volumeProcessed);
+    const tierMultiplier = multipliers[currentTier] ?? 0;
+    
+    totalXP += amountInThisTier * tierMultiplier;
+    remainingAmount -= amountInThisTier;
+    volumeProcessed += amountInThisTier;
+  }
+  
+  // Return the effective multiplier (weighted average)
+  return tradeAmount > 0 ? totalXP / tradeAmount : 0;
+}
+
+/**
+ * Get the current tier info for display purposes
+ */
+function getVolumeTierInfo(
+  currentVolume: number,
+  threshold: number
+): { tier: number; multiplier: number; volumeUntilNextTier: number } {
+  const multipliers = [1.0, 0.8, 0.6, 0.4, 0.2, 0];
+  const tier = Math.min(Math.floor(currentVolume / threshold), multipliers.length - 1);
+  const multiplier = multipliers[tier] ?? 0;
+  const volumeUntilNextTier = tier < multipliers.length - 1 
+    ? (tier + 1) * threshold - currentVolume 
+    : 0;
+  
+  return { tier, multiplier, volumeUntilNextTier };
+}
+
+// ============================================================================
+// XP AWARDING (with atomic operations, idempotency, and protections)
+// ============================================================================
+
+export interface AwardXPOptions {
+  userId: string;
+  marketId: string;
+  volumeDelta: number;
+  correlationId?: string;
+  /** Skip protections (for admin adjustments) */
+  skipProtections?: boolean;
+}
+
+/**
+ * Award XP for trading volume with full protection checks
+ * - Daily cap enforcement
+ * - Per-market cooldown
+ * - Diminishing returns per market
+ * 
  * Uses atomic increment to prevent race conditions
  * Idempotent when correlationId is provided
  */
 export async function awardXPForVolume(
   userId: string,
   volumeDelta: number,
-  correlationId?: string
+  correlationId?: string,
+  marketId?: string
 ): Promise<XPAwardResult | null> {
   // Only award for positive volume
   const absVolume = Math.abs(volumeDelta);
@@ -213,16 +463,89 @@ export async function awardXPForVolume(
         xpAwarded: existing.delta,
         newXp: existing.xpAfter,
         newLevel: calculateLevel(existing.xpAfter),
-        leveledUp: false, // Can't determine retroactively
+        leveledUp: false,
+        reason: "Already awarded (idempotent)",
       };
     }
   }
 
-  const xpRate = await getXPRate();
-  const xpToAward = Math.floor(absVolume * xpRate);
+  // Get configuration
+  const config = await getXPConfig();
+  const baseXP = Math.floor(absVolume * config.xpPerDollar);
 
-  if (xpToAward <= 0) {
+  if (baseXP <= 0) {
     return null;
+  }
+
+  const today = getTodayDate();
+  let xpToAward = baseXP;
+  let reason: string | undefined;
+  let currentMarketVolume = 0;
+
+  // If marketId provided, apply protection checks
+  if (marketId) {
+    // 1. Check daily cap
+    const currentDailyXP = await getDailyXPTotal(userId);
+    if (currentDailyXP >= config.dailyXpCap) {
+      return {
+        xpAwarded: 0,
+        newXp: 0, // Will be set below
+        newLevel: 0,
+        leveledUp: false,
+        reason: `Daily XP cap reached (${config.dailyXpCap.toLocaleString()} XP)`,
+        marketVolume: 0,
+      };
+    }
+
+    // 2. Check cooldown
+    const cooldownRemaining = await checkMarketCooldown(userId, marketId, config.marketCooldownSeconds);
+    if (cooldownRemaining > 0) {
+      return {
+        xpAwarded: 0,
+        newXp: 0,
+        newLevel: 0,
+        leveledUp: false,
+        reason: `Market cooldown active (${cooldownRemaining}s remaining)`,
+        marketVolume: 0,
+      };
+    }
+
+    // 3. Get market volume and apply volume-based diminishing returns
+    currentMarketVolume = await getMarketVolume(userId, marketId);
+    const multiplier = getVolumeBasedXPMultiplier(currentMarketVolume, absVolume, config.marketVolumeThreshold);
+    const tierInfo = getVolumeTierInfo(currentMarketVolume, config.marketVolumeThreshold);
+
+    if (multiplier === 0) {
+      reason = `Volume cap reached for this market today ($${(config.marketVolumeThreshold * 5).toLocaleString()})`;
+      xpToAward = 0;
+    } else if (multiplier < 1) {
+      xpToAward = Math.floor(baseXP * multiplier);
+      reason = `Diminishing returns: ~${Math.round(multiplier * 100)}% (tier ${tierInfo.tier + 1}, $${Math.round(currentMarketVolume)} traded)`;
+    }
+
+    // 4. Cap XP to not exceed daily limit
+    const remainingDailyCap = config.dailyXpCap - currentDailyXP;
+    if (xpToAward > remainingDailyCap) {
+      xpToAward = remainingDailyCap;
+      reason = `Capped to daily limit (${config.dailyXpCap.toLocaleString()} XP)`;
+    }
+  }
+
+  // If no XP to award after protections, return early
+  if (xpToAward <= 0) {
+    // Still need to get user's current XP for the response
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { xp: true },
+    });
+    return {
+      xpAwarded: 0,
+      newXp: user?.xp ?? 0,
+      newLevel: calculateLevel(user?.xp ?? 0),
+      leveledUp: false,
+      reason,
+      marketVolume: currentMarketVolume + absVolume,
+    };
   }
 
   // Use interactive transaction for atomicity
@@ -249,6 +572,59 @@ export async function awardXPForVolume(
       },
     });
 
+    // Update tracking tables if marketId provided
+    if (marketId) {
+      // Update per-market tracker
+      await tx.xPTradeTracker.upsert({
+        where: {
+          userId_marketId_date: {
+            userId,
+            marketId,
+            date: today,
+          },
+        },
+        create: {
+          userId,
+          marketId,
+          date: today,
+          tradeCount: 1,
+          totalVolume: new Prisma.Decimal(absVolume),
+          xpEarned: xpToAward,
+          lastTradeAt: new Date(),
+        },
+        update: {
+          tradeCount: { increment: 1 },
+          totalVolume: { increment: new Prisma.Decimal(absVolume) },
+          xpEarned: { increment: xpToAward },
+          lastTradeAt: new Date(),
+        },
+      });
+
+      // Update daily total
+      await tx.xPDailyTotal.upsert({
+        where: {
+          userId_date: {
+            userId,
+            date: today,
+          },
+        },
+        create: {
+          userId,
+          date: today,
+          totalXpEarned: xpToAward,
+          totalVolume: new Prisma.Decimal(absVolume),
+          tradesCount: 1,
+          marketsTraded: 1,
+        },
+        update: {
+          totalXpEarned: { increment: xpToAward },
+          totalVolume: { increment: new Prisma.Decimal(absVolume) },
+          tradesCount: { increment: 1 },
+          // marketsTraded is harder to update atomically, skip for now
+        },
+      });
+    }
+
     return { xpBefore, xpAfter };
   });
 
@@ -260,6 +636,64 @@ export async function awardXPForVolume(
     newXp: result.xpAfter,
     newLevel: levelAfter,
     leveledUp: levelAfter > levelBefore,
+    reason,
+    marketVolume: currentMarketVolume + absVolume,
+  };
+}
+
+/**
+ * Get user's XP protection status for a specific market
+ * Useful for displaying to users before they trade
+ */
+export async function getXPStatus(
+  userId: string,
+  marketId: string
+): Promise<{
+  dailyXpEarned: number;
+  dailyXpCap: number;
+  dailyXpRemaining: number;
+  marketVolume: number;
+  marketVolumeThreshold: number;
+  marketVolumeCap: number;
+  currentTier: number;
+  cooldownRemaining: number;
+  nextTradeMultiplier: number;
+  volumeUntilNextTier: number;
+}> {
+  const config = await getXPConfig();
+  const today = getTodayDate();
+
+  const [dailyTotal, marketTracker] = await Promise.all([
+    prisma.xPDailyTotal.findUnique({
+      where: { userId_date: { userId, date: today } },
+    }),
+    prisma.xPTradeTracker.findUnique({
+      where: { userId_marketId_date: { userId, marketId, date: today } },
+    }),
+  ]);
+
+  const dailyXpEarned = dailyTotal?.totalXpEarned ?? 0;
+  const marketVolume = marketTracker ? Number(marketTracker.totalVolume) : 0;
+
+  const cooldownRemaining = marketTracker
+    ? Math.max(0, config.marketCooldownSeconds - Math.floor((Date.now() - marketTracker.lastTradeAt.getTime()) / 1000))
+    : 0;
+
+  const tierInfo = getVolumeTierInfo(marketVolume, config.marketVolumeThreshold);
+  // For next trade multiplier, assume a small trade to get current tier's multiplier
+  const nextTradeMultiplier = tierInfo.multiplier;
+
+  return {
+    dailyXpEarned,
+    dailyXpCap: config.dailyXpCap,
+    dailyXpRemaining: Math.max(0, config.dailyXpCap - dailyXpEarned),
+    marketVolume,
+    marketVolumeThreshold: config.marketVolumeThreshold,
+    marketVolumeCap: config.marketVolumeThreshold * 5, // 5 tiers before 0%
+    currentTier: tierInfo.tier,
+    cooldownRemaining,
+    nextTradeMultiplier,
+    volumeUntilNextTier: tierInfo.volumeUntilNextTier,
   };
 }
 
@@ -373,9 +807,7 @@ export async function getXPHistory(
 /**
  * Get user's current XP and level info
  */
-export async function getUserXPInfo(
-  userId: string
-): Promise<{ xp: number } & LevelInfo> {
+export async function getUserXPInfo(userId: string): Promise<{ xp: number } & LevelInfo> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: { xp: true },
@@ -403,7 +835,7 @@ export async function backfillXPFromVolume(batchSize: number = 100): Promise<{
   usersUpdated: number;
   totalXPAwarded: number;
 }> {
-  const xpRate = await getXPRate();
+  const config = await getXPConfig();
 
   let usersUpdated = 0;
   let totalXPAwarded = 0;
@@ -433,7 +865,7 @@ export async function backfillXPFromVolume(batchSize: number = 100): Promise<{
     // Process batch
     for (const user of users) {
       const volumeNum = Number(user.totalVolume);
-      const xpToAward = Math.floor(volumeNum * xpRate);
+      const xpToAward = Math.floor(volumeNum * config.xpPerDollar);
 
       if (xpToAward > 0) {
         await prisma.$transaction([
@@ -471,7 +903,9 @@ export async function backfillXPFromVolume(batchSize: number = 100): Promise<{
  * Get leaderboard of top users by XP
  * Optimized query with limit
  */
-export async function getXPLeaderboard(limit: number = 100): Promise<
+export async function getXPLeaderboard(
+  limit: number = 100
+): Promise<
   {
     userId: string;
     handle: string | null;
@@ -527,4 +961,44 @@ export async function getXPStats(): Promise<{
     averageXP: Math.round(aggregate._avg.xp ?? 0),
     medianLevel: calculateLevel(aggregate._avg.xp ?? 0),
   };
+}
+
+/**
+ * Get daily XP statistics for admin dashboard
+ */
+export async function getDailyXPStats(
+  days: number = 7
+): Promise<
+  {
+    date: Date;
+    totalXpAwarded: number;
+    uniqueUsers: number;
+    totalTrades: number;
+  }[]
+> {
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - days);
+  startDate.setUTCHours(0, 0, 0, 0);
+
+  const dailyTotals = await prisma.xPDailyTotal.groupBy({
+    by: ["date"],
+    where: {
+      date: { gte: startDate },
+    },
+    _sum: {
+      totalXpEarned: true,
+      tradesCount: true,
+    },
+    _count: {
+      userId: true,
+    },
+    orderBy: { date: "asc" },
+  });
+
+  return dailyTotals.map((day) => ({
+    date: day.date,
+    totalXpAwarded: day._sum.totalXpEarned ?? 0,
+    uniqueUsers: day._count.userId,
+    totalTrades: day._sum.tradesCount ?? 0,
+  }));
 }

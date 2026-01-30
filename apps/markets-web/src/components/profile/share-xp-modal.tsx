@@ -8,6 +8,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toPng } from "html-to-image";
 import { BettingTicket } from "../markets/betting-ticket";
 import { useAuthFetch } from "@/lib/auth/auth-fetch";
+import { useXPAnimation } from "@/components/layout/xp-animation";
 
 // Custom X (Twitter) logo icon
 function XIcon({ className }: { className?: string }) {
@@ -66,6 +67,7 @@ export function ShareXPModal({ open, onOpenChange, bet, profile }: ShareXPModalP
   const { user } = usePrivy();
   const queryClient = useQueryClient();
   const authFetch = useAuthFetch();
+  const { queueXPGain, flushQueue } = useXPAnimation();
   
   const [xpClaimed, setXpClaimed] = useState(false);
   const [tweetUrl, setTweetUrl] = useState("");
@@ -97,6 +99,9 @@ export function ShareXPModal({ open, onOpenChange, bet, profile }: ShareXPModalP
     },
     onSuccess: async (data) => {
       if (data.verified) {
+        // Queue XP animation
+        queueXPGain(SHARE_XP_BONUS);
+        
         setXpClaimed(true);
         toast.success(`+${SHARE_XP_BONUS} XP earned for sharing!`);
         await queryClient.invalidateQueries({ queryKey: ["profile"] });
@@ -293,7 +298,17 @@ export function ShareXPModal({ open, onOpenChange, bet, profile }: ShareXPModalP
           )}
 
           {/* Close button */}
-          <Button onClick={() => onOpenChange(false)} variant="ghost" className="w-full text-muted-foreground">
+          <Button 
+            onClick={() => {
+              onOpenChange(false);
+              // Flush animations after modal closes
+              setTimeout(() => {
+                flushQueue();
+              }, 150);
+            }} 
+            variant="ghost" 
+            className="w-full text-muted-foreground"
+          >
             Continue Browsing
           </Button>
         </div>

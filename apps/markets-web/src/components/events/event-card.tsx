@@ -8,6 +8,8 @@ import { motion } from "framer-motion";
 import type { Event, MarketCategory, EventType } from "@vault/database";
 import { cn } from "@vault/ui/lib/utils";
 import { getMarketUrl } from "@/lib/urls";
+import { QuickBetButton } from "./quick-bet-button";
+import { BookmarkButton } from "./bookmark-button";
 
 // Event type that accepts both Date and string for date fields (API serialization)
 type SerializedEvent = Omit<Event, 'createdAt' | 'updatedAt' | 'startTime' | 'endTime'> & {
@@ -23,6 +25,8 @@ interface EventCardProps {
     _aggregations: {
       totalVolume: number;
       totalBets: number;
+      totalVerifications?: number;
+      earliestClose?: string | null;
     };
   };
   index?: number;
@@ -71,8 +75,21 @@ export function EventCard({ event, index = 0 }: EventCardProps) {
               {/* Very subtle gradient only at the bottom edge for text readability */}
               <div className="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-black/20 to-transparent" />
 
-              {/* Category badge */}
-              <div className="absolute top-3 right-3">
+              {/* Category badge and date */}
+              <div className="absolute top-3 right-3 flex items-center gap-2">
+                {endTime && (
+                  <div
+                    className={cn(
+                      "flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-semibold backdrop-blur-sm shadow-lg",
+                      isEndingSoon 
+                        ? "bg-red-500/90 text-white" 
+                        : "bg-black/60 text-white"
+                    )}
+                  >
+                    <Clock className="h-3.5 w-3.5" />
+                    <span>{format(endTime, "MMM d")}</span>
+                  </div>
+                )}
                 <span className="px-3 py-1.5 rounded-full text-xs font-semibold bg-primary/90 text-primary-foreground backdrop-blur-sm shadow-lg">
                   {event.category}
                 </span>
@@ -82,9 +99,22 @@ export function EventCard({ event, index = 0 }: EventCardProps) {
 
           {/* Content */}
           <div className="p-5 flex-1 flex flex-col">
-            {/* Category when no banner */}
+            {/* Category and date when no banner */}
             {!event.bannerUrl && (
-              <div className="mb-3">
+              <div className="mb-3 flex items-center gap-2">
+                {endTime && (
+                  <div
+                    className={cn(
+                      "flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-semibold",
+                      isEndingSoon 
+                        ? "bg-red-500/10 text-red-500 border border-red-500/20" 
+                        : "bg-muted text-muted-foreground border border-border"
+                    )}
+                  >
+                    <Clock className="h-3.5 w-3.5" />
+                    <span>{format(endTime, "MMM d")}</span>
+                  </div>
+                )}
                 <span className="px-3 py-1.5 rounded-full text-xs font-semibold bg-primary/10 text-primary border border-primary/20">
                   {event.category}
                 </span>
@@ -120,22 +150,19 @@ export function EventCard({ event, index = 0 }: EventCardProps) {
                     <span className="font-semibold text-foreground">{formatVolume(event._aggregations.totalVolume)}</span>
                   </div>
                 </div>
-                {endTime && (
-                  <div
-                    className={cn(
-                      "flex items-center gap-1.5 font-medium",
-                      isEndingSoon ? "text-red-500" : "text-muted-foreground"
-                    )}
-                  >
-                    <Clock className="h-4 w-4" />
-                    <span>{format(endTime, "MMM d")}</span>
-                  </div>
-                )}
+                {/* Placeholder for button spacing */}
+                <div className="w-[140px]" />
               </div>
             </div>
           </div>
         </motion.div>
       </Link>
+      
+      {/* Action buttons - positioned outside Link to prevent click propagation */}
+      <div className="absolute bottom-[1.35rem] right-5 flex items-center gap-2 z-10">
+        <BookmarkButton eventId={event.id} />
+        <QuickBetButton eventId={event.id} eventTitle={event.title} />
+      </div>
     </motion.div>
   );
 }

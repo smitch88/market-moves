@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma, BetStatus } from "@vault/database";
+import { prisma, BetStatus, Prisma } from "@vault/database";
 import { requireAdmin } from "@vault/auth";
 
 export async function GET(request: NextRequest) {
@@ -11,16 +11,49 @@ export async function GET(request: NextRequest) {
     const marketId = searchParams.get("marketId");
     const eventId = searchParams.get("eventId");
     const userId = searchParams.get("userId");
+    const userSearch = searchParams.get("userSearch"); // Search by handle or name
+    const tweetStatus = searchParams.get("tweetStatus"); // Filter by tweet verification status
     const page = parseInt(searchParams.get("page") || "1");
     const pageSize = parseInt(searchParams.get("pageSize") || "50");
+    const sortBy = searchParams.get("sortBy") || "createdAt";
+    const sortDir = searchParams.get("sortDir") || "desc";
     const limit = pageSize;
     const offset = (page - 1) * pageSize;
 
-    const where: Record<string, unknown> = {};
+    const where: Prisma.BetWhereInput = {};
     if (status) where.status = status;
     if (marketId) where.marketId = marketId;
     if (eventId) where.market = { eventId };
     if (userId) where.userId = userId;
+    
+    // Search by user handle or name
+    if (userSearch) {
+      where.user = {
+        OR: [
+          { handle: { contains: userSearch, mode: "insensitive" } },
+          { name: { contains: userSearch, mode: "insensitive" } },
+        ],
+      };
+    }
+
+    // Filter by tweet verification status
+    if (tweetStatus === "verified") {
+      where.tweetProof = { verified: true };
+    } else if (tweetStatus === "unverified") {
+      where.tweetProof = { verified: false };
+    } else if (tweetStatus === "has_tweet") {
+      where.tweetProof = { isNot: null };
+    } else if (tweetStatus === "no_tweet") {
+      where.tweetProof = null;
+    }
+
+    // Build orderBy
+    let orderBy: Prisma.BetOrderByWithRelationInput = { createdAt: "desc" };
+    if (sortBy === "amount") {
+      orderBy = { amount: sortDir as "asc" | "desc" };
+    } else if (sortBy === "createdAt") {
+      orderBy = { createdAt: sortDir as "asc" | "desc" };
+    }
 
     const [bets, total] = await Promise.all([
       prisma.bet.findMany({
@@ -57,7 +90,7 @@ export async function GET(request: NextRequest) {
             },
           },
         },
-        orderBy: { createdAt: "desc" },
+        orderBy,
         take: limit,
         skip: offset,
       }),

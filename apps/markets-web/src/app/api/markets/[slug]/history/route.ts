@@ -27,11 +27,15 @@ export async function GET(
     let targetMarketId = marketId;
 
     if (!targetMarketId) {
-      // Find event by slug and get its first market
-      const event = await prisma.event.findUnique({
-        where: { slug },
+      // Find event by slug and get its first published market
+      const event = await prisma.event.findFirst({
+        where: { 
+          slug,
+          isPublished: true, // Only published events
+        },
         include: {
           markets: {
+            where: { isPublished: true }, // Only published markets
             take: 1,
             orderBy: { createdAt: "asc" },
           },

@@ -12,6 +12,7 @@ import { SearchModal } from "./search-modal";
 import { Search, Bug } from "lucide-react";
 import { useAuthFetch } from "@/lib/auth/auth-fetch";
 import { useState, Suspense } from "react";
+import { AnimatedXPDisplay, AnimatedBalanceDisplay, useXPChangeWatcher, useBalanceChangeWatcher } from "./xp-animation";
 import { cn } from "@vault/ui/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -75,8 +76,13 @@ export function Header() {
   });
 
   const xp = xpData?.xp ?? 0;
+  const balance = profile?.balance ?? 0;
   // Show loading state while Privy is initializing or data is loading
   const isLoadingUserData = !canFetchAuthData || profileLoading || xpLoading;
+
+  // Watch for XP and balance changes (queued, triggered when modal closes)
+  useXPChangeWatcher(xpData?.xp);
+  useBalanceChangeWatcher(profile?.balance);
 
   return (
     <motion.header
@@ -160,25 +166,13 @@ export function Header() {
           {/* XP and Balance stats - shown when logged in */}
           {hasSession && (
             <div className="hidden sm:flex items-center gap-5 mr-2">
-              <div className="flex flex-col items-center">
+              <div className="flex flex-col items-center min-h-[44px]">
                 <span className="text-[11px] text-muted-foreground font-medium tracking-wide">XP</span>
-                {isLoadingUserData ? (
-                  <span className="text-base font-semibold text-foreground/50 tabular-nums animate-pulse">---</span>
-                ) : (
-                  <span className="text-base font-semibold text-foreground tabular-nums">
-                    {xp.toLocaleString()}
-                  </span>
-                )}
+                <AnimatedXPDisplay xp={xp} isLoading={isLoadingUserData} />
               </div>
-              <div className="flex flex-col items-center">
+              <div className="flex flex-col items-center min-h-[44px]">
                 <span className="text-[11px] text-muted-foreground font-medium tracking-wide">Balance</span>
-                {isLoadingUserData ? (
-                  <span className="text-base font-semibold text-[#21C55E]/50 animate-pulse">---</span>
-                ) : (
-                  <span className="text-base font-semibold text-[#21C55E]">
-                    ${((profile?.balance ?? 0)).toLocaleString()}
-                  </span>
-                )}
+                <AnimatedBalanceDisplay balance={balance} isLoading={isLoadingUserData} />
               </div>
             </div>
           )}

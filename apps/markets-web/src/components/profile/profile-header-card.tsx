@@ -2,7 +2,8 @@
 
 import Image from "next/image";
 import { format } from "date-fns";
-import { User, ExternalLink } from "lucide-react";
+import { User, ExternalLink, Lightbulb } from "lucide-react";
+import { Button } from "@vault/ui";
 
 export interface ProfileStat {
   label: string;
@@ -23,6 +24,8 @@ export interface ProfileHeaderCardProps {
   joinedAt?: string | Date | null;
   /** Stats to display in the footer */
   stats: ProfileStat[];
+  /** Callback for Request Market button */
+  onRequestMarket?: () => void;
 }
 
 export function ProfileHeaderCard({
@@ -32,6 +35,7 @@ export function ProfileHeaderCard({
   showHandleLink = false,
   joinedAt,
   stats,
+  onRequestMarket,
 }: ProfileHeaderCardProps) {
   return (
     <div className="border border-border rounded-xl p-5 flex flex-col">
@@ -86,6 +90,18 @@ export function ProfileHeaderCard({
               </span>
             )}
           </div>
+          
+          {/* Request Market Button */}
+          {onRequestMarket && (
+            <Button
+              size="sm"
+              onClick={onRequestMarket}
+              className="mt-2 gap-2 bg-[#df2421] hover:bg-[#bf1f1c] text-white"
+            >
+              <Lightbulb className="h-4 w-4" />
+              Request Market
+            </Button>
+          )}
         </div>
       </div>
 

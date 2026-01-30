@@ -8,12 +8,18 @@ const createEventSchema = z.object({
   slug: z.string().min(1),
   description: z.string().optional(),
   category: z.string().default("OTHER"),
+  eventType: z.string().default("PROP"),
   bannerUrl: z.string().url().optional().or(z.literal("")),
   logoUrl: z.string().url().optional().or(z.literal("")),
   startTime: z.string().nullable().optional(),
   endTime: z.string().nullable().optional(),
   tagIds: z.array(z.string()).optional(),
-  // Markets to create with the event
+  // New tags to create and associate with the event
+  newTags: z.array(z.object({
+    label: z.string().min(1),
+    slug: z.string().min(1).optional(), // Will be auto-generated if not provided
+  })).optional(),
+  // Markets to create with the event (optional - can create event first, then add markets)
   markets: z.array(z.object({
     question: z.string().min(1),
     outcomes: z.array(z.string()).length(2),
@@ -25,7 +31,7 @@ const createEventSchema = z.object({
     feeBps: z.number().int().min(0).max(10000).default(100),
     seed0: z.number().int().min(0).default(1000),
     seed1: z.number().int().min(0).default(1000),
-  })).min(1),
+  })).optional().default([]),
 });
 
 export async function GET(request: NextRequest) {
@@ -78,6 +84,41 @@ export async function POST(request: NextRequest) {
     const data = createEventSchema.parse(body);
 
     const event = await prisma.$transaction(async (tx) => {
+      // Create new tags if provided
+      const createdTagIds: string[] = [];
+      if (data.newTags && data.newTags.length > 0) {
+        for (const newTag of data.newTags) {
+          // Generate slug if not provided
+          const tagSlug = newTag.slug || newTag.label
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, "-")
+            .replace(/^-|-$/g, "");
+          
+          // Check if tag already exists
+          const existingTag = await tx.tag.findUnique({
+            where: { slug: tagSlug },
+          });
+          
+          if (existingTag) {
+            createdTagIds.push(existingTag.id);
+          } else {
+            const createdTag = await tx.tag.create({
+              data: {
+                slug: tagSlug,
+                label: newTag.label,
+              },
+            });
+            createdTagIds.push(createdTag.id);
+          }
+        }
+      }
+
+      // Combine existing tag IDs with newly created tag IDs
+      const allTagIds = [
+        ...(data.tagIds || []),
+        ...createdTagIds,
+      ];
+
       // Create event
       const newEvent = await tx.event.create({
         data: {
@@ -85,34 +126,37 @@ export async function POST(request: NextRequest) {
           slug: data.slug,
           description: data.description || null,
           category: data.category as never,
+          eventType: data.eventType as never,
           bannerUrl: data.bannerUrl || null,
           logoUrl: data.logoUrl || null,
           startTime: data.startTime ? new Date(data.startTime) : null,
           endTime: data.endTime ? new Date(data.endTime) : null,
-          ...(data.tagIds && data.tagIds.length > 0 && {
-            tags: { connect: data.tagIds.map((id) => ({ id })) },
+          ...(allTagIds.length > 0 && {
+            tags: { connect: allTagIds.map((id) => ({ id })) },
           }),
         },
       });
 
-      // Create markets for this event
-      for (const marketData of data.markets) {
-        await tx.market.create({
-          data: {
-            eventId: newEvent.id,
-            question: marketData.question,
-            outcomes: JSON.stringify(marketData.outcomes),
-            outcomePrices: JSON.stringify(["0.50", "0.50"]),
-            detailsMarkdown: marketData.detailsMarkdown || null,
-            resolutionSourceUrl: marketData.resolutionSourceUrl || null,
-            opensAt: marketData.opensAt ? new Date(marketData.opensAt) : null,
-            closesAt: marketData.closesAt ? new Date(marketData.closesAt) : null,
-            feeBps: marketData.feeBps,
-            seed0: marketData.seed0,
-            seed1: marketData.seed1,
-            status: MarketStatus.DRAFT,
-          },
-        });
+      // Create markets for this event (if any provided)
+      if (data.markets && data.markets.length > 0) {
+        for (const marketData of data.markets) {
+          await tx.market.create({
+            data: {
+              eventId: newEvent.id,
+              question: marketData.question,
+              outcomes: JSON.stringify(marketData.outcomes),
+              outcomePrices: JSON.stringify(["0.50", "0.50"]),
+              detailsMarkdown: marketData.detailsMarkdown || null,
+              resolutionSourceUrl: marketData.resolutionSourceUrl || null,
+              opensAt: marketData.opensAt ? new Date(marketData.opensAt) : null,
+              closesAt: marketData.closesAt ? new Date(marketData.closesAt) : null,
+              feeBps: marketData.feeBps,
+              seed0: marketData.seed0,
+              seed1: marketData.seed1,
+              status: MarketStatus.DRAFT,
+            },
+          });
+        }
       }
 
       // Log admin action
@@ -125,7 +169,8 @@ export async function POST(request: NextRequest) {
           metadata: { 
             title: data.title, 
             slug: data.slug,
-            marketCount: data.markets.length,
+            marketCount: data.markets?.length || 0,
+            tagCount: allTagIds.length,
           },
         },
       });

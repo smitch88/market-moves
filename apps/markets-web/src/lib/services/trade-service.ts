@@ -563,8 +563,11 @@ export class TradeService {
       }
     );
 
-    // Update user volume stats (fire-and-forget, don't block trade)
-    updateUserStats(bet.userId, Number(bet.amount)).catch(console.error);
+    // Update user volume stats and award XP with protection checks (fire-and-forget)
+    updateUserStats(bet.userId, Number(bet.amount), 0, { 
+      correlationId: bet.id, 
+      marketId: market.id 
+    }).catch(console.error);
     
     // Create PnL snapshot if rate limit allows (fire-and-forget)
     createPnLSnapshot(bet.userId).catch(console.error);
@@ -779,8 +782,8 @@ export class TradeService {
       };
     });
 
-    // Update user volume stats (fire-and-forget, don't block trade)
-    updateUserStats(userId, Number(proceedsAfterFee)).catch(console.error);
+    // Update user volume stats (no XP for sells - only buys earn XP to prevent wash trading)
+    updateUserStats(userId, Number(proceedsAfterFee), 0, { skipXP: true }).catch(console.error);
     
     // Create PnL snapshot if rate limit allows (fire-and-forget)
     createPnLSnapshot(userId).catch(console.error);

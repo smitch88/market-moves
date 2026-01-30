@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Dialog,
@@ -15,6 +15,7 @@ import {
 import { Gift, Check, TrendingUp, TrendingDown, Loader2 } from "lucide-react";
 import { cn } from "@vault/ui/lib/utils";
 import { useAuthFetch } from "@/lib/auth/auth-fetch";
+import { useXPAnimation } from "@/components/layout/xp-animation";
 
 interface RedeemablePosition {
   positionId: string;
@@ -43,6 +44,7 @@ export function RedeemPositionsModal({ open, onOpenChange }: RedeemPositionsModa
   const [redeemed, setRedeemed] = useState(false);
   const [redeemedAmount, setRedeemedAmount] = useState(0);
   const authFetch = useAuthFetch();
+  const { queueBalanceChange, flushQueue } = useXPAnimation();
 
   const { data: summary, isLoading, error } = useQuery({
     queryKey: ["redeemable-positions"],
@@ -73,6 +75,11 @@ export function RedeemPositionsModal({ open, onOpenChange }: RedeemPositionsModa
       return res.json();
     },
     onSuccess: (data) => {
+      // Queue balance increase animation (redeeming adds to balance)
+      if (data.totalRedeemed && data.totalRedeemed > 0) {
+        queueBalanceChange(Math.round(data.totalRedeemed));
+      }
+      
       setRedeemed(true);
       setRedeemedAmount(data.totalRedeemed);
       queryClient.invalidateQueries({ queryKey: ["positions"] });
@@ -90,14 +97,18 @@ export function RedeemPositionsModal({ open, onOpenChange }: RedeemPositionsModa
     redeemMutation.mutate();
   };
 
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     onOpenChange(false);
+    // Flush animations after modal closes
+    setTimeout(() => {
+      flushQueue();
+    }, 150);
     // Reset state after modal closes
     setTimeout(() => {
       setRedeemed(false);
       setRedeemedAmount(0);
     }, 200);
-  };
+  }, [onOpenChange, flushQueue]);
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>

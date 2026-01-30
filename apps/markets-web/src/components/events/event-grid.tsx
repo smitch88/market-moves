@@ -1,17 +1,45 @@
-import { prisma, MarketCategory, Prisma } from "@vault/database";
+import { prisma, MarketCategory, Prisma, BetStatus } from "@vault/database";
+import { getSessionUser } from "@vault/auth";
 import { EventCard } from "./event-card";
+import { BookmarksEmptyState } from "./bookmarks-empty-state";
 
 interface EventGridProps {
-  sort?: string;
+  view?: string;
   category?: string;
   query?: string;
+  sortBy?: string;
+  sortDir?: string;
 }
 
-export async function EventGrid({ sort = "trending", category, query }: EventGridProps) {
+export async function EventGrid({ 
+  view = "trending", 
+  category, 
+  query,
+  sortBy = "volume",
+  sortDir = "desc",
+}: EventGridProps) {
+  // Handle bookmarks view
+  let bookmarkedEventIds: string[] = [];
+  if (view === "bookmarks") {
+    const user = await getSessionUser();
+    if (!user) {
+      return <BookmarksEmptyState requiresLogin />;
+    }
+    const bookmarks = await prisma.bookmark.findMany({
+      where: { userId: user.id },
+      select: { eventId: true },
+    });
+    bookmarkedEventIds = bookmarks.map((b) => b.eventId);
+    if (bookmarkedEventIds.length === 0) {
+      return <BookmarksEmptyState />;
+    }
+  }
+
   // Fetch events with aggregated market data
   const events = await prisma.event.findMany({
     where: {
       active: true,
+      isPublished: true,
       ...(category && category !== "all" && {
         category: category as MarketCategory,
       }),
@@ -21,6 +49,8 @@ export async function EventGrid({ sort = "trending", category, query }: EventGri
           { description: { contains: query, mode: "insensitive" } },
         ],
       }),
+      // Apply view filters
+      ...getViewFilter(view, bookmarkedEventIds),
     },
     include: {
       _count: {
@@ -28,25 +58,31 @@ export async function EventGrid({ sort = "trending", category, query }: EventGri
       },
       markets: {
         where: {
+          isPublished: true, // Only show published markets
           status: { in: ["PUBLISHED", "OPEN"] },
         },
         select: {
+          id: true,
           seed0: true,
           seed1: true,
           pool0: true,
           pool1: true,
+          closesAt: true,
           _count: {
-            select: { bets: true },
+            select: { 
+              bets: { where: { status: BetStatus.CONFIRMED } },
+              tweetProofs: true, // KOL verifications
+            },
           },
         },
       },
     },
-    orderBy: getOrderBy(sort),
-    take: 20,
+    orderBy: getViewOrderBy(view),
+    take: 50, // Fetch more to allow client-side sorting
   });
 
   // Transform to include aggregations (convert Decimals to numbers)
-  const eventsWithAggregations = events.map((event) => {
+  let eventsWithAggregations = events.map((event) => {
     const totalVolume = event.markets.reduce((sum, market) => {
       return sum + Number(market.seed0 || 0) + Number(market.seed1 || 0) + Number(market.pool0 || 0) + Number(market.pool1 || 0);
     }, 0);
@@ -54,6 +90,18 @@ export async function EventGrid({ sort = "trending", category, query }: EventGri
     const totalBets = event.markets.reduce((sum, market) => {
       return sum + market._count.bets;
     }, 0);
+
+    // Count KOL verifications (tweet proofs)
+    const totalVerifications = event.markets.reduce((sum, market) => {
+      return sum + market._count.tweetProofs;
+    }, 0);
+
+    // Get earliest closing market time
+    const earliestClose = event.markets.reduce((earliest, market) => {
+      if (!market.closesAt) return earliest;
+      if (!earliest) return market.closesAt;
+      return market.closesAt < earliest ? market.closesAt : earliest;
+    }, null as Date | null);
 
     // Remove the markets array from the result, keep only aggregations
     // Serialize dates for client component
@@ -68,11 +116,19 @@ export async function EventGrid({ sort = "trending", category, query }: EventGri
       _aggregations: {
         totalVolume,
         totalBets,
+        totalVerifications,
+        earliestClose: earliestClose?.toISOString() ?? null,
       },
     };
   });
 
-  if (eventsWithAggregations.length === 0) {
+  // Apply sortBy and sortDir
+  const sortedEvents = sortEvents(eventsWithAggregations, sortBy, sortDir);
+
+  // Limit to 20 after sorting
+  const finalEvents = sortedEvents.slice(0, 20);
+
+  if (finalEvents.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-24 px-4">
         <h3 className="text-foreground text-xl font-bold mb-2">No events found</h3>
@@ -85,22 +141,89 @@ export async function EventGrid({ sort = "trending", category, query }: EventGri
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 auto-rows-fr">
-      {eventsWithAggregations.map((event, index) => (
+      {finalEvents.map((event, index) => (
         <EventCard key={event.id} event={event} index={index} />
       ))}
     </div>
   );
 }
 
-function getOrderBy(sort: string): Prisma.EventOrderByWithRelationInput {
-  switch (sort) {
+function getViewFilter(view: string, bookmarkedEventIds?: string[]): Prisma.EventWhereInput {
+  switch (view) {
+    case "ending":
+      // Events with markets closing soon
+      return {
+        markets: {
+          some: {
+            closesAt: { gte: new Date() },
+            status: { in: ["PUBLISHED", "OPEN"] },
+          },
+        },
+      };
+    case "new":
+      // Events created in last 7 days
+      const weekAgo = new Date();
+      weekAgo.setDate(weekAgo.getDate() - 7);
+      return {
+        createdAt: { gte: weekAgo },
+      };
+    case "bookmarks":
+      // Filter by bookmarked event IDs
+      return {
+        id: { in: bookmarkedEventIds || [] },
+      };
     case "trending":
-      return { markets: { _count: "desc" } };
+    default:
+      return {};
+  }
+}
+
+function getViewOrderBy(view: string): Prisma.EventOrderByWithRelationInput {
+  switch (view) {
     case "ending":
       return { endTime: "asc" };
     case "new":
       return { createdAt: "desc" };
+    case "trending":
     default:
-      return { createdAt: "desc" };
+      return { markets: { _count: "desc" } };
   }
+}
+
+// Generic sort function that works with any event type that has these fields
+function sortEvents<T extends {
+  startTime: string | null;
+  _aggregations: {
+    totalVolume: number;
+    totalVerifications: number;
+  };
+}>(
+  events: T[],
+  sortBy: string,
+  sortDir: string
+): T[] {
+  const direction = sortDir === "asc" ? 1 : -1;
+
+  return [...events].sort((a, b) => {
+    switch (sortBy) {
+      case "volume":
+        return (a._aggregations.totalVolume - b._aggregations.totalVolume) * direction;
+      
+      case "verified":
+        return (a._aggregations.totalVerifications - b._aggregations.totalVerifications) * direction;
+      
+      case "startDate": {
+        const aStart = a.startTime ? new Date(a.startTime).getTime() : 0;
+        const bStart = b.startTime ? new Date(b.startTime).getTime() : 0;
+        // For start date, nulls should go to the end
+        if (!a.startTime && !b.startTime) return 0;
+        if (!a.startTime) return 1;
+        if (!b.startTime) return -1;
+        return (aStart - bStart) * direction;
+      }
+      
+      default:
+        return (a._aggregations.totalVolume - b._aggregations.totalVolume) * direction;
+    }
+  });
 }

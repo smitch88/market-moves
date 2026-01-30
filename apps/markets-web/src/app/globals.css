@@ -290,3 +290,63 @@ html {
   width: 4px !important;
   height: 4px !important;
 }
+
+/* ================================================
+   Sonner Toast Styles - Modern, sleek design
+   ================================================ */
+
+/* Toast container positioning fix for bottom-center */
+[data-sonner-toaster] {
+  --width: 380px;
+}
+
+/* Base toast styling */
+[data-sonner-toast] {
+  font-family: var(--font-montserrat), system-ui, sans-serif !important;
+}
+
+/* Toast icon styling */
+[data-sonner-toast] [data-icon] {
+  width: 18px !important;
+  height: 18px !important;
+}
+
+/* Close button styling */
+[data-sonner-toast] [data-close-button] {
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+
+[data-sonner-toast]:hover [data-close-button] {
+  opacity: 1;
+}
+
+/* Success toast icon */
+[data-sonner-toast][data-type="success"] [data-icon] svg {
+  color: #10b981 !important;
+}
+
+/* Error toast icon */
+[data-sonner-toast][data-type="error"] [data-icon] svg {
+  color: #ef4444 !important;
+}
+
+/* Warning toast icon */
+[data-sonner-toast][data-type="warning"] [data-icon] svg {
+  color: #f59e0b !important;
+}
+
+/* Info toast icon */
+[data-sonner-toast][data-type="info"] [data-icon] svg {
+  color: #3b82f6 !important;
+}
+
+/* Light mode toast adjustments */
+:root:not(.dark) [data-sonner-toast] {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Dark mode toast adjustments */
+.dark [data-sonner-toast] {
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4), 0 1px 5px rgba(0, 0, 0, 0.3) !important;
+}

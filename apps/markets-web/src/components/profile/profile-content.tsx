@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { usePrivy } from "@privy-io/react-auth";
@@ -7,9 +8,12 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@vault/ui";
 import { ProfileActivity } from "./profile-activity";
 import { ProfileSettings } from "./profile-settings";
 import { ProfilePositions } from "./profile-positions";
+import { ProfileRequests } from "./profile-requests";
+import { ProfileBookmarks } from "./profile-bookmarks";
 import { ProfileHeaderCard } from "./profile-header-card";
 import { PnLChart } from "./pnl-chart";
 import { ProfileContentSkeleton } from "./profile-content-skeleton";
+import { MarketRequestModal } from "./market-request-modal";
 import { formatMoney } from "./profile-utils";
 import { useAuthFetch } from "@/lib/auth/auth-fetch";
 
@@ -41,6 +45,7 @@ export function ProfileContent({ userId }: ProfileContentProps) {
   const defaultTab = searchParams.get("tab") || "positions";
   const { user } = usePrivy();
   const authFetch = useAuthFetch();
+  const [requestModalOpen, setRequestModalOpen] = useState(false);
 
   const { data: profile, isLoading: profileLoading } = useQuery({
     queryKey: ["profile"],
@@ -138,6 +143,7 @@ export function ProfileContent({ userId }: ProfileContentProps) {
           handle={twitterHandle}
           showHandleLink={true}
           joinedAt={profile.createdAt}
+          onRequestMarket={() => setRequestModalOpen(true)}
           stats={[
             {
               label: "Positions Value",
@@ -184,10 +190,22 @@ export function ProfileContent({ userId }: ProfileContentProps) {
                 Activity
               </TabsTrigger>
               <TabsTrigger
+                value="bookmarks"
+                className="relative pb-3 px-0 bg-transparent rounded-none data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-foreground text-muted-foreground hover:text-foreground transition-colors after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-primary after:scale-x-0 data-[state=active]:after:scale-x-100 after:transition-transform"
+              >
+                Bookmarks
+              </TabsTrigger>
+              <TabsTrigger
                 value="referrals"
                 className="relative pb-3 px-0 bg-transparent rounded-none data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-foreground text-muted-foreground hover:text-foreground transition-colors after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-primary after:scale-x-0 data-[state=active]:after:scale-x-100 after:transition-transform"
               >
                 Referrals
+              </TabsTrigger>
+              <TabsTrigger
+                value="requests"
+                className="relative pb-3 px-0 bg-transparent rounded-none data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-foreground text-muted-foreground hover:text-foreground transition-colors after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-primary after:scale-x-0 data-[state=active]:after:scale-x-100 after:transition-transform"
+              >
+                Requests
               </TabsTrigger>
               <TabsTrigger
                 value="settings"
@@ -208,6 +226,12 @@ export function ProfileContent({ userId }: ProfileContentProps) {
               isLoading={activityLoading}
             />
           </TabsContent>
+          <TabsContent value="bookmarks" className="mt-0">
+            <ProfileBookmarks />
+          </TabsContent>
+          <TabsContent value="requests" className="mt-0">
+            <ProfileRequests onRequestNew={() => setRequestModalOpen(true)} />
+          </TabsContent>
           <TabsContent value="settings" className="mt-0">
             <ProfileSettings profile={profile} showReferrals={false} />
           </TabsContent>
@@ -216,6 +240,12 @@ export function ProfileContent({ userId }: ProfileContentProps) {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Market Request Modal */}
+      <MarketRequestModal
+        open={requestModalOpen}
+        onOpenChange={setRequestModalOpen}
+      />
     </div>
   );
 }

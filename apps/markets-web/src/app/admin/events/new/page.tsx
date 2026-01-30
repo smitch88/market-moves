@@ -19,6 +19,7 @@ import {
   Badge,
 } from "@vault/ui";
 import { Loader2, X } from "lucide-react";
+import { ImageUpload } from "@/components/admin";
 import type { Tag, MarketCategory } from "@vault/database";
 
 const categories: { value: MarketCategory; label: string }[] = [
@@ -242,29 +243,23 @@ export default function AdminNewEventPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="bannerUrl">Banner URL</Label>
-                <Input
-                  id="bannerUrl"
-                  name="bannerUrl"
-                  value={formData.bannerUrl}
-                  onChange={handleChange}
-                  placeholder="https://..."
-                  type="url"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="logoUrl">Logo URL</Label>
-                <Input
-                  id="logoUrl"
-                  name="logoUrl"
-                  value={formData.logoUrl}
-                  onChange={handleChange}
-                  placeholder="https://..."
-                  type="url"
-                />
-              </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <ImageUpload
+                label="Banner Image"
+                value={formData.bannerUrl}
+                onChange={(url) => setFormData((prev) => ({ ...prev, bannerUrl: url }))}
+                folder="events/banners"
+                aspectRatio="banner"
+                placeholder="https://..."
+              />
+              <ImageUpload
+                label="Logo Image"
+                value={formData.logoUrl}
+                onChange={(url) => setFormData((prev) => ({ ...prev, logoUrl: url }))}
+                folder="events/logos"
+                aspectRatio="square"
+                placeholder="https://..."
+              />
             </div>
           </GlassCardContent>
         </GlassCard>

@@ -71,11 +71,20 @@ vault-markets/
 | Route | Description |
 |-------|-------------|
 | `/admin` | Admin dashboard |
+| `/admin/events` | Event management list |
+| `/admin/events/new` | Create new event with markets |
+| `/admin/events/[id]` | View event details |
+| `/admin/events/[id]/edit` | Edit event |
+| `/admin/events/[id]/markets/new` | Add market to event |
 | `/admin/markets` | Market management list |
 | `/admin/markets/new` | Create new market |
 | `/admin/markets/[id]` | View market details |
 | `/admin/markets/[id]/edit` | Edit market |
 | `/admin/users` | User management |
+| `/admin/requests` | Market request management (KOL feature) |
+| `/admin/requests/[id]` | Full review page - create events/markets from request |
+| `/admin/resolution-sources` | Resolution source management |
+| `/admin/resolution-sources/[id]` | Resolution source detail - manage data points |
 | `/admin/settings` | Admin settings |
 
 ---
@@ -168,6 +177,30 @@ model Referral {
 }
 ```
 
+### MarketRequest
+```prisma
+model MarketRequest {
+  id          String              @id @default(cuid())
+  userId      String
+  title       String
+  description String
+  sourceUrl   String?             // Optional URL to Polymarket/Kalshi
+  status      MarketRequestStatus @default(PENDING)
+  adminNotes  String?             // Admin response/notes
+  reviewedAt  DateTime?
+  reviewedBy  String?             // Admin user ID who reviewed
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+}
+
+enum MarketRequestStatus {
+  PENDING   // Awaiting admin review
+  APPROVED  // Approved - market will be created
+  REJECTED  // Rejected by admin
+  CREATED   // Market has been created from this request
+}
+```
+
 ---
 
 ## Features
@@ -215,6 +248,14 @@ model Referral {
 - Market status management
 - User balance and role management
 - Resolution and settlement processing
+- Market request review and management
+
+### Market Requests (KOL Feature)
+- Users can submit market ideas from their profile
+- Request form includes title, description, and optional reference URL
+- Requests tab on profile shows status of submitted requests
+- Admin area for reviewing and responding to requests
+- Status workflow: Pending → Approved/Rejected/Created
 
 ---
 

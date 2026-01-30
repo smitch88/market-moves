@@ -25,6 +25,7 @@ export async function GET(request: NextRequest) {
     const events = await prisma.event.findMany({
       where: {
         active: true,
+        isPublished: true, // Only show published events
         OR: [
           { title: { contains: query, mode: "insensitive" } },
           { slug: { contains: query, mode: "insensitive" } },
@@ -33,7 +34,10 @@ export async function GET(request: NextRequest) {
       },
       include: {
         markets: {
-          where: { status: { in: ["PUBLISHED", "OPEN"] } },
+          where: { 
+            isPublished: true, // Only show published markets
+            status: { in: ["PUBLISHED", "OPEN"] },
+          },
           select: {
             id: true,
             pool0: true,
@@ -43,7 +47,9 @@ export async function GET(request: NextRequest) {
           },
         },
         _count: {
-          select: { markets: true },
+          select: { 
+            markets: { where: { isPublished: true } }, // Only count published markets
+          },
         },
       },
       orderBy: { startTime: "asc" },
@@ -81,6 +87,8 @@ export async function GET(request: NextRequest) {
     // Search markets directly
     const markets = await prisma.market.findMany({
       where: {
+        isPublished: true, // Only show published markets
+        event: { isPublished: true }, // Only from published events
         status: { in: ["PUBLISHED", "OPEN"] },
         question: { contains: query, mode: "insensitive" },
       },

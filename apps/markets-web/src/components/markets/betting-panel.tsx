@@ -16,6 +16,7 @@ import { SelectOutcomeStep } from "./betting-panel/select-outcome-step";
 import { AmountStep } from "./betting-panel/amount-step";
 import { SuccessModal } from "./betting-panel/success-modal";
 import { useAuthFetch } from "@/lib/auth/auth-fetch";
+import { useXPAnimation } from "@/components/layout/xp-animation";
 
 // Helper to parse outcomes from JSON
 function parseOutcomes(outcomes: string): string[] {
@@ -44,6 +45,7 @@ export function BettingPanel({ market, event, stats }: BettingPanelProps) {
   const { login, authenticated } = usePrivy();
   const queryClient = useQueryClient();
   const authFetch = useAuthFetch();
+  const { queueXPGain, queueBalanceChange } = useXPAnimation();
 
   // Parse outcomes from market
   const outcomes = parseOutcomes(market.outcomes);
@@ -97,22 +99,28 @@ export function BettingPanel({ market, event, stats }: BettingPanelProps) {
       return res.json();
     },
     onSuccess: async (data) => {
+      const betAmount = parseInt(amount, 10);
+      
       // Store bet ID for potential share-for-XP
       setBetId(data.bet.id);
+      
+      // Queue animations for when modal closes
+      // Balance goes down (negative) when placing a bet
+      queueBalanceChange(-betAmount);
+      // XP is earned from the bet (returned from API)
+      if (data.xpAwarded && data.xpAwarded > 0) {
+        queueXPGain(data.xpAwarded);
+      }
       
       // Invalidate and refetch queries
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["profile"] }),
         queryClient.refetchQueries({ queryKey: ["market", event.slug] }),
+        queryClient.invalidateQueries({ queryKey: ["xp"] }),
       ]);
       
-      // Small delay to allow async XP award to complete on backend
-      setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: ["xp"] });
-      }, 500);
-      
       // Show success modal (no toast needed - modal is shown)
-      setConfirmedBetAmount(parseInt(amount, 10));
+      setConfirmedBetAmount(betAmount);
       setConfirmedOutcome(selectedOutcome);
       setShowSuccessModal(true);
       

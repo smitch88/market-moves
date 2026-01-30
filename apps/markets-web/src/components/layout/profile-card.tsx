@@ -23,7 +23,7 @@ import {
 } from "@vault/ui";
 import { User, LogOut, ChevronDown, Bug, Gift, Check, Copy, Users, Shield, Sun, Moon, HelpCircle } from "lucide-react";
 import { useAuthFetch } from "@/lib/auth/auth-fetch";
-import { AnimatedXPRing, useXPChangeWatcher, useXPAnimation } from "./xp-animation";
+import { AnimatedXPRing, useXPAnimation } from "./xp-animation";
 
 // Custom X (Twitter) logo icon
 function XIcon({ className }: { className?: string }) {
@@ -76,8 +76,7 @@ export function ProfileCard() {
   const xpInCurrentLevel = xpData?.xpInCurrentLevel ?? 0;
   const xpNeededForNext = xpData?.xpNeededForNext ?? 1;
 
-  // Watch for XP changes and trigger animation
-  useXPChangeWatcher(xpData?.xp);
+  // Get animation state from context (watchers are in header.tsx)
   const { isAnimating } = useXPAnimation();
 
   // Check impersonation state separately

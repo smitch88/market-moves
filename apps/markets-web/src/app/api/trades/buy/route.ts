@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@vault/auth";
 import { tradeService } from "@/lib/services/trade-service";
 import * as currency from "@/lib/utils/currency";
+import { getXPConfig, getXPStatus } from "@/lib/services/xp-service";
 import { z } from "zod";
 
 const buySchema = z.object({
@@ -33,6 +34,12 @@ export async function POST(request: NextRequest) {
 
     const { marketId, outcomeIndex, amount, maxSlippage } = buySchema.parse(body);
 
+    // Get XP status before trade to calculate expected XP with protections
+    const [xpStatus, xpConfig] = await Promise.all([
+      getXPStatus(user.id, marketId),
+      getXPConfig(),
+    ]);
+
     const result = await tradeService.buyShares({
       userId: user.id,
       marketId,
@@ -40,6 +47,27 @@ export async function POST(request: NextRequest) {
       amount: currency.decimal(amount),
       maxSlippage,
     });
+
+    // Calculate XP awarded considering protections
+    let xpAwarded = 0;
+    let xpReason: string | undefined;
+    
+    if (xpStatus.dailyXpRemaining <= 0) {
+      xpReason = `Daily XP cap reached (${xpConfig.dailyXpCap.toLocaleString()} XP)`;
+    } else if (xpStatus.cooldownRemaining > 0) {
+      xpReason = `Market cooldown active`;
+    } else {
+      const baseXP = Math.floor(amount * xpConfig.xpPerDollar);
+      xpAwarded = Math.floor(baseXP * xpStatus.nextTradeMultiplier);
+      // Cap to daily remaining
+      xpAwarded = Math.min(xpAwarded, xpStatus.dailyXpRemaining);
+      
+      if (xpStatus.nextTradeMultiplier < 1 && xpStatus.nextTradeMultiplier > 0) {
+        xpReason = `Diminishing returns: ${Math.round(xpStatus.nextTradeMultiplier * 100)}% (tier ${xpStatus.currentTier + 1})`;
+      } else if (xpStatus.nextTradeMultiplier === 0) {
+        xpReason = `Volume cap reached for this market today ($${xpStatus.marketVolumeCap.toLocaleString()})`;
+      }
+    }
 
     return NextResponse.json({
       bet: result.bet,
@@ -55,6 +83,8 @@ export async function POST(request: NextRequest) {
           price1: currency.toNumber(result.quote.newPrices.price1),
         },
       },
+      xpAwarded,
+      xpReason,
       message: "Trade executed successfully!",
     });
   } catch (error) {

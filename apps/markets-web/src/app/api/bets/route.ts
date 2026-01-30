@@ -3,6 +3,7 @@ import { prisma, BetStatus, BalanceReason } from "@vault/database";
 import { requireUser } from "@vault/auth";
 import { createPriceSnapshot } from "@/lib/services/price-snapshot-service";
 import { broadcastPriceChange } from "@/lib/services/price-broadcaster";
+import { awardXPForVolume } from "@/lib/services/xp-service";
 import { z } from "zod";
 
 const placeBetSchema = z.object({
@@ -181,9 +182,23 @@ export async function POST(request: NextRequest) {
       return bet;
     });
 
+    // Award XP for trading volume (with protection checks)
+    let xpAwarded = 0;
+    let xpReason: string | undefined;
+    try {
+      const xpResult = await awardXPForVolume(user.id, amount, result.id, marketId);
+      if (xpResult) {
+        xpAwarded = xpResult.xpAwarded;
+        xpReason = xpResult.reason;
+      }
+    } catch (err) {
+      console.error("Failed to award XP:", err);
+    }
+
     return NextResponse.json({ 
       bet: result,
       outcomeLabel: outcomes[outcomeIndex],
+      xpAwarded,
     });
   } catch (error) {
     if (error instanceof z.ZodError) {

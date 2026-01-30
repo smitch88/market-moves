@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { Button, Dialog, DialogContent, Input, toast } from "@vault/ui";
 import { Loader2, Copy, Download, Check } from "lucide-react";
@@ -8,6 +8,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { XIcon } from "../x-icon";
 import { BettingTicket } from "../betting-ticket";
 import type { Market, Event } from "@vault/database";
+import { useXPAnimation } from "@/components/layout/xp-animation";
 
 interface SuccessModalProps {
   open: boolean;
@@ -52,11 +53,23 @@ export function SuccessModal({
 }: SuccessModalProps) {
   const { user } = usePrivy();
   const queryClient = useQueryClient();
+  const { flushQueue, queueXPGain } = useXPAnimation();
   const [xpClaimed, setXpClaimed] = useState(false);
   const [tweetUrl, setTweetUrl] = useState("");
   const [showManualEntry, setShowManualEntry] = useState(false);
 
   const hasTwitter = !!user?.twitter;
+
+  // Handle modal close - flush queued animations
+  const handleOpenChange = useCallback((open: boolean) => {
+    if (!open) {
+      // Small delay to let modal start closing, then trigger animations
+      setTimeout(() => {
+        flushQueue();
+      }, 150);
+    }
+    onOpenChange(open);
+  }, [onOpenChange, flushQueue]);
 
   // Share for XP mutation
   const shareXPMutation = useMutation({
@@ -78,6 +91,9 @@ export function SuccessModal({
     },
     onSuccess: async (data) => {
       if (data.verified) {
+        // Queue XP animation
+        queueXPGain(SHARE_XP_BONUS);
+        
         setXpClaimed(true);
         toast.success(`+${SHARE_XP_BONUS} XP earned for sharing!`);
         await queryClient.invalidateQueries({ queryKey: ["profile"] });
@@ -107,7 +123,7 @@ export function SuccessModal({
   const confirmedOutcomeLabel = outcomes[confirmedOutcome];
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md overflow-hidden p-0 max-h-[90vh]">
         <div className="p-4 sm:p-6 space-y-4 sm:space-y-5 overflow-y-auto max-h-[calc(90vh-2rem)]">
           {/* Header */}
@@ -208,7 +224,7 @@ export function SuccessModal({
           )}
 
           {/* Close button */}
-          <Button onClick={() => onOpenChange(false)} variant="ghost" className="w-full text-muted-foreground">
+          <Button onClick={() => handleOpenChange(false)} variant="ghost" className="w-full text-muted-foreground">
             Continue Browsing
           </Button>
         </div>

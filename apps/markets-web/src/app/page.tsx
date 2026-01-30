@@ -12,14 +12,16 @@ import { MarketFilters } from "@/components/markets/market-filters";
 interface HomePageProps {
   searchParams: Promise<{
     q?: string;
-    sort?: string;
+    view?: string;
     category?: string;
+    sortBy?: string;
+    sortDir?: string;
   }>;
 }
 
 export default async function HomePage({ searchParams }: HomePageProps) {
   const params = await searchParams;
-  const { q, sort, category } = params;
+  const { q, view, category, sortBy, sortDir } = params;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
@@ -37,7 +39,13 @@ export default async function HomePage({ searchParams }: HomePageProps) {
 
         {/* Events Grid */}
         <Suspense fallback={<EventGridSkeleton />}>
-          <EventGrid sort={sort} category={category} query={q} />
+          <EventGrid 
+            view={view} 
+            category={category} 
+            query={q} 
+            sortBy={sortBy}
+            sortDir={sortDir}
+          />
         </Suspense>
       </main>
 

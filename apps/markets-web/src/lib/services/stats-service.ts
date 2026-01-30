@@ -506,16 +506,25 @@ export async function getPnLHistory(
   }));
 }
 
+interface UpdateUserStatsOptions {
+  correlationId?: string;
+  marketId?: string;
+  /** Skip XP awarding (e.g., for sells to prevent wash trading) */
+  skipXP?: boolean;
+}
+
 /**
  * Update user's running stats (called after trades/settlements)
- * Also awards XP based on trading volume
+ * Also awards XP based on trading volume with protection checks (unless skipXP is true)
  */
 export async function updateUserStats(
   userId: string,
   volumeDelta: number,
   realizedPnLDelta: number = 0,
-  correlationId?: string
+  options: UpdateUserStatsOptions = {}
 ): Promise<void> {
+  const { correlationId, marketId, skipXP = false } = options;
+  
   // Update volume and PnL
   await prisma.user.update({
     where: { id: userId },
@@ -525,8 +534,11 @@ export async function updateUserStats(
     },
   });
 
-  // Award XP for volume (fire-and-forget, don't block the trade)
-  awardXPForVolume(userId, volumeDelta, correlationId).catch((err) => {
-    console.error(`Failed to award XP for user ${userId}:`, err);
-  });
+  // Award XP for volume with protection checks (fire-and-forget, don't block the trade)
+  // Skip for sells to prevent wash trading
+  if (!skipXP) {
+    awardXPForVolume(userId, volumeDelta, correlationId, marketId).catch((err) => {
+      console.error(`Failed to award XP for user ${userId}:`, err);
+    });
+  }
 }

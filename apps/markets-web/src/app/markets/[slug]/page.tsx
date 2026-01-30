@@ -62,12 +62,16 @@ interface PageProps {
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params;
-  const event = await prisma.event.findUnique({
-    where: { slug },
+  const event = await prisma.event.findFirst({
+    where: { 
+      slug,
+      isPublished: true, // Only published events
+    },
     select: { 
       title: true, 
       bannerUrl: true,
       markets: {
+        where: { isPublished: true }, // Only published markets
         select: { question: true },
         take: 1,
       },
@@ -94,11 +98,15 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 export default async function MarketPage({ params }: PageProps) {
   const { slug } = await params;
 
-  const event = await prisma.event.findUnique({
-    where: { slug },
+  const event = await prisma.event.findFirst({
+    where: { 
+      slug,
+      isPublished: true, // Only show published events
+    },
     include: {
       tags: true,
       markets: {
+        where: { isPublished: true }, // Only show published markets
         orderBy: { closesAt: "asc" },
       },
     },

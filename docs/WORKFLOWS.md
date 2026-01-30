@@ -240,19 +240,29 @@ After successful bet confirmation:
 │  /profile       │
 └────────┬────────┘
          │
-    ┌────┴────┐
-    │         │
-    ▼         ▼
-┌───────┐ ┌───────┐
-│Activity│ │Settings│
-│  Tab  │ │  Tab   │
-└───────┘ └───────┘
+    ┌────┬────┬────┐
+    │    │    │    │
+    ▼    ▼    ▼    ▼
+┌───────┐ ┌───────┐ ┌───────┐ ┌───────┐
+│Positions│Activity│Requests│Settings│
+│  Tab  │ │  Tab  │ │  Tab  │ │  Tab  │
+└───────┘ └───────┘ └───────┘ └───────┘
 ```
+
+**Positions Tab:**
+- Active positions with current value
+- Sell/redeem options
 
 **Activity Tab:**
 - Recent bets list
-- Open positions
+- Transaction history
 - Bet history with status
+
+**Requests Tab:**
+- Submitted market requests
+- Request status tracking
+- Admin response notes
+- "New Request" button
 
 **Settings Tab:**
 - Account info (handle, email)
@@ -336,7 +346,163 @@ After successful bet confirmation:
 
 ---
 
-## 6. Admin Workflows
+## 6. Market Request Flow (KOL Feature)
+
+### Submit a Market Request
+
+```
+┌─────────────────┐
+│  /profile       │
+│  Profile Page   │
+└────────┬────────┘
+         │
+         │ Click "Request Market" button
+         ▼
+┌─────────────────┐
+│  Request Modal  │
+│  - Title        │
+│  - Description  │
+│  - Source URL   │
+│    (optional)   │
+└────────┬────────┘
+         │
+         │ Submit
+         ▼
+┌─────────────────┐
+│  POST /api/     │
+│  market-requests│
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  Success Toast  │
+│  Request saved  │
+│  Status: PENDING│
+└─────────────────┘
+```
+
+### Track Request Status
+
+```
+┌─────────────────┐
+│  /profile       │
+│  Profile Page   │
+└────────┬────────┘
+         │
+         │ Click "Requests" tab
+         ▼
+┌─────────────────┐
+│  Request List   │
+│  - Title        │
+│  - Status badge │
+│  - Admin notes  │
+│  - Date         │
+└─────────────────┘
+```
+
+**Request Statuses:**
+- 🟡 **Pending**: Awaiting admin review
+- 🟢 **Approved**: Request accepted, market will be created
+- 🔴 **Rejected**: Request declined (with admin notes)
+- ✨ **Created**: Market has been created from this request
+
+### Admin Review Requests
+
+**Quick Review (Status Update Only):**
+```
+┌─────────────────┐
+│  /admin/requests│
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  Request Table  │
+│  - Filters      │
+│  - Search       │
+│  - Sort options │
+└────────┬────────┘
+         │
+         │ Click "Quick Review"
+         ▼
+┌─────────────────┐
+│  Review Dialog  │
+│  - View details │
+│  - Set status   │
+│  - Add notes    │
+└────────┬────────┘
+         │
+         │ Update
+         ▼
+┌─────────────────┐
+│  User notified  │
+│  via status     │
+│  change visible │
+│  in their tab   │
+└─────────────────┘
+```
+
+**Full Review (Create Event & Markets):**
+```
+┌─────────────────┐
+│  /admin/requests│
+└────────┬────────┘
+         │
+         │ Click "Full Review & Create"
+         ▼
+┌─────────────────────┐
+│  /admin/requests/[id]│
+│  Full Review Page    │
+└────────┬────────────┘
+         │
+    ┌────┴────┐
+    │         │
+    ▼         ▼
+┌────────┐ ┌────────────────────┐
+│Status  │ │  Event & Market    │
+│Update  │ │  Creation Form     │
+│Panel   │ │  - Event fields    │
+│        │ │  - Category/Type   │
+│- Status│ │  - Tags            │
+│- Notes │ │  - Multiple markets│
+└────────┘ └────────┬───────────┘
+                    │
+                    │ Submit
+                    ▼
+         ┌──────────────────────┐
+         │  Creates:            │
+         │  - Event (unpublished)│
+         │  - Markets (DRAFT)   │
+         │  - Status → CREATED  │
+         └──────────┬───────────┘
+                    │
+                    ▼
+         ┌──────────────────────┐
+         │  Redirect to         │
+         │  /admin/events/[id]  │
+         │  for final review    │
+         └──────────────────────┘
+```
+
+**Full Review Page Features:**
+- Pre-populated form with request title/description
+- Status dropdown to update request status
+- Event creation form with all fields:
+  - Title, slug, description
+  - Category and event type
+  - Start/end times
+  - Banner and logo URLs
+  - Tags selection
+- Multiple market creation:
+  - Question, outcomes
+  - Details markdown
+  - Resolution source URL
+  - Opens/closes dates
+  - Fee and seed liquidity
+- All events/markets created as unpublished/DRAFT
+
+---
+
+## 7. Admin Workflows
 
 ### Create Market
 

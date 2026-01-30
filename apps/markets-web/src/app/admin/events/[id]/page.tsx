@@ -14,6 +14,7 @@ import {
   getAdminEventEditUrl,
   getAdminEventNewMarketUrl,
   getAdminMarketUrl,
+  getAdminMarketEditUrl,
   getMarketUrl,
 } from "@/lib/urls";
 import { PublishToggle } from "@/components/admin/publish-toggle";
@@ -120,7 +121,81 @@ export default async function AdminEventDetailPage({ params }: PageProps) {
               </div>
             </GlassCardHeader>
             <GlassCardContent className="p-0">
-              <div className="overflow-x-auto">
+              {/* Mobile Card View */}
+              <div className="md:hidden p-4 space-y-3">
+                {event.markets.map((market) => {
+                  const outcomes = parseOutcomes(market.outcomes);
+                  const pool = Number(market.seed0) + Number(market.seed1) + Number(market.pool0) + Number(market.pool1);
+
+                  return (
+                    <div
+                      key={market.id}
+                      className="p-4 rounded-lg border border-border bg-card/50"
+                    >
+                      <div className="flex items-start justify-between gap-3 mb-3">
+                        <p className="font-medium text-sm flex-1 line-clamp-2">
+                          {market.question}
+                        </p>
+                        <Badge
+                          variant={
+                            market.status === "OPEN"
+                              ? "success"
+                              : market.status === "SETTLED"
+                                ? "default"
+                                : market.status === "RESOLVED"
+                                  ? "default"
+                                  : "secondary"
+                          }
+                          className="flex-shrink-0"
+                        >
+                          {market.status}
+                        </Badge>
+                      </div>
+                      <div className="flex flex-wrap gap-1 mb-3">
+                        <Badge variant="outline" className="text-xs">
+                          {outcomes[0]}
+                        </Badge>
+                        <Badge variant="outline" className="text-xs">
+                          {outcomes[1]}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center justify-between text-sm text-muted-foreground mb-3">
+                        <div className="flex items-center gap-4">
+                          <span>Pool: <span className="font-mono text-foreground">${pool.toLocaleString()}</span></span>
+                          <span>Bets: <span className="text-foreground">{market._count.bets}</span></span>
+                        </div>
+                        <PublishToggle
+                          id={market.id}
+                          type="market"
+                          isPublished={market.isPublished}
+                        />
+                      </div>
+                      <div className="flex gap-2 pt-3 border-t border-border/50">
+                        <Button variant="outline" size="sm" className="flex-1" asChild>
+                          <Link href={getAdminMarketUrl(market.id)}>
+                            <Eye className="h-4 w-4 mr-1" />
+                            View
+                          </Link>
+                        </Button>
+                        <Button variant="outline" size="sm" className="flex-1" asChild>
+                          <Link href={getAdminMarketEditUrl(market.id)}>
+                            <Pencil className="h-4 w-4 mr-1" />
+                            Edit
+                          </Link>
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+                {event.markets.length === 0 && (
+                  <p className="p-8 text-center text-muted-foreground">
+                    No markets yet. Add your first market!
+                  </p>
+                )}
+              </div>
+
+              {/* Desktop Table View */}
+              <div className="hidden md:block overflow-x-auto">
                 <table className="w-full">
                   <thead>
                     <tr className="border-b border-border">
@@ -142,7 +217,7 @@ export default async function AdminEventDetailPage({ params }: PageProps) {
                       <th className="text-right p-4 text-sm font-medium text-muted-foreground">
                         Bets
                       </th>
-                      <th className="text-right p-4 text-sm font-medium text-muted-foreground">
+                      <th className="text-right p-4 text-sm font-medium text-muted-foreground sticky right-0 bg-card">
                         Actions
                       </th>
                     </tr>
@@ -155,7 +230,7 @@ export default async function AdminEventDetailPage({ params }: PageProps) {
                       return (
                         <tr
                           key={market.id}
-                          className="border-b border-border/50 hover:bg-muted/50 transition-colors"
+                          className="border-b border-border/50 hover:bg-muted/50 transition-colors group"
                         >
                           <td className="p-4">
                             <p className="font-medium text-sm max-w-xs truncate">
@@ -200,12 +275,21 @@ export default async function AdminEventDetailPage({ params }: PageProps) {
                           <td className="p-4 text-right">
                             {market._count.bets}
                           </td>
-                          <td className="p-4 text-right">
-                            <Button variant="ghost" size="sm" asChild>
-                              <Link href={getAdminMarketUrl(market.id)}>
-                                <Eye className="h-4 w-4" />
-                              </Link>
-                            </Button>
+                          <td className="p-4 text-right sticky right-0 bg-card group-hover:bg-muted/50 transition-colors">
+                            <div className="flex items-center justify-end gap-1">
+                              <Button variant="ghost" size="sm" asChild>
+                                <Link href={getAdminMarketUrl(market.id)}>
+                                  <Eye className="h-4 w-4 mr-1" />
+                                  View
+                                </Link>
+                              </Button>
+                              <Button variant="ghost" size="sm" asChild>
+                                <Link href={getAdminMarketEditUrl(market.id)}>
+                                  <Pencil className="h-4 w-4 mr-1" />
+                                  Edit
+                                </Link>
+                              </Button>
+                            </div>
                           </td>
                         </tr>
                       );

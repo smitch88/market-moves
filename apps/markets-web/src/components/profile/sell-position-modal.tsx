@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Button,
   Dialog,
@@ -15,6 +15,7 @@ import { Loader2, TrendingDown, AlertTriangle } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { cn } from "@vault/ui/lib/utils";
 import { useAuthFetch } from "@/lib/auth/auth-fetch";
+import { useXPAnimation } from "@/components/layout/xp-animation";
 
 interface SellPositionModalProps {
   open: boolean;
@@ -60,6 +61,7 @@ export function SellPositionModal({
   const [loadingQuote, setLoadingQuote] = useState(false);
   const queryClient = useQueryClient();
   const authFetch = useAuthFetch();
+  const { queueBalanceChange, flushQueue } = useXPAnimation();
 
   const { market } = position;
   const title = market.event?.title || market.question;
@@ -90,6 +92,11 @@ export function SellPositionModal({
       return res.json();
     },
     onSuccess: (data) => {
+      // Queue balance increase animation (selling adds to balance)
+      if (data.proceeds && data.proceeds > 0) {
+        queueBalanceChange(Math.round(data.proceeds));
+      }
+      
       toast.success(data.message);
       queryClient.invalidateQueries({ queryKey: ["positions"] });
       queryClient.invalidateQueries({ queryKey: ["user-stats"] });
@@ -98,6 +105,11 @@ export function SellPositionModal({
       queryClient.invalidateQueries({ queryKey: ["positions-value"] });
       onSellComplete();
       onOpenChange(false);
+      
+      // Flush animations after modal closes
+      setTimeout(() => {
+        flushQueue();
+      }, 150);
     },
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : "Failed to sell shares");

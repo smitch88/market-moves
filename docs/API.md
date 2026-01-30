@@ -271,6 +271,62 @@ Claim a referral code after signup. Awards 10,000 XP to both the referrer and th
 
 ---
 
+## Market Request Endpoints
+
+### POST /api/market-requests
+Create a new market request.
+
+**Request Body:**
+```json
+{
+  "title": "Will Bitcoin reach $100k by 2026?",
+  "description": "I think this would be a great market because...",
+  "sourceUrl": "https://polymarket.com/..."
+}
+```
+
+**Response:**
+```json
+{
+  "id": "req_id",
+  "title": "Will Bitcoin reach $100k by 2026?",
+  "description": "...",
+  "sourceUrl": "https://...",
+  "status": "PENDING",
+  "createdAt": "2024-01-30T..."
+}
+```
+
+**Validation:**
+- Title: 5-200 characters
+- Description: 20-2000 characters
+- sourceUrl: Optional, must be valid URL
+- Max 5 pending requests per user
+
+---
+
+### GET /api/me/market-requests
+Get all market requests for the current user.
+
+**Response:**
+```json
+[
+  {
+    "id": "req_id",
+    "title": "Request title",
+    "description": "...",
+    "sourceUrl": "https://...",
+    "status": "PENDING",
+    "adminNotes": null,
+    "reviewedAt": null,
+    "createdAt": "2024-01-30T...",
+    "reviewer": null
+  }
+]
+```
+
+---
+
 ## Admin Endpoints
 
 All admin endpoints require `role: "ADMIN"`.
@@ -324,6 +380,84 @@ Process payouts for resolved market.
 
 ---
 
+### GET /api/admin/requests
+List all market requests.
+
+**Query Parameters:**
+| Param | Type | Description |
+|-------|------|-------------|
+| page | number | Page number (default: 1) |
+| pageSize | number | Results per page (default: 20) |
+| status | string | Filter by status (PENDING, APPROVED, REJECTED, CREATED) |
+| search | string | Search in title, description, or user |
+| sortBy | string | Sort field (createdAt, status, title) |
+| sortOrder | string | asc or desc |
+
+**Response:**
+```json
+{
+  "requests": [
+    {
+      "id": "req_id",
+      "title": "Request title",
+      "description": "...",
+      "sourceUrl": "https://...",
+      "status": "PENDING",
+      "adminNotes": null,
+      "reviewedAt": null,
+      "createdAt": "2024-01-30T...",
+      "user": {
+        "id": "user_id",
+        "name": "User Name",
+        "handle": "username",
+        "profileImageUrl": "https://..."
+      },
+      "reviewer": null
+    }
+  ],
+  "total": 10,
+  "page": 1,
+  "pageSize": 20,
+  "totalPages": 1
+}
+```
+
+---
+
+### GET /api/admin/requests/[id]
+Get a single market request by ID.
+
+---
+
+### PATCH /api/admin/requests/[id]
+Update a market request status.
+
+**Request Body:**
+```json
+{
+  "status": "APPROVED",
+  "adminNotes": "Great idea! We'll create this market soon."
+}
+```
+
+**Response:**
+```json
+{
+  "id": "req_id",
+  "title": "Request title",
+  "status": "APPROVED",
+  "adminNotes": "Great idea!...",
+  "reviewedAt": "2024-01-30T...",
+  "reviewer": {
+    "id": "admin_id",
+    "name": "Admin Name",
+    "handle": "admin"
+  }
+}
+```
+
+---
+
 ## Dev Endpoints (Development Only)
 
 ### GET /api/dev/impersonate
@@ -344,6 +478,119 @@ Stop impersonating.
 
 ### GET /api/dev/users
 List all users for dev tools.
+
+---
+
+## Resolution Sources (Public)
+
+### GET /api/resolution-sources
+
+List all active, public resolution sources.
+
+**Response:**
+```json
+{
+  "sources": [
+    {
+      "id": "string",
+      "slug": "vault-markets",
+      "name": "Vault Markets Official",
+      "description": "Official resolution source...",
+      "type": "INTERNAL | EXTERNAL | HYBRID",
+      "logoUrl": "string | null",
+      "websiteUrl": "string | null",
+      "apiUrl": "/api/resolution-sources/vault-markets",
+      "dataUrl": "/api/resolution-sources/vault-markets/data",
+      "marketCount": 10,
+      "verifiedDataPointCount": 25
+    }
+  ],
+  "meta": {
+    "total": 1,
+    "apiVersion": "1.0"
+  }
+}
+```
+
+### GET /api/resolution-sources/:slug
+
+Get details about a specific resolution source including recent data points.
+
+### GET /api/resolution-sources/:slug/data
+
+Get all verified data points for a resolution source.
+
+**Query Parameters:**
+- `key` - Filter by specific key
+- `marketId` - Filter by linked market
+- `since` - ISO date string to filter by effective date
+- `limit` - Max results (default 100, max 500)
+
+**Response:**
+```json
+{
+  "source": {
+    "slug": "vault-markets",
+    "name": "Vault Markets Official",
+    "type": "INTERNAL"
+  },
+  "dataPoints": [
+    {
+      "key": "superbowl_lix_winner",
+      "label": "Super Bowl LIX Winner",
+      "value": "Kansas City Chiefs",
+      "rawValue": "Kansas City Chiefs",
+      "valueType": "string",
+      "effectiveAt": "2026-02-09T00:00:00Z",
+      "verifiedAt": "2026-02-09T23:30:00Z",
+      "linkedMarket": {
+        "id": "market_id",
+        "question": "Who will win Super Bowl LIX?",
+        "url": "/events/super-bowl-lix"
+      }
+    }
+  ],
+  "meta": {
+    "total": 1,
+    "apiVersion": "1.0"
+  }
+}
+```
+
+### GET /api/resolution-sources/:slug/data/:key
+
+Get a specific data point by key. This is the primary endpoint for external systems to fetch resolution data.
+
+**Response:**
+```json
+{
+  "source": {
+    "slug": "vault-markets",
+    "name": "Vault Markets Official",
+    "type": "INTERNAL"
+  },
+  "data": {
+    "key": "superbowl_lix_winner",
+    "label": "Super Bowl LIX Winner",
+    "value": "Kansas City Chiefs",
+    "rawValue": "Kansas City Chiefs",
+    "valueType": "string",
+    "effectiveAt": "2026-02-09T00:00:00Z",
+    "verifiedAt": "2026-02-09T23:30:00Z"
+  },
+  "linkedMarket": {
+    "id": "market_id",
+    "question": "Who will win Super Bowl LIX?",
+    "status": "RESOLVED",
+    "resolvedOutcome": 0,
+    "outcomes": ["Kansas City Chiefs", "Philadelphia Eagles"]
+  },
+  "meta": {
+    "apiVersion": "1.0",
+    "fetchedAt": "2026-02-10T12:00:00Z"
+  }
+}
+```
 
 ---
 

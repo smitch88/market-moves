@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import Link from "next/link";
+import { usePrivy } from "@privy-io/react-auth";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ChevronLeft,
@@ -23,8 +24,8 @@ import type { Event, MarketCategory, EventType } from "@vault/database";
 import { cn } from "@vault/ui/lib/utils";
 import { getMarketUrl } from "@/lib/urls";
 import { useMarketUpdates, type PriceUpdate } from "@/hooks/use-market-updates";
-import { QuickBetModal } from "./quick-bet-modal";
 import { getOutcomeColors } from "@/lib/outcome-colors";
+import { QuickBetModal, type MarketData } from "./quick-bet-modal";
 
 // Partial market data that we receive from the featured events query
 interface FeaturedMarket {
@@ -178,9 +179,11 @@ function CustomTooltip({ active, payload, label, outcomes }: CustomTooltipProps)
 export function FeaturedEventBanner({ events }: FeaturedEventBannerProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [countdown, setCountdown] = useState("");
-  const [betModalOpen, setBetModalOpen] = useState(false);
-  const [selectedOutcomeIndex, setSelectedOutcomeIndex] = useState(0);
   const [livePrices, setLivePrices] = useState<Map<string, [number, number]>>(new Map());
+  const [betModalOpen, setBetModalOpen] = useState(false);
+  const [selectedOutcomeIndex, setSelectedOutcomeIndex] = useState<number | null>(null);
+  
+  const { authenticated, login } = usePrivy();
 
   const currentEvent = events[currentIndex];
 
@@ -248,10 +251,41 @@ export function FeaturedEventBanner({ events }: FeaturedEventBannerProps) {
 
   const chartData = generateChartData(percent0, percent1);
 
-  // Handle outcome button click
+  // Convert FeaturedMarket to MarketData format for the modal
+  const getMarketDataForModal = useMemo((): MarketData | null => {
+    if (!primaryMarket) return null;
+    
+    const pool0 = Number(primaryMarket.pool0);
+    const pool1 = Number(primaryMarket.pool1);
+    const seed0 = Number(primaryMarket.seed0);
+    const seed1 = Number(primaryMarket.seed1);
+    const total = pool0 + pool1 + seed0 + seed1;
+    
+    return {
+      id: primaryMarket.id,
+      question: primaryMarket.question,
+      outcomes: primaryMarket.outcomes,
+      status: "OPEN",
+      closesAt: primaryMarket.closesAt || null,
+      stats: {
+        percent0: total > 0 ? Math.round(((pool0 + seed0) / total) * 100) : 50,
+        percent1: total > 0 ? Math.round(((pool1 + seed1) / total) * 100) : 50,
+        totalPool: total,
+      },
+    };
+  }, [primaryMarket]);
+
+  // Handle outcome button click - open bet modal or show login
   const handleOutcomeClick = (e: React.MouseEvent, index: number) => {
     e.preventDefault();
     e.stopPropagation();
+    
+    if (!authenticated) {
+      login();
+      return;
+    }
+    
+    // Open the bet modal with the selected outcome
     setSelectedOutcomeIndex(index);
     setBetModalOpen(true);
   };
@@ -333,7 +367,7 @@ export function FeaturedEventBanner({ events }: FeaturedEventBannerProps) {
                                 : outcome}
                             </span>
                             <span className="text-lg font-bold tabular-nums">
-                              {Math.round(price * 100)}¢
+                              {Math.round(price * 100)}%
                             </span>
                           </div>
                         </motion.button>
@@ -521,13 +555,14 @@ export function FeaturedEventBanner({ events }: FeaturedEventBannerProps) {
         </AnimatePresence>
       </div>
 
-      {/* Quick Bet Modal */}
+      {/* Quick Bet Modal - skips to amount step with pre-selected market and outcome */}
       <QuickBetModal
         open={betModalOpen}
         onOpenChange={setBetModalOpen}
-        event={currentEvent}
-        market={primaryMarket}
-        selectedOutcomeIndex={selectedOutcomeIndex}
+        eventId={currentEvent.id}
+        eventTitle={currentEvent.title}
+        initialMarket={getMarketDataForModal}
+        initialOutcome={selectedOutcomeIndex}
       />
     </>
   );

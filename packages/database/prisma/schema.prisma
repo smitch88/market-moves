@@ -55,10 +55,15 @@ model User {
   bets             Bet[]
   positions        Position[]
   raffleEntries    RaffleEntry[]
-  referralReceived Referral?         @relation("ReferredUser")
-  referralsGiven   Referral[]        @relation("ReferrerUser")
-  tweetProofs      TweetProof[]
-  pnlSnapshots     UserPnLSnapshot[]
+  referralReceived       Referral?         @relation("ReferredUser")
+  referralsGiven         Referral[]        @relation("ReferrerUser")
+  tweetProofs            TweetProof[]
+  pnlSnapshots           UserPnLSnapshot[]
+  marketRequests         MarketRequest[]
+  marketRequestsReviewed MarketRequest[]   @relation("MarketRequestReviewer")
+  bookmarks              Bookmark[]
+  xpTradeTrackers        XPTradeTracker[]
+  xpDailyTotals          XPDailyTotal[]
 
   @@index([email])
   @@index([twitterSubject])
@@ -168,6 +173,55 @@ model XPConfig {
   updatedBy   String? // Admin ID who last updated
 }
 
+/// Tracks XP-related trading activity per user per market per day
+/// Used for anti-abuse protections: cooldowns, diminishing returns, caps
+model XPTradeTracker {
+  id        String   @id @default(cuid())
+  userId    String
+  marketId  String
+  date      DateTime @db.Date // Date only (no time) for daily tracking
+  
+  // Tracking metrics
+  tradeCount      Int      @default(0) // Number of trades today in this market
+  totalVolume     Decimal  @default(0) @db.Decimal(20, 2) // Total $ volume today in this market
+  xpEarned        Int      @default(0) // XP earned from this market today
+  lastTradeAt     DateTime @default(now()) // Last trade timestamp (for cooldown)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  market Market @relation(fields: [marketId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, marketId, date])
+  @@index([userId, date])
+  @@index([marketId])
+  @@index([lastTradeAt])
+}
+
+/// Tracks daily XP totals per user (for daily cap enforcement)
+model XPDailyTotal {
+  id       String   @id @default(cuid())
+  userId   String
+  date     DateTime @db.Date // Date only
+  
+  totalXpEarned    Int     @default(0) // Total XP earned today from trading
+  totalVolume      Decimal @default(0) @db.Decimal(20, 2) // Total volume traded today
+  tradesCount      Int     @default(0) // Total trades today across all markets
+  marketsTraded    Int     @default(0) // Unique markets traded today
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, date])
+  @@index([userId])
+  @@index([date])
+}
+
 // ============================================================================
 // EVENTS & MARKETS
 // ============================================================================
@@ -204,8 +258,9 @@ model Event {
   updatedAt   DateTime       @updatedAt
 
   // Relations
-  markets Market[]
-  tags    Tag[]    @relation("EventToTag")
+  markets   Market[]
+  tags      Tag[]      @relation("EventToTag")
+  bookmarks Bookmark[]
 
   @@index([category])
   @@index([eventType])
@@ -254,14 +309,20 @@ model Market {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // Resolution source linkage
+  resolutionSourceId String?
+  resolutionSource   ResolutionSource? @relation(fields: [resolutionSourceId], references: [id], onDelete: SetNull)
+
   // Relations
-  bets           Bet[]
-  event          Event           @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  positions      Position[]
-  priceSnapshots PriceSnapshot[]
-  raffleEntries  RaffleEntry[]
-  tweetProofs    TweetProof[]
-  pnlLedger      PnLLedger[]
+  bets                 Bet[]
+  event                Event                 @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  positions            Position[]
+  priceSnapshots       PriceSnapshot[]
+  raffleEntries        RaffleEntry[]
+  tweetProofs          TweetProof[]
+  pnlLedger            PnLLedger[]
+  resolutionDataPoints ResolutionDataPoint[]
+  xpTradeTrackers      XPTradeTracker[]
 
   @@index([eventId])
   @@index([status])
@@ -269,6 +330,7 @@ model Market {
   @@index([publishedAt])
   @@index([pricingModel])
   @@index([isPublished])
+  @@index([resolutionSourceId])
 }
 
 /// Price snapshots for historical price tracking
@@ -427,6 +489,53 @@ model RaffleEntry {
 }
 
 // ============================================================================
+// MARKET REQUESTS (KOL Feature)
+// ============================================================================
+
+/// Market request from users (KOL feature)
+model MarketRequest {
+  id          String              @id @default(cuid())
+  userId      String
+  title       String
+  description String
+  sourceUrl   String? // Optional URL to Polymarket/Kalshi
+  status      MarketRequestStatus @default(PENDING)
+  adminNotes  String? // Admin response/notes
+  reviewedAt  DateTime?
+  reviewedBy  String? // Admin user ID who reviewed
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  // Relations
+  user     User  @relation(fields: [userId], references: [id])
+  reviewer User? @relation("MarketRequestReviewer", fields: [reviewedBy], references: [id])
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+// ============================================================================
+// BOOKMARKS
+// ============================================================================
+
+/// User bookmarks for events
+model Bookmark {
+  id        String   @id @default(cuid())
+  userId    String
+  eventId   String
+  createdAt DateTime @default(now())
+
+  // Relations
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, eventId])
+  @@index([userId])
+  @@index([eventId])
+}
+
+// ============================================================================
 // ADMIN & SYSTEM
 // ============================================================================
 
@@ -551,6 +660,11 @@ enum AdminAction {
   EVENT_UPDATE
   UPDATE_ROLE
   ADD_ADMIN
+  RESOLUTION_SOURCE_CREATE
+  RESOLUTION_SOURCE_UPDATE
+  RESOLUTION_DATA_CREATE
+  RESOLUTION_DATA_UPDATE
+  RESOLUTION_DATA_VERIFY
 }
 
 enum XPReason {
@@ -560,6 +674,101 @@ enum XPReason {
   PENALTY // Penalty/correction
   SHARE_TWEET // XP earned from sharing bet on X
   REFERRAL_BONUS // XP earned from referral (both referrer and referred)
+}
+
+enum MarketRequestStatus {
+  PENDING // Awaiting admin review
+  APPROVED // Approved - market will be created
+  REJECTED // Rejected by admin
+  CREATED // Market has been created from this request
+}
+
+enum ResolutionSourceType {
+  INTERNAL // Vault Markets is the authoritative source
+  EXTERNAL // External API/website is the source
+  HYBRID // Both internal tracking and external verification
+}
+
+// ============================================================================
+// RESOLUTION SOURCES
+// ============================================================================
+
+/// Resolution sources define where market outcomes are determined
+model ResolutionSource {
+  id          String               @id @default(cuid())
+  slug        String               @unique
+  name        String
+  description String?
+  type        ResolutionSourceType @default(INTERNAL)
+
+  // For external sources
+  externalApiUrl    String? // External API endpoint for fetching data
+  externalApiHeaders Json?   // Headers for authentication (stored securely)
+  
+  // Branding/display
+  logoUrl    String?
+  websiteUrl String?
+  
+  // Status
+  isActive  Boolean @default(true)
+  isPublic  Boolean @default(true) // Whether this source is exposed in public API
+  
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  markets    Market[]
+  dataPoints ResolutionDataPoint[]
+
+  @@index([slug])
+  @@index([type])
+  @@index([isActive])
+  @@index([isPublic])
+}
+
+/// Data points store resolution data for markets
+model ResolutionDataPoint {
+  id                 String           @id @default(cuid())
+  resolutionSourceId String
+  resolutionSource   ResolutionSource @relation(fields: [resolutionSourceId], references: [id], onDelete: Cascade)
+
+  // Data identification
+  key       String // e.g., "btc_price_2024_eoy", "superbowl_lix_winner"
+  label     String? // Human-readable label
+  
+  // Value storage
+  value      String // The resolved value
+  valueType  String @default("string") // "string", "number", "boolean", "json"
+  
+  // Optional market linkage
+  marketId String?
+  market   Market? @relation(fields: [marketId], references: [id], onDelete: SetNull)
+  
+  // External verification
+  externalValue     String? // Value fetched from external source
+  externalFetchedAt DateTime?
+  isVerified        Boolean  @default(false)
+  verifiedAt        DateTime?
+  verifiedBy        String? // Admin user ID who verified
+  
+  // Context/metadata
+  metadata  Json? // Additional context
+  notes     String? // Admin notes
+  
+  // Validity period
+  effectiveAt DateTime @default(now()) // When this data point becomes effective
+  expiresAt   DateTime? // Optional expiration
+  
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([resolutionSourceId, key])
+  @@index([resolutionSourceId])
+  @@index([marketId])
+  @@index([key])
+  @@index([effectiveAt])
 }
 
 // ============================================================================
