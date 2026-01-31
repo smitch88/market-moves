@@ -163,7 +163,7 @@ export function Header() {
           {hasSession && (
             <div className="hidden sm:flex items-center gap-5 mr-2">
               <div className="flex flex-col items-center min-h-[44px]">
-                <span className="text-[11px] text-muted-foreground font-medium tracking-wide">XP</span>
+                <span className="text-[11px] text-muted-foreground font-medium tracking-wide">MP</span>
                 <AnimatedXPDisplay xp={xp} isLoading={isLoadingUserData} />
               </div>
               <div className="flex flex-col items-center min-h-[44px]">

@@ -66,8 +66,6 @@ function parseOutcomes(outcomes: string): string[] {
   }
 }
 
-const SHARE_XP_BONUS = 50;
-
 export function QuickBetModal({
   open,
   onOpenChange,
@@ -104,6 +102,7 @@ export function QuickBetModal({
   
   // Share for XP state
   const [xpClaimed, setXpClaimed] = useState(false);
+  const [claimedXPAmount, setClaimedXPAmount] = useState(0);
   const [tweetUrl, setTweetUrl] = useState("");
   const [showManualEntry, setShowManualEntry] = useState(false);
   
@@ -123,6 +122,7 @@ export function QuickBetModal({
       setConfirmedOutcome(null);
       setCopied(false);
       setXpClaimed(false);
+      setClaimedXPAmount(0);
       setTweetUrl("");
       setShowManualEntry(false);
     }
@@ -150,6 +150,20 @@ export function QuickBetModal({
     enabled: authenticated && open,
   });
 
+  // Fetch share XP config
+  const { data: shareConfig } = useQuery({
+    queryKey: ["shareXPConfig"],
+    queryFn: async () => {
+      const res = await fetch("/api/xp/share-config");
+      if (!res.ok) return { shareBonusPercent: 20, xpPerDollar: 10 };
+      return res.json();
+    },
+    enabled: open,
+    staleTime: 60000, // Cache for 1 minute
+  });
+
+  const shareBonusPercent = shareConfig?.shareBonusPercent ?? 20;
+  const xpPerDollar = shareConfig?.xpPerDollar ?? 10;
   const balance = profile?.balance ?? 10000;
   const markets = data?.markets || [];
   const event = data?.event;
@@ -220,11 +234,15 @@ export function QuickBetModal({
     },
     onSuccess: async (data) => {
       if (data.verified) {
-        // Queue XP animation
-        queueXPGain(SHARE_XP_BONUS);
+        // Queue XP animation with actual awarded amount from API
+        const xpAwarded = data.xpAwarded || 0;
+        if (xpAwarded > 0) {
+          queueXPGain(xpAwarded);
+        }
         
         setXpClaimed(true);
-        toast.success(`+${SHARE_XP_BONUS} XP earned for sharing!`);
+        setClaimedXPAmount(xpAwarded);
+        toast.success(`+${xpAwarded.toLocaleString()} MP earned for sharing!`);
         await queryClient.invalidateQueries({ queryKey: ["profile"] });
         await queryClient.invalidateQueries({ queryKey: ["xp"] });
       } else {
@@ -236,9 +254,9 @@ export function QuickBetModal({
     onError: (error: Error) => {
       if (error.message.includes("already claimed")) {
         setXpClaimed(true);
-        toast.info("XP already claimed for this bet!");
+        toast.info("MP already claimed for this bet!");
       } else if (error.message.includes("already been used")) {
-        toast.warning("This tweet was already used for XP. Please share a new tweet!");
+        toast.warning("This tweet was already used for MP. Please share a new tweet!");
       } else {
         // Show manual entry on error
         setShowManualEntry(true);
@@ -611,7 +629,7 @@ export function QuickBetModal({
               {betId && !xpClaimed && (
                 <div className="space-y-2 pt-2 border-t border-border/50">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <span className="text-xs sm:text-sm font-medium">Claim +{SHARE_XP_BONUS} XP for sharing on X</span>
+                    <span className="text-xs sm:text-sm font-medium">Claim +{shareBonusPercent}% MP bonus for sharing on X</span>
                     {hasTwitter && (
                       <Button
                         onClick={() => shareXPMutation.mutate("timeline")}
@@ -656,7 +674,7 @@ export function QuickBetModal({
               {xpClaimed && (
                 <div className="flex items-center justify-center gap-2 text-green-500 pt-2 border-t border-border/50">
                   <Check className="h-4 w-4" />
-                  <span className="text-sm font-medium">+{SHARE_XP_BONUS} XP Claimed!</span>
+                  <span className="text-sm font-medium">+{claimedXPAmount.toLocaleString()} MP Claimed!</span>
                 </div>
               )}
 

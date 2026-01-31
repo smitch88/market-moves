@@ -85,8 +85,8 @@ const sortOptions = [
   { value: "createdAt_asc", label: "Oldest First" },
   { value: "balance_desc", label: "Highest Balance" },
   { value: "balance_asc", label: "Lowest Balance" },
-  { value: "xp_desc", label: "Highest XP" },
-  { value: "xp_asc", label: "Lowest XP" },
+  { value: "xp_desc", label: "Highest MP" },
+  { value: "xp_asc", label: "Lowest MP" },
 ];
 
 export default function AdminUsersPage() {
@@ -218,7 +218,7 @@ export default function AdminUsersPage() {
       });
       if (!res.ok) {
         const error = await res.json();
-        throw new Error(error.error || "Failed to adjust XP");
+        throw new Error(error.error || "Failed to adjust MP");
       }
       return res.json();
     },
@@ -537,11 +537,11 @@ export default function AdminUsersPage() {
                           <DropdownMenuLabel className="text-xs text-muted-foreground font-normal">Experience</DropdownMenuLabel>
                           <DropdownMenuItem onClick={() => openXpDialog(user, true)} className="cursor-pointer">
                             <Plus className="h-4 w-4 mr-2 text-purple-500" />
-                            Add XP
+                            Add MP
                           </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => openXpDialog(user, false)} className="cursor-pointer">
                             <Minus className="h-4 w-4 mr-2 text-purple-400" />
-                            Subtract XP
+                            Subtract MP
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -553,7 +553,7 @@ export default function AdminUsersPage() {
                           <p className="text-sm font-mono text-[#df2421]">${user.balance.toLocaleString()}</p>
                         </div>
                         <div>
-                          <p className="text-xs text-muted-foreground">XP</p>
+                          <p className="text-xs text-muted-foreground">MP</p>
                           <p className="text-sm font-mono text-purple-400">{(user.xp ?? 0).toLocaleString()}</p>
                         </div>
                         <div>
@@ -584,7 +584,7 @@ export default function AdminUsersPage() {
                         Balance
                       </th>
                       <th className="text-right p-4 font-medium text-muted-foreground">
-                        XP
+                        MP
                       </th>
                       <th className="text-right p-4 font-medium text-muted-foreground">
                         Bets
@@ -690,11 +690,11 @@ export default function AdminUsersPage() {
                               <DropdownMenuLabel className="text-xs text-muted-foreground font-normal">Experience</DropdownMenuLabel>
                               <DropdownMenuItem onClick={() => openXpDialog(user, true)} className="cursor-pointer">
                                 <Plus className="h-4 w-4 mr-2 text-purple-500" />
-                                Add XP
+                                Add MP
                               </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => openXpDialog(user, false)} className="cursor-pointer">
                                 <Minus className="h-4 w-4 mr-2 text-purple-400" />
-                                Subtract XP
+                                Subtract MP
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
@@ -863,12 +863,12 @@ export default function AdminUsersPage() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Sparkles className="h-5 w-5 text-purple-500" />
-              {xpIsAddition ? "Add" : "Subtract"} XP
+              {xpIsAddition ? "Add" : "Subtract"} MP
             </DialogTitle>
             <DialogDescription>
               {xpIsAddition ? "Add to" : "Subtract from"}{" "}
-              {xpSelectedUser?.name || xpSelectedUser?.handle || "user"}&apos;s XP.
-              Current XP: {(xpSelectedUser?.xp ?? 0).toLocaleString()}
+              {xpSelectedUser?.name || xpSelectedUser?.handle || "user"}&apos;s MP.
+              Current MP: {(xpSelectedUser?.xp ?? 0).toLocaleString()}
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleXpSubmit}>
@@ -900,7 +900,7 @@ export default function AdminUsersPage() {
               </div>
               {xpSelectedUser && xpAmount && (
                 <p className="text-sm text-muted-foreground">
-                  New XP will be:{" "}
+                  New MP will be:{" "}
                   {Math.max(
                     0,
                     (xpSelectedUser.xp ?? 0) + (xpIsAddition ? 1 : -1) * (parseInt(xpAmount, 10) || 0)
@@ -921,14 +921,14 @@ export default function AdminUsersPage() {
                 {xpMutation.isPending && (
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 )}
-                {xpIsAddition ? "Add" : "Subtract"} XP
+                {xpIsAddition ? "Add" : "Subtract"} MP
               </Button>
             </DialogFooter>
             {xpMutation.isError && (
               <p className="text-destructive text-sm text-center mt-2">
                 {xpMutation.error instanceof Error
                   ? xpMutation.error.message
-                  : "Failed to adjust XP"}
+                  : "Failed to adjust MP"}
               </p>
             )}
           </form>

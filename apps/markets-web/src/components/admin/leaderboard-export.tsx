@@ -96,7 +96,7 @@ export function LeaderboardExport({
             </DialogTitle>
             <DialogDescription>
               Download a snapshot of the current leaderboard with user data
-              including Twitter IDs, XP, PnL, and more.
+              including Twitter IDs, MP, PnL, and more.
             </DialogDescription>
           </DialogHeader>
 
@@ -138,7 +138,7 @@ export function LeaderboardExport({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="xp">XP (Highest)</SelectItem>
+                    <SelectItem value="xp">MP (Highest)</SelectItem>
                     <SelectItem value="pnl">PnL (Highest)</SelectItem>
                     <SelectItem value="volume">Volume (Highest)</SelectItem>
                   </SelectContent>
@@ -166,7 +166,7 @@ export function LeaderboardExport({
               <p className="font-medium mb-1">Export includes:</p>
               <ul className="text-muted-foreground text-xs space-y-1">
                 <li>• User ID, Twitter ID, Handle, Name, Email</li>
-                <li>• XP, Realized PnL, Total Volume, Balance</li>
+                <li>• MP, Realized PnL, Total Volume, Balance</li>
                 <li>• Total Bets, Positions, Verified Tweets</li>
                 <li>• Account Creation Date</li>
               </ul>

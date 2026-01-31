@@ -8,10 +8,8 @@ import {
   verifyTweetByTimeline,
   verifyTweetByUrl,
 } from "@/lib/services/tweet-verification";
-import { calculateLevel } from "@/lib/services/xp-service";
+import { calculateLevel, getXPConfig } from "@/lib/services/xp-service";
 import { z } from "zod";
-
-const SHARE_XP_BONUS = 50; // XP awarded for sharing bet
 
 const shareXPSchema = z.object({
   method: z.enum(["timeline", "url"]),
@@ -171,6 +169,13 @@ export async function POST(
       }
     }
 
+    // Get XP config for share bonus percentage
+    const xpConfig = await getXPConfig();
+    
+    // Calculate XP bonus as percentage of bet amount
+    const betAmount = Number(bet.amount);
+    const xpBonus = Math.floor(betAmount * (xpConfig.shareBonusPercent / 100) * xpConfig.xpPerDollar);
+
     // Award XP bonus
     const result = await prisma.$transaction(async (tx) => {
       // Get current XP
@@ -184,7 +189,7 @@ export async function POST(
       }
 
       const xpBefore = currentUser.xp;
-      const xpAfter = xpBefore + SHARE_XP_BONUS;
+      const xpAfter = xpBefore + xpBonus;
 
       // Update user XP
       await tx.user.update({
@@ -196,7 +201,7 @@ export async function POST(
       await tx.xPLedger.create({
         data: {
           userId: user.id,
-          delta: SHARE_XP_BONUS,
+          delta: xpBonus,
           xpBefore,
           xpAfter,
           reason: XPReason.SHARE_TWEET,
@@ -212,12 +217,13 @@ export async function POST(
 
     return NextResponse.json({
       verified: true,
-      xpAwarded: SHARE_XP_BONUS,
+      xpAwarded: xpBonus,
       newXp: result.xpAfter,
       newLevel: levelAfter,
       leveledUp: levelAfter > levelBefore,
       tweetId: verificationResult.tweetId,
-      message: `+${SHARE_XP_BONUS} XP for sharing!`,
+      message: `+${xpBonus.toLocaleString()} XP for sharing!`,
+      shareBonusPercent: xpConfig.shareBonusPercent,
     });
   } catch (error) {
     if (error instanceof z.ZodError) {

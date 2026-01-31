@@ -35,6 +35,7 @@ This document describes all user journeys and workflows in the Vault Markets app
 ┌─────────────────┐
 │  User Provisioned│
 │  Balance: $10,000│
+│  XP: 0          │
 └────────┬────────┘
          │
          ▼
@@ -51,48 +52,49 @@ This document describes all user journeys and workflows in the Vault Markets app
 4. On first login, user is automatically provisioned:
    - Assigned unique ID and referral code
    - Given initial balance of $10,000
-   - Admin role assigned if Twitter ID is in allowlist
+   - XP starts at 0
+   - Admin role assigned if Twitter ID/email is in allowlist
 5. User is redirected back to app with profile card visible
 
 ---
 
 ## 2. Market Discovery Flow
 
-### Browse and Filter Markets
+### Browse and Filter Events
 
 ```
 ┌─────────────────┐
 │  Home Page (/)  │
 └────────┬────────┘
          │
-    ┌────┴────┐
-    │         │
-    ▼         ▼
-┌───────┐ ┌───────┐
-│ Sort  │ │Category│
-│Filters│ │Filters│
-└───┬───┘ └───┬───┘
-    │         │
-    └────┬────┘
+    ┌────┴────┬────────┐
+    │         │        │
+    ▼         ▼        ▼
+┌───────┐ ┌───────┐ ┌────────┐
+│ Sort  │ │Category│ │Bookmarks│
+│Options│ │Filter │ │Filter  │
+└───┬───┘ └───┬───┘ └───┬────┘
+    │         │         │
+    └────┬────┴─────────┘
          │
          ▼
 ┌─────────────────┐
 │  Filtered Grid  │
-│  Market Cards   │
+│  Event Cards    │
 └─────────────────┘
 ```
 
 **Sort Options:**
-- Trending (most bets)
+- Trending (most activity)
 - Ending Soon (closes soonest)
 - New (recently published)
 
 **Categories:**
-- All
-- NFL / NBA / UFC
-- Entertainment
-- Politics
-- Crypto
+- All, NFL, NBA, NHL, MLB, SOCCER, UFC, TENNIS, GOLF, ESPORTS
+- POLITICS, CRYPTO, FINANCE, ENTERTAINMENT, OTHER
+
+**Special Filters:**
+- Bookmarks (authenticated users only)
 
 ### Search Markets
 
@@ -125,28 +127,126 @@ This document describes all user journeys and workflows in the Vault Markets app
     │           │
     ▼           ▼
 ┌───────┐ ┌────────────┐
-│Market │ │ Filtered   │
+│Event  │ │ Filtered   │
 │Detail │ │ Home Page  │
 └───────┘ └────────────┘
 ```
 
 ---
 
-## 3. Betting Flow
+## 3. Quick Bet Flow
+
+### Place Bet from Landing Page
+
+```
+┌─────────────────┐
+│  Home Page (/)  │
+│  Event Grid     │
+└────────┬────────┘
+         │
+         │ Click "Quick Bet" on event card
+         ▼
+┌─────────────────────┐
+│  Quick Bet Modal    │
+│  (Full screen mobile)│
+└────────┬────────────┘
+         │
+         │ If multiple markets
+         ▼
+┌─────────────────┐
+│  Market Select  │
+│  List markets   │
+└────────┬────────┘
+         │
+         │ Select market
+         ▼
+┌─────────────────┐
+│  Outcome Select │
+│  Yes/No buttons │
+└────────┬────────┘
+         │
+         │ Select outcome
+         ▼
+┌─────────────────┐
+│  Amount Entry   │
+│  $100/$500/$1k  │
+│  Max button     │
+└────────┬────────┘
+         │
+         │ Enter amount
+         ▼
+┌─────────────────┐
+│  Review & Buy   │
+│  Shows quote    │
+│  Price impact   │
+└────────┬────────┘
+         │
+         │ Confirm
+         ▼
+┌─────────────────┐
+│  POST /api/     │
+│  trades/buy     │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  Success Modal  │
+│  +XP animation  │
+│  Share options  │
+└─────────────────┘
+```
+
+**Key Features:**
+- No page navigation required
+- Full-screen on mobile devices
+- XP animation in header
+- Balance updates instantly
+- Share to X for bonus XP
+
+### Featured Hero Quick Bet
+
+For the featured event banner:
+```
+┌─────────────────┐
+│  Featured Banner│
+│  Click "Bet"    │
+└────────┬────────┘
+         │
+         │ If logged in
+         ▼
+┌─────────────────┐
+│  Quick Bet Modal│
+│  Skip market    │
+│  selection      │
+│  (go direct to  │
+│   outcome step) │
+└─────────────────┘
+         │
+         │ If not logged in
+         ▼
+┌─────────────────┐
+│  Login Modal    │
+│  via Privy      │
+└─────────────────┘
+```
+
+---
+
+## 4. Full Betting Flow (Market Page)
 
 ### Place a Bet
 
 ```
 ┌─────────────────┐
-│  Market Detail  │
-│  /markets/[slug]│
+│  Event Detail   │
+│  /m/[slug]      │
 └────────┬────────┘
          │
          ▼
 ┌─────────────────┐
 │  Betting Panel  │
 │  Select Outcome │
-│  [A] or [B]     │
+│  [Yes] or [No]  │
 └────────┬────────┘
          │
          │ (If not authenticated → Sign In)
@@ -154,69 +254,106 @@ This document describes all user journeys and workflows in the Vault Markets app
 ┌─────────────────┐
 │  Enter Amount   │
 │  Quick presets: │
-│  $100/$500/$1k/Max│
+│  $100/$500/$1k  │
 └────────┬────────┘
          │
          ▼
 ┌─────────────────┐
-│  POST /api/bets │
-│  Reserve Balance│
-│  Status: PENDING│
+│  Toggle: Buy/Sell│
+│  Show quote     │
 └────────┬────────┘
          │
          ▼
 ┌─────────────────┐
-│  Tweet Step     │
-│  "Post on X"    │
+│  POST /api/     │
+│  trades/buy     │
 └────────┬────────┘
          │
          ▼
 ┌─────────────────┐
-│  X Intent Opens │
-│  Pre-filled Tweet│
-└────────┬────────┘
-         │
-         │ User posts tweet
-         ▼
-┌─────────────────┐
-│  Verify Step    │
-│  Click "Verify" │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│  API Checks     │
-│  User Timeline  │
-└────────┬────────┘
-         │
-    ┌────┴────┐
-    │         │
-    ▼         ▼
-┌───────┐ ┌───────┐
-│Found  │ │Not    │
-│       │ │Found  │
-└───┬───┘ └───┬───┘
-    │         │
-    ▼         ▼
-┌───────┐ ┌───────────┐
-│SUCCESS│ │ Retry or  │
-│MODAL  │ │ Paste URL │
-└───────┘ └───────────┘
+│  Success Modal  │
+│  Bet ticket     │
+│  Share options  │
+│  +XP animation  │
+└─────────────────┘
 ```
 
-### Success Modal
+### Success Modal Features
 
-After successful bet confirmation:
-- 🏆 Trophy icon with celebration animation
-- Bet details (market, pick, amount)
-- Share buttons:
-  - "Post on X" - Share your prediction
-  - Copy link button
+After successful bet:
+- Bet ticket with details (market, pick, amount, odds)
+- "Share on X" button (earn +50 XP)
+- Download ticket image
+- Copy link button
 - "Continue Browsing" to close
+- XP and Balance animations in header
 
 ---
 
-## 4. Profile Management
+## 5. Bookmarking Flow
+
+### Add Bookmark
+
+```
+┌─────────────────┐
+│  Event Card     │
+│  (Home page)    │
+└────────┬────────┘
+         │
+         │ Click bookmark icon
+         ▼
+┌─────────────────┐
+│  If logged in   │
+│  POST /api/     │
+│  bookmarks      │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  Icon fills     │
+│  Optimistic UI  │
+└─────────────────┘
+
+         OR
+
+┌─────────────────┐
+│  If logged out  │
+│  Login Modal    │
+└─────────────────┘
+```
+
+### View Bookmarks
+
+```
+┌─────────────────┐
+│  Home Page      │
+│  Filter: "Bookmarks"│
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  Filtered Grid  │
+│  Only bookmarked│
+│  events         │
+└─────────────────┘
+
+      OR
+
+┌─────────────────┐
+│  /profile       │
+│  Bookmarks Tab  │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  Bookmark List  │
+│  Remove option  │
+└─────────────────┘
+```
+
+---
+
+## 6. Profile Management
 
 ### View Profile
 
@@ -240,23 +377,30 @@ After successful bet confirmation:
 │  /profile       │
 └────────┬────────┘
          │
-    ┌────┬────┬────┐
-    │    │    │    │
-    ▼    ▼    ▼    ▼
-┌───────┐ ┌───────┐ ┌───────┐ ┌───────┐
-│Positions│Activity│Requests│Settings│
-│  Tab  │ │  Tab  │ │  Tab  │ │  Tab  │
-└───────┘ └───────┘ └───────┘ └───────┘
+    ┌────┼────┬────┬────┐
+    │    │    │    │    │
+    ▼    ▼    ▼    ▼    ▼
+┌──────┐┌──────┐┌──────┐┌──────┐┌──────┐
+│Posit-││Activ-││Book- ││Reque-││Setti-│
+│ions  ││ity   ││marks ││sts   ││ngs   │
+└──────┘└──────┘└──────┘└──────┘└──────┘
 ```
 
 **Positions Tab:**
 - Active positions with current value
+- P&L per position
 - Sell/redeem options
+- Market status indicators
 
 **Activity Tab:**
 - Recent bets list
 - Transaction history
-- Bet history with status
+- Bet status (Confirmed, Won, Lost)
+
+**Bookmarks Tab:**
+- Saved events
+- Quick navigate to event
+- Remove bookmark option
 
 **Requests Tab:**
 - Submitted market requests
@@ -265,14 +409,178 @@ After successful bet confirmation:
 - "New Request" button
 
 **Settings Tab:**
-- Account info (handle, email)
+- Edit handle and display name
+- Profile image URL
 - Referral link and code
 - Friends invited count
-- Share on X button
+- Share referral on X
 
 ---
 
-## 5. Referral Flow
+## 7. XP Animation Flow
+
+### On Bet Placement
+
+```
+┌─────────────────┐
+│  Place Bet      │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  API returns    │
+│  xpAwarded      │
+└────────┬────────┘
+         │
+         ├──────────────────────┐
+         │                      │
+         ▼                      ▼
+┌─────────────────┐  ┌─────────────────┐
+│  Header XP      │  │  Header Balance │
+│  +1000 XP       │  │  -$100          │
+│  (green, float  │  │  (red, float    │
+│   up animation) │  │   up animation) │
+└─────────────────┘  └─────────────────┘
+```
+
+### XP Protection Feedback
+
+```
+┌─────────────────┐
+│  Place Bet      │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  Check XP Status│
+└────────┬────────┘
+         │
+    ┌────┼────┬────┐
+    │    │    │    │
+    ▼    ▼    ▼    ▼
+┌──────┐┌────────┐┌─────────┐┌──────────┐
+│Full  ││Cooldown││Diminish-││Daily Cap │
+│XP    ││Active  ││ing      ││Reached   │
+│      ││        ││Returns  ││          │
+│+1000 ││+0 XP   ││+600 XP  ││+0 XP     │
+│XP    ││(reason ││(60%     ││(reason   │
+│      ││shown)  ││rate)    ││shown)    │
+└──────┘└────────┘└─────────┘└──────────┘
+```
+
+**XP Reasons Shown:**
+- "Daily XP cap reached (50,000 XP)"
+- "Market cooldown active"
+- "Diminishing returns: 60% (tier 2)"
+- "Volume cap reached for this market"
+
+---
+
+## 8. Sell Position Flow
+
+### From Profile Page
+
+```
+┌─────────────────┐
+│  Profile        │
+│  Positions Tab  │
+└────────┬────────┘
+         │
+         │ Click "Sell"
+         ▼
+┌─────────────────┐
+│  Sell Modal     │
+│  - Share count  │
+│  - Current price│
+│  - Proceeds     │
+└────────┬────────┘
+         │
+         │ Confirm
+         ▼
+┌─────────────────┐
+│  POST /api/     │
+│  trades/sell    │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  Balance Update │
+│  +$XXX animation│
+│  (green)        │
+│  No XP awarded  │
+└─────────────────┘
+```
+
+### From Market Page
+
+```
+┌─────────────────┐
+│  Market Page    │
+│  Betting Panel  │
+└────────┬────────┘
+         │
+         │ Toggle to "Sell"
+         ▼
+┌─────────────────┐
+│  Enter shares   │
+│  Shows proceeds │
+└────────┬────────┘
+         │
+         │ Confirm
+         ▼
+┌─────────────────┐
+│  POST /api/     │
+│  trades/sell    │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  Balance Update │
+│  +$XXX (green)  │
+│  No XP (by design)│
+└─────────────────┘
+```
+
+---
+
+## 9. Redeem Winnings Flow
+
+### Claim Settled Positions
+
+```
+┌─────────────────┐
+│  Profile        │
+│  Positions Tab  │
+└────────┬────────┘
+         │
+         │ See "Claim" button on settled position
+         ▼
+┌─────────────────┐
+│  Redeem Modal   │
+│  - Winning shares│
+│  - Payout amount│
+│  - P&L          │
+└────────┬────────┘
+         │
+         │ Confirm
+         ▼
+┌─────────────────┐
+│  POST /api/     │
+│  me/redeem      │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  Balance Update │
+│  +$XXX animation│
+│  Position marked│
+│  as claimed     │
+└─────────────────┘
+```
+
+---
+
+## 10. Referral Flow
 
 ### Invite Friends
 
@@ -306,7 +614,7 @@ After successful bet confirmation:
 │  Shows Referrer │
 │  - Avatar       │
 │  - Name/Handle  │
-│  - Platform benefits│
+│  - Platform info│
 │  - XP bonus info│
 └────────┬────────┘
          │
@@ -334,19 +642,14 @@ After successful bet confirmation:
          ▼
 ┌─────────────────┐
 │  Redirect to /  │
-│  Referral linked│
-│  XP awarded!    │
+│  XP Animation:  │
+│  +10,000 XP     │
 └─────────────────┘
 ```
 
-**XP Reward:**
-- Both the referrer and referred user receive 10,000 XP
-- Equivalent to placing a $1,000 bet at 10 XP per dollar
-- XP is awarded immediately upon signup via referral link
-
 ---
 
-## 6. Market Request Flow (KOL Feature)
+## 11. Market Request Flow (KOL Feature)
 
 ### Submit a Market Request
 
@@ -386,10 +689,9 @@ After successful bet confirmation:
 ```
 ┌─────────────────┐
 │  /profile       │
-│  Profile Page   │
+│  Requests Tab   │
 └────────┬────────┘
          │
-         │ Click "Requests" tab
          ▼
 ┌─────────────────┐
 │  Request List   │
@@ -406,135 +708,48 @@ After successful bet confirmation:
 - 🔴 **Rejected**: Request declined (with admin notes)
 - ✨ **Created**: Market has been created from this request
 
-### Admin Review Requests
-
-**Quick Review (Status Update Only):**
-```
-┌─────────────────┐
-│  /admin/requests│
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│  Request Table  │
-│  - Filters      │
-│  - Search       │
-│  - Sort options │
-└────────┬────────┘
-         │
-         │ Click "Quick Review"
-         ▼
-┌─────────────────┐
-│  Review Dialog  │
-│  - View details │
-│  - Set status   │
-│  - Add notes    │
-└────────┬────────┘
-         │
-         │ Update
-         ▼
-┌─────────────────┐
-│  User notified  │
-│  via status     │
-│  change visible │
-│  in their tab   │
-└─────────────────┘
-```
-
-**Full Review (Create Event & Markets):**
-```
-┌─────────────────┐
-│  /admin/requests│
-└────────┬────────┘
-         │
-         │ Click "Full Review & Create"
-         ▼
-┌─────────────────────┐
-│  /admin/requests/[id]│
-│  Full Review Page    │
-└────────┬────────────┘
-         │
-    ┌────┴────┐
-    │         │
-    ▼         ▼
-┌────────┐ ┌────────────────────┐
-│Status  │ │  Event & Market    │
-│Update  │ │  Creation Form     │
-│Panel   │ │  - Event fields    │
-│        │ │  - Category/Type   │
-│- Status│ │  - Tags            │
-│- Notes │ │  - Multiple markets│
-└────────┘ └────────┬───────────┘
-                    │
-                    │ Submit
-                    ▼
-         ┌──────────────────────┐
-         │  Creates:            │
-         │  - Event (unpublished)│
-         │  - Markets (DRAFT)   │
-         │  - Status → CREATED  │
-         └──────────┬───────────┘
-                    │
-                    ▼
-         ┌──────────────────────┐
-         │  Redirect to         │
-         │  /admin/events/[id]  │
-         │  for final review    │
-         └──────────────────────┘
-```
-
-**Full Review Page Features:**
-- Pre-populated form with request title/description
-- Status dropdown to update request status
-- Event creation form with all fields:
-  - Title, slug, description
-  - Category and event type
-  - Start/end times
-  - Banner and logo URLs
-  - Tags selection
-- Multiple market creation:
-  - Question, outcomes
-  - Details markdown
-  - Resolution source URL
-  - Opens/closes dates
-  - Fee and seed liquidity
-- All events/markets created as unpublished/DRAFT
-
 ---
 
-## 7. Admin Workflows
+## 12. Admin Workflows
 
 ### Create Market
 
 ```
 ┌─────────────────┐
-│  /admin/markets │
+│  /admin/events  │
 └────────┬────────┘
          │
-         │ Click "New Market"
+         │ Click "New Event"
          ▼
 ┌─────────────────┐
-│  /admin/markets/│
+│  /admin/events/ │
 │  new            │
 └────────┬────────┘
          │
          ▼
 ┌─────────────────┐
-│  Market Form    │
+│  Event Form     │
 │  - Title        │
-│  - Question     │
 │  - Category     │
-│  - Outcomes A/B │
-│  - Dates        │
-│  - Logo/Banner  │
-│  - Details (MD) │
+│  - Times        │
+│  - Banner/Logo  │
 └────────┬────────┘
          │
          │ Submit
          ▼
 ┌─────────────────┐
-│  Market Created │
-│  Status: DRAFT  │
+│  Add Markets    │
+│  - Question     │
+│  - Outcomes     │
+│  - Dates        │
+│  - Details      │
+└────────┬────────┘
+         │
+         │ Publish
+         ▼
+┌─────────────────┐
+│  Event & Markets│
+│  Live on site   │
 └─────────────────┘
 ```
 
@@ -551,62 +766,150 @@ DRAFT → PUBLISHED → OPEN → CLOSED → RESOLVED → SETTLED
 ```
 
 **Admin Actions:**
-- **Publish**: Make market visible and open for betting
+- **Publish**: Make event/market visible and open for betting
 - **Close**: Stop accepting new bets
 - **Resolve**: Set winning outcome
 - **Settle**: Process payouts to winners
 
-### Manage Users
+### XP Configuration
 
 ```
 ┌─────────────────┐
-│  /admin/users   │
+│  /admin/xp      │
 └────────┬────────┘
          │
          ▼
 ┌─────────────────┐
-│  User Table     │
-│  - Handle       │
-│  - Balance      │
-│  - Role         │
-│  - Created date │
+│  Config Panel   │
+│  - XP per dollar│
+│  - Daily cap    │
+│  - Cooldown     │
+│  - Volume thresh│
+└────────┬────────┘
+         │
+         │ Update values
+         ▼
+┌─────────────────┐
+│  POST /api/     │
+│  admin/xp/config│
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  Stats Panel    │
+│  - Total XP     │
+│  - Active users │
+│  - Daily activity│
+└─────────────────┘
+```
+
+### Review Market Requests
+
+**Quick Review:**
+```
+┌─────────────────┐
+│  /admin/requests│
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  Request Table  │
+│  Click "Review" │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  Review Dialog  │
+│  - Set status   │
+│  - Add notes    │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  PATCH /api/    │
+│  admin/requests │
+└─────────────────┘
+```
+
+**Full Review (Create Event):**
+```
+┌─────────────────┐
+│  /admin/requests│
+│  /[id]          │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  Full Form      │
+│  - Event fields │
+│  - Markets      │
+│  - Status update│
+└────────┬────────┘
+         │
+         │ Create
+         ▼
+┌─────────────────┐
+│  Event created  │
+│  Request → CREATED│
+│  Redirect to    │
+│  event page     │
 └─────────────────┘
 ```
 
 ---
 
-## 7. Leaderboard
+## 13. Leaderboard
 
 ```
 ┌─────────────────┐
 │  /leaderboard   │
 └────────┬────────┘
          │
+    ┌────┼────┬────┐
+    │    │    │    │
+    ▼    ▼    ▼    ▼
+┌───────┐┌───────┐┌───────┐
+│ XP    ││ PnL   ││Volume │
+│Tab    ││Tab    ││Tab    │
+└───┬───┘└───┬───┘└───┬───┘
+    │        │        │
+    └────┬───┴────────┘
+         │
          ▼
 ┌─────────────────┐
-│  Ranked Users   │
-│  by Balance     │
+│  Period Select  │
+│  All/Month/Week │
 └────────┬────────┘
          │
          ▼
 ┌─────────────────┐
+│  Ranked Users   │
 │  1. 🥇 User A   │
 │  2. 🥈 User B   │
 │  3. 🥉 User C   │
 │  4.    User D   │
 │  ...            │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  Your Position  │
+│  (always shown) │
 └─────────────────┘
 ```
 
 **Features:**
-- Top 3 with medal icons
+- Top 3 with medal styling
 - Animated row entrance
 - Hover effects
-- User avatars and balances
+- User avatars and stats
+- Search users
+- Pagination
+- Current user always visible
 
 ---
 
-## 8. Dev Tools (Development Only)
+## 14. Dev Tools (Development Only)
 
 ### User Impersonation
 
@@ -620,12 +923,11 @@ DRAFT → PUBLISHED → OPEN → CLOSED → RESOLVED → SETTLED
          ▼
 ┌─────────────────┐
 │  Dev Tools Panel│
-│  - Twitter ID   │
 │  - User dropdown│
 │  - Impersonate  │
 └────────┬────────┘
          │
-         │ Select user & click Impersonate
+         │ Select & impersonate
          ▼
 ┌─────────────────┐
 │  Cookie Set     │

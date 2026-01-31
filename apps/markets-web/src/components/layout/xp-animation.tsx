@@ -256,7 +256,7 @@ export function AnimatedXPDisplay({ xp, isLoading }: AnimatedXPDisplayProps) {
               transition={{ duration: 0.6, repeat: 2, ease: "easeInOut" }}
               className="text-xs font-semibold text-[#22C55E] drop-shadow-md"
             >
-              +{displayedChange.toLocaleString()} XP
+              +{displayedChange.toLocaleString()} MP
             </motion.span>
           </motion.div>
         )}

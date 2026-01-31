@@ -47,6 +47,7 @@ const updateConfigSchema = z.object({
     "daily_xp_cap",
     "market_cooldown_seconds",
     "market_volume_threshold",
+    "share_bonus_percent",
   ]),
   value: z.number().int().min(0),
 });
@@ -55,7 +56,8 @@ const updateAllConfigSchema = z.object({
   xpPerDollar: z.number().int().min(1).max(100).optional(),
   dailyXpCap: z.number().int().min(1000).max(1000000).optional(),
   marketCooldownSeconds: z.number().int().min(0).max(3600).optional(),
-  marketVolumeThreshold: z.number().int().min(10).max(10000).optional(),
+  marketVolumeThreshold: z.number().int().min(10).max(100000).optional(),
+  shareBonusPercent: z.number().int().min(0).max(100).optional(),
 });
 
 /**
@@ -82,6 +84,7 @@ export async function POST(request: NextRequest) {
         daily_xp_cap: "Maximum XP a user can earn per day from trading",
         market_cooldown_seconds: "Cooldown period (seconds) before earning XP again in the same market",
         market_volume_threshold: "Volume per tier before diminishing returns kick in (in dollars)",
+        share_bonus_percent: "Percentage of bet amount awarded as XP bonus for sharing (0-100)",
       };
 
       await setXPConfigValue(key, value, descriptions[key] || "", admin.id);
@@ -95,7 +98,7 @@ export async function POST(request: NextRequest) {
     // Try parsing as bulk update
     const bulkParse = updateAllConfigSchema.safeParse(body);
     if (bulkParse.success) {
-      const { xpPerDollar, dailyXpCap, marketCooldownSeconds, marketVolumeThreshold } = bulkParse.data;
+      const { xpPerDollar, dailyXpCap, marketCooldownSeconds, marketVolumeThreshold, shareBonusPercent } = bulkParse.data;
       
       const updates: Record<string, number> = {};
 
@@ -137,6 +140,16 @@ export async function POST(request: NextRequest) {
           admin.id
         );
         updates.marketVolumeThreshold = marketVolumeThreshold;
+      }
+
+      if (shareBonusPercent !== undefined) {
+        await setXPConfigValue(
+          "share_bonus_percent",
+          shareBonusPercent,
+          "Percentage of bet amount awarded as XP bonus for sharing (0-100)",
+          admin.id
+        );
+        updates.shareBonusPercent = shareBonusPercent;
       }
 
       // Invalidate cache after all updates

@@ -8,7 +8,7 @@ import {
   toast,
   Skeleton,
 } from "@vault/ui";
-import { Save, RefreshCw, Shield, Clock, TrendingDown, Zap } from "lucide-react";
+import { Save, RefreshCw, Shield, Clock, TrendingDown, Zap, Share2 } from "lucide-react";
 
 // Simple Card components for admin UI
 function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
@@ -40,6 +40,7 @@ interface XPConfig {
   dailyXpCap: number;
   marketCooldownSeconds: number;
   marketVolumeThreshold: number;
+  shareBonusPercent: number;
 }
 
 interface XPStats {
@@ -89,7 +90,7 @@ export default function AdminXPPage() {
       return res.json();
     },
     onSuccess: () => {
-      toast.success("XP configuration updated");
+      toast.success("MP configuration updated");
       queryClient.invalidateQueries({ queryKey: ["admin-xp-config"] });
     },
     onError: (error) => {
@@ -112,14 +113,15 @@ export default function AdminXPPage() {
     localConfig.xpPerDollar !== data.config.xpPerDollar ||
     localConfig.dailyXpCap !== data.config.dailyXpCap ||
     localConfig.marketCooldownSeconds !== data.config.marketCooldownSeconds ||
-    localConfig.marketVolumeThreshold !== data.config.marketVolumeThreshold
+    localConfig.marketVolumeThreshold !== data.config.marketVolumeThreshold ||
+    localConfig.shareBonusPercent !== data.config.shareBonusPercent
   );
 
   if (error) {
     return (
       <div className="container mx-auto py-8">
         <div className="text-center text-red-500">
-          Failed to load XP configuration
+          Failed to load MP configuration
         </div>
       </div>
     );
@@ -129,9 +131,9 @@ export default function AdminXPPage() {
     <div className="container mx-auto py-8 space-y-8">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">XP Configuration</h1>
+          <h1 className="text-3xl font-bold">MP Configuration</h1>
           <p className="text-muted-foreground mt-1">
-            Manage XP rewards and anti-abuse protections
+            Manage MP rewards and anti-abuse protections
           </p>
         </div>
         <div className="flex gap-2">
@@ -171,7 +173,7 @@ export default function AdminXPPage() {
                 <div className="text-2xl font-bold">
                   {data.stats.totalXPAwarded.toLocaleString()}
                 </div>
-                <div className="text-sm text-muted-foreground">Total XP Awarded</div>
+                <div className="text-sm text-muted-foreground">Total MP Awarded</div>
               </CardContent>
             </Card>
             <Card>
@@ -179,7 +181,7 @@ export default function AdminXPPage() {
                 <div className="text-2xl font-bold">
                   {data.stats.usersWithXP.toLocaleString()}
                 </div>
-                <div className="text-sm text-muted-foreground">Users with XP</div>
+                <div className="text-sm text-muted-foreground">Users with MP</div>
               </CardContent>
             </Card>
             <Card>
@@ -187,7 +189,7 @@ export default function AdminXPPage() {
                 <div className="text-2xl font-bold">
                   {data.stats.averageXP.toLocaleString()}
                 </div>
-                <div className="text-sm text-muted-foreground">Average XP</div>
+                <div className="text-sm text-muted-foreground">Average MP</div>
               </CardContent>
             </Card>
             <Card>
@@ -209,10 +211,10 @@ export default function AdminXPPage() {
           <CardHeader>
             <div className="flex items-center gap-2">
               <Zap className="h-5 w-5 text-yellow-500" />
-              <CardTitle>XP Rate</CardTitle>
+              <CardTitle>MP Rate</CardTitle>
             </div>
             <CardDescription>
-              Amount of XP awarded per $1 of trading volume
+              Amount of MP awarded per $1 of trading volume
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -232,11 +234,11 @@ export default function AdminXPPage() {
                   max={100}
                   className="w-32"
                 />
-                <span className="text-muted-foreground">XP per $1 volume</span>
+                <span className="text-muted-foreground">MP per $1 volume</span>
               </div>
             )}
             <p className="text-xs text-muted-foreground mt-2">
-              Current: $100 bet = {((localConfig?.xpPerDollar ?? 10) * 100).toLocaleString()} XP
+              Current: $100 bet = {((localConfig?.xpPerDollar ?? 10) * 100).toLocaleString()} MP
             </p>
           </CardContent>
         </Card>
@@ -246,10 +248,10 @@ export default function AdminXPPage() {
           <CardHeader>
             <div className="flex items-center gap-2">
               <Shield className="h-5 w-5 text-blue-500" />
-              <CardTitle>Daily XP Cap</CardTitle>
+              <CardTitle>Daily MP Cap</CardTitle>
             </div>
             <CardDescription>
-              Maximum XP a user can earn per day from trading
+              Maximum MP a user can earn per day from trading
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -269,7 +271,7 @@ export default function AdminXPPage() {
                   max={1000000}
                   className="w-40"
                 />
-                <span className="text-muted-foreground">XP per day</span>
+                <span className="text-muted-foreground">MP per day</span>
               </div>
             )}
             <p className="text-xs text-muted-foreground mt-2">
@@ -286,7 +288,7 @@ export default function AdminXPPage() {
               <CardTitle>Market Cooldown</CardTitle>
             </div>
             <CardDescription>
-              Time before a user can earn XP again in the same market
+              Time before a user can earn MP again in the same market
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -325,7 +327,7 @@ export default function AdminXPPage() {
               <CardTitle>Diminishing Returns</CardTitle>
             </div>
             <CardDescription>
-              Volume per tier before XP rate decreases (fairer than trade count)
+              Volume per tier before MP rate decreases (fairer than trade count)
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -343,17 +345,54 @@ export default function AdminXPPage() {
                     )
                   }
                   min={10}
-                  max={10000}
+                  max={100000}
                   className="w-32"
                 />
                 <span className="text-muted-foreground">per tier</span>
               </div>
             )}
             <p className="text-xs text-muted-foreground mt-2">
-              XP rate decreases per ${localConfig?.marketVolumeThreshold ?? 100} traded: 100% → 80% → 60% → 40% → 20% → 0%
+              MP rate decreases per ${localConfig?.marketVolumeThreshold ?? 100} traded: 100% → 80% → 60% → 40% → 20% → 0%
             </p>
             <p className="text-xs text-muted-foreground">
               Total cap: ${((localConfig?.marketVolumeThreshold ?? 100) * 5).toLocaleString()} per market/day
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Share Bonus */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Share2 className="h-5 w-5 text-green-500" />
+              <CardTitle>Share Bonus</CardTitle>
+            </div>
+            <CardDescription>
+              Percentage of bet amount awarded as MP when user shares on X
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <Skeleton className="h-10 w-full" />
+            ) : (
+              <div className="flex items-center gap-4">
+                <Input
+                  type="number"
+                  value={localConfig?.shareBonusPercent ?? ""}
+                  onChange={(e) =>
+                    setLocalConfig((prev) =>
+                      prev ? { ...prev, shareBonusPercent: parseInt(e.target.value) || 0 } : null
+                    )
+                  }
+                  min={0}
+                  max={100}
+                  className="w-24"
+                />
+                <span className="text-muted-foreground">% of bet × MP rate</span>
+              </div>
+            )}
+            <p className="text-xs text-muted-foreground mt-2">
+              Example: $100 bet × {localConfig?.shareBonusPercent ?? 20}% × {localConfig?.xpPerDollar ?? 10} MP/$ = {Math.floor(100 * ((localConfig?.shareBonusPercent ?? 20) / 100) * (localConfig?.xpPerDollar ?? 10)).toLocaleString()} MP bonus
             </p>
           </CardContent>
         </Card>
@@ -362,9 +401,9 @@ export default function AdminXPPage() {
       {/* Daily Stats Chart */}
       <Card>
         <CardHeader>
-          <CardTitle>Daily XP Activity (Last 7 Days)</CardTitle>
+          <CardTitle>Daily MP Activity (Last 7 Days)</CardTitle>
           <CardDescription>
-            XP awarded and trading activity per day
+            MP awarded and trading activity per day
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -374,7 +413,7 @@ export default function AdminXPPage() {
             <div className="space-y-4">
               <div className="grid grid-cols-4 gap-4 text-sm font-medium text-muted-foreground border-b pb-2">
                 <div>Date</div>
-                <div className="text-right">XP Awarded</div>
+                <div className="text-right">MP Awarded</div>
                 <div className="text-right">Users</div>
                 <div className="text-right">Trades</div>
               </div>
@@ -402,7 +441,7 @@ export default function AdminXPPage() {
         <CardHeader>
           <CardTitle>Anti-Abuse Protections</CardTitle>
           <CardDescription>
-            How the XP system prevents wash trading and abuse
+            How the MP system prevents wash trading and abuse
           </CardDescription>
         </CardHeader>
         <CardContent className="prose prose-sm dark:prose-invert max-w-none">
@@ -410,10 +449,10 @@ export default function AdminXPPage() {
             <div className="p-4 rounded-lg bg-muted/50">
               <h4 className="font-semibold flex items-center gap-2">
                 <Shield className="h-4 w-4 text-blue-500" />
-                Daily XP Cap
+                Daily MP Cap
               </h4>
               <p className="text-sm text-muted-foreground mt-1">
-                Users can only earn up to {(localConfig?.dailyXpCap ?? 50000).toLocaleString()} XP per day,
+                Users can only earn up to {(localConfig?.dailyXpCap ?? 50000).toLocaleString()} MP per day,
                 preventing unlimited farming.
               </p>
             </div>
@@ -424,7 +463,7 @@ export default function AdminXPPage() {
               </h4>
               <p className="text-sm text-muted-foreground mt-1">
                 After trading in a market, users must wait {localConfig?.marketCooldownSeconds ?? 300} seconds
-                before earning XP from that market again.
+                before earning MP from that market again.
               </p>
             </div>
             <div className="p-4 rounded-lg bg-muted/50">
@@ -433,19 +472,19 @@ export default function AdminXPPage() {
                 Volume-Based Diminishing Returns
               </h4>
               <p className="text-sm text-muted-foreground mt-1">
-                XP rate decreases based on cumulative volume per market per day.
-                After ${((localConfig?.marketVolumeThreshold ?? 100) * 5).toLocaleString()}, no more XP from that market.
+                MP rate decreases based on cumulative volume per market per day.
+                After ${((localConfig?.marketVolumeThreshold ?? 100) * 5).toLocaleString()}, no more MP from that market.
                 This is fairer than trade count—$100 in one trade = $100 in 5 trades.
               </p>
             </div>
           </div>
           <div className="mt-4 p-4 rounded-lg bg-amber-500/10 border border-amber-500/20">
             <h4 className="font-semibold text-amber-600 dark:text-amber-400">
-              Note: XP is only earned on buys, not sells
+              Note: MP is only earned on buys, not sells
             </h4>
             <p className="text-sm text-muted-foreground mt-1">
-              Selling shares does not award XP. This prevents wash trading where users
-              would buy and sell repeatedly to farm XP without taking real positions.
+              Selling shares does not award MP. This prevents wash trading where users
+              would buy and sell repeatedly to farm MP without taking real positions.
             </p>
           </div>
         </CardContent>

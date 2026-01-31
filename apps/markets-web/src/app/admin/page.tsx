@@ -116,7 +116,7 @@ export default async function AdminDashboard() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <XIconInline className="h-4 w-4 sm:h-5 sm:w-5" />
-                <h2 className="text-base sm:text-lg font-semibold">XP Boost Verifications</h2>
+                <h2 className="text-base sm:text-lg font-semibold">MP Boost Verifications</h2>
               </div>
               <Link href="/admin/social">
                 <Button variant="ghost" size="sm" className="text-xs sm:text-sm">

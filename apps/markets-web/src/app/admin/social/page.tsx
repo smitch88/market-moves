@@ -99,7 +99,7 @@ export default function AdminSocialPage() {
         <div>
           <h1 className="text-3xl font-bold">Social Verifications</h1>
           <p className="text-muted-foreground">
-            Users who shared their bets on X and earned XP
+            Users who shared their bets on X and earned MP
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -182,7 +182,7 @@ export default function AdminSocialPage() {
                             className="bg-purple-500/10 text-purple-400 border-purple-500/30"
                           >
                             <Sparkles className="h-3 w-3 mr-1" />
-                            +{v.xpEarned} XP
+                            +{v.xpEarned} MP
                           </Badge>
                         )}
                       </div>

@@ -199,7 +199,7 @@ export default function AdminUserDetailPage({
       });
       if (!res.ok) {
         const error = await res.json();
-        throw new Error(error.error || "Failed to adjust XP");
+        throw new Error(error.error || "Failed to adjust MP");
       }
       return res.json();
     },
@@ -430,7 +430,7 @@ export default function AdminUserDetailPage({
             className="text-xs sm:text-sm col-span-2 sm:col-span-1"
           >
             <Sparkles className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 text-purple-500" />
-            Add XP
+            Add MP
           </Button>
         </div>
       </div>
@@ -455,7 +455,7 @@ export default function AdminUserDetailPage({
           <GlassCardContent className="p-4 sm:pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs sm:text-sm text-muted-foreground">XP</p>
+                <p className="text-xs sm:text-sm text-muted-foreground">MP</p>
                 <p className="text-lg sm:text-2xl font-bold text-purple-400">
                   {(user.xp ?? 0).toLocaleString()}
                 </p>
@@ -554,7 +554,7 @@ export default function AdminUserDetailPage({
                 className="relative pb-3 px-0 bg-transparent rounded-none data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-foreground text-muted-foreground hover:text-foreground transition-colors after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-primary after:scale-x-0 data-[state=active]:after:scale-x-100 after:transition-transform text-xs sm:text-sm"
               >
                 <Zap className="h-3 w-3 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
-                XP ({recentActivity.xpTransactions.length})
+                MP ({recentActivity.xpTransactions.length})
               </TabsTrigger>
             </TabsList>
           </div>
@@ -624,7 +624,7 @@ export default function AdminUserDetailPage({
             {recentActivity.xpTransactions.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground">
                 <Sparkles className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>No XP transactions yet</p>
+                <p>No MP transactions yet</p>
               </div>
             ) : (
               <div className="space-y-3">
@@ -648,7 +648,7 @@ export default function AdminUserDetailPage({
                       )}
                     >
                       {tx.amount >= 0 ? "+" : ""}
-                      {tx.amount.toLocaleString()} XP
+                      {tx.amount.toLocaleString()} MP
                     </div>
                   </div>
                 ))}
@@ -743,11 +743,11 @@ export default function AdminUserDetailPage({
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Sparkles className="h-5 w-5 text-purple-500" />
-              {xpIsAddition ? "Add" : "Subtract"} XP
+              {xpIsAddition ? "Add" : "Subtract"} MP
             </DialogTitle>
             <DialogDescription>
-              {xpIsAddition ? "Add to" : "Subtract from"} {displayName}&apos;s XP.
-              Current XP: {(user.xp ?? 0).toLocaleString()}
+              {xpIsAddition ? "Add to" : "Subtract from"} {displayName}&apos;s MP.
+              Current MP: {(user.xp ?? 0).toLocaleString()}
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleXpSubmit}>
@@ -779,7 +779,7 @@ export default function AdminUserDetailPage({
               </div>
               {xpAmount && (
                 <p className="text-sm text-muted-foreground">
-                  New XP will be:{" "}
+                  New MP will be:{" "}
                   {Math.max(
                     0,
                     (user.xp ?? 0) + (xpIsAddition ? 1 : -1) * (parseInt(xpAmount, 10) || 0)
@@ -804,14 +804,14 @@ export default function AdminUserDetailPage({
                 {xpMutation.isPending && (
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 )}
-                {xpIsAddition ? "Add" : "Subtract"} XP
+                {xpIsAddition ? "Add" : "Subtract"} MP
               </Button>
             </DialogFooter>
             {xpMutation.isError && (
               <p className="text-destructive text-sm text-center mt-2">
                 {xpMutation.error instanceof Error
                   ? xpMutation.error.message
-                  : "Failed to adjust XP"}
+                  : "Failed to adjust MP"}
               </p>
             )}
           </form>

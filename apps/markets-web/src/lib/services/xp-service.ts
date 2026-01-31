@@ -48,6 +48,8 @@ export interface XPProtectionConfig {
   marketCooldownSeconds: number;
   /** Volume threshold per market per day before diminishing returns kick in (in dollars) */
   marketVolumeThreshold: number;
+  /** Percentage of bet amount awarded as XP bonus for sharing (0-100) */
+  shareBonusPercent: number;
 }
 
 // ============================================================================
@@ -104,6 +106,7 @@ const DEFAULT_CONFIG: XPProtectionConfig = {
   dailyXpCap: 50000, // 50k XP cap (equivalent to $5k volume at 100%)
   marketCooldownSeconds: 300, // 5 minutes
   marketVolumeThreshold: 10000, // $10k per tier before diminishing returns (fake money system)
+  shareBonusPercent: 20, // 20% of bet amount as XP bonus for sharing
 };
 
 const CONFIG_CACHE_TTL_MS = 60 * 1000; // 1 minute cache
@@ -137,6 +140,7 @@ export async function getXPConfig(): Promise<XPProtectionConfig> {
             "daily_xp_cap",
             "market_cooldown_seconds",
             "market_volume_threshold",
+            "share_bonus_percent",
           ],
         },
       },
@@ -151,6 +155,8 @@ export async function getXPConfig(): Promise<XPProtectionConfig> {
         parseInt(configMap.get("market_cooldown_seconds") || "", 10) || DEFAULT_CONFIG.marketCooldownSeconds,
       marketVolumeThreshold:
         parseInt(configMap.get("market_volume_threshold") || "", 10) || DEFAULT_CONFIG.marketVolumeThreshold,
+      shareBonusPercent:
+        parseInt(configMap.get("share_bonus_percent") || "", 10) || DEFAULT_CONFIG.shareBonusPercent,
     };
 
     // Update cache

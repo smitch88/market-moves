@@ -4,7 +4,7 @@ import { useState, useCallback } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { Button, Dialog, DialogContent, Input, toast } from "@vault/ui";
 import { Loader2, Copy, Download, Check } from "lucide-react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { XIcon } from "../x-icon";
 import { BettingTicket } from "../betting-ticket";
 import type { Market, Event } from "@vault/database";
@@ -32,8 +32,6 @@ interface SuccessModalProps {
   onCopyLink: () => void;
 }
 
-const SHARE_XP_BONUS = 50;
-
 export function SuccessModal({
   open,
   onOpenChange,
@@ -55,10 +53,25 @@ export function SuccessModal({
   const queryClient = useQueryClient();
   const { flushQueue, queueXPGain } = useXPAnimation();
   const [xpClaimed, setXpClaimed] = useState(false);
+  const [claimedXPAmount, setClaimedXPAmount] = useState(0);
   const [tweetUrl, setTweetUrl] = useState("");
   const [showManualEntry, setShowManualEntry] = useState(false);
 
   const hasTwitter = !!user?.twitter;
+
+  // Fetch share XP config
+  const { data: shareConfig } = useQuery({
+    queryKey: ["shareXPConfig"],
+    queryFn: async () => {
+      const res = await fetch("/api/xp/share-config");
+      if (!res.ok) return { shareBonusPercent: 20, xpPerDollar: 10 };
+      return res.json();
+    },
+    enabled: open,
+    staleTime: 60000, // Cache for 1 minute
+  });
+
+  const shareBonusPercent = shareConfig?.shareBonusPercent ?? 20;
 
   // Handle modal close - flush queued animations
   const handleOpenChange = useCallback((open: boolean) => {
@@ -91,11 +104,15 @@ export function SuccessModal({
     },
     onSuccess: async (data) => {
       if (data.verified) {
-        // Queue XP animation
-        queueXPGain(SHARE_XP_BONUS);
+        // Queue XP animation with actual awarded amount from API
+        const xpAwarded = data.xpAwarded || 0;
+        if (xpAwarded > 0) {
+          queueXPGain(xpAwarded);
+        }
         
         setXpClaimed(true);
-        toast.success(`+${SHARE_XP_BONUS} XP earned for sharing!`);
+        setClaimedXPAmount(xpAwarded);
+        toast.success(`+${xpAwarded.toLocaleString()} MP earned for sharing!`);
         await queryClient.invalidateQueries({ queryKey: ["profile"] });
         await queryClient.invalidateQueries({ queryKey: ["xp"] });
       } else {
@@ -107,9 +124,9 @@ export function SuccessModal({
     onError: (error: Error) => {
       if (error.message.includes("already claimed")) {
         setXpClaimed(true);
-        toast.info("XP already claimed for this bet!");
+        toast.info("MP already claimed for this bet!");
       } else if (error.message.includes("already been used")) {
-        toast.warning("This tweet was already used for XP. Please share a new tweet!");
+        toast.warning("This tweet was already used for MP. Please share a new tweet!");
       } else {
         // Show manual entry on error
         setShowManualEntry(true);
@@ -174,7 +191,7 @@ export function SuccessModal({
           {betId && !xpClaimed && (
             <div className="space-y-2 pt-2 border-t border-border/50">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <span className="text-xs sm:text-sm font-medium">Claim +{SHARE_XP_BONUS} XP for sharing on X</span>
+                <span className="text-xs sm:text-sm font-medium">Claim +{shareBonusPercent}% MP bonus for sharing on X</span>
                 {hasTwitter && (
                   <Button
                     onClick={() => shareXPMutation.mutate("timeline")}
@@ -219,7 +236,7 @@ export function SuccessModal({
           {xpClaimed && (
             <div className="flex items-center justify-center gap-2 text-green-500 pt-2 border-t border-border/50">
               <Check className="h-4 w-4" />
-              <span className="text-sm font-medium">+{SHARE_XP_BONUS} XP Claimed!</span>
+              <span className="text-sm font-medium">+{claimedXPAmount.toLocaleString()} MP Claimed!</span>
             </div>
           )}
 

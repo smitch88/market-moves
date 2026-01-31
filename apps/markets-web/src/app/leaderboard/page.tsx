@@ -9,11 +9,11 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "Leaderboard | Vault Markets",
   description:
-    "See the top predictors on Vault Markets. Compete for XP and climb the ranks with accurate predictions.",
+    "See the top predictors on Vault Markets. Compete for MP and climb the ranks with accurate predictions.",
   openGraph: {
     title: "Leaderboard | Vault Markets",
     description:
-      "See the top predictors on Vault Markets. Compete for XP and climb the ranks.",
+      "See the top predictors on Vault Markets. Compete for MP and climb the ranks.",
     type: "website",
   },
 };

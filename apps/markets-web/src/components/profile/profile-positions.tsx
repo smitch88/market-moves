@@ -228,8 +228,8 @@ function PositionRow({ position, outcomeIndex, shares, avgCost, onSellComplete, 
                 className="gap-1.5 text-[#df2421] border-[#df2421]/30 hover:bg-[#df2421]/10 hover:text-[#df2421]"
               >
                 <Zap className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Boost XP</span>
-                <span className="sm:hidden">+XP</span>
+                <span className="hidden sm:inline">Boost MP</span>
+                <span className="sm:hidden">+MP</span>
               </Button>
             )}
             

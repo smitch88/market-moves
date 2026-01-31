@@ -47,7 +47,7 @@ const navItems = [
   { href: "/admin/markets", label: "Markets", icon: BarChart3 },
   { href: "/admin/bets", label: "Bets", icon: Receipt },
   { href: "/admin/users", label: "Users", icon: Users },
-  { href: "/admin/xp", label: "XP Config", icon: Sparkles },
+  { href: "/admin/xp", label: "MP Config", icon: Sparkles },
   { href: "/admin/requests", label: "Requests", icon: Lightbulb },
   { href: "/admin/social", label: "Social", icon: Share2 },
   { href: "/admin/tags", label: "Tags", icon: Tag },
@@ -273,7 +273,7 @@ export function AdminSidebar({ user }: AdminSidebarProps) {
                 <span className="font-mono font-semibold text-[#df2421]">${user.balance.toLocaleString()}</span>
               </div>
               <div className="flex items-center justify-between text-xs">
-                <span className="text-muted-foreground">XP</span>
+                <span className="text-muted-foreground">MP</span>
                 <span className="font-mono font-semibold text-purple-400">{user.xp.toLocaleString()}</span>
               </div>
               {user.twitterId && (

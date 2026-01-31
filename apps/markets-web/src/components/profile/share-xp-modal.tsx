@@ -4,7 +4,7 @@ import { useState, useRef, useCallback } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { Button, Dialog, DialogContent, Input, toast } from "@vault/ui";
 import { Loader2, Copy, Download, Check } from "lucide-react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toPng } from "html-to-image";
 import { BettingTicket } from "../markets/betting-ticket";
 import { useAuthFetch } from "@/lib/auth/auth-fetch";
@@ -53,8 +53,6 @@ interface ShareXPModalProps {
   } | null;
 }
 
-const SHARE_XP_BONUS = 50;
-
 function parseOutcomes(outcomes: string): string[] {
   try {
     return JSON.parse(outcomes);
@@ -70,6 +68,7 @@ export function ShareXPModal({ open, onOpenChange, bet, profile }: ShareXPModalP
   const { queueXPGain, flushQueue } = useXPAnimation();
   
   const [xpClaimed, setXpClaimed] = useState(false);
+  const [claimedXPAmount, setClaimedXPAmount] = useState(0);
   const [tweetUrl, setTweetUrl] = useState("");
   const [showManualEntry, setShowManualEntry] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -79,6 +78,20 @@ export function ShareXPModal({ open, onOpenChange, bet, profile }: ShareXPModalP
   const hasTwitter = !!user?.twitter;
   const outcomes = parseOutcomes(bet.market.outcomes);
   const outcomeLabel = outcomes[bet.outcomeIndex] || "Unknown";
+
+  // Fetch share XP config
+  const { data: shareConfig } = useQuery({
+    queryKey: ["shareXPConfig"],
+    queryFn: async () => {
+      const res = await fetch("/api/xp/share-config");
+      if (!res.ok) return { shareBonusPercent: 20, xpPerDollar: 10 };
+      return res.json();
+    },
+    enabled: open,
+    staleTime: 60000, // Cache for 1 minute
+  });
+
+  const shareBonusPercent = shareConfig?.shareBonusPercent ?? 20;
 
   // Share for XP mutation
   const shareXPMutation = useMutation({
@@ -99,11 +112,15 @@ export function ShareXPModal({ open, onOpenChange, bet, profile }: ShareXPModalP
     },
     onSuccess: async (data) => {
       if (data.verified) {
-        // Queue XP animation
-        queueXPGain(SHARE_XP_BONUS);
+        // Queue XP animation with actual awarded amount from API
+        const xpAwarded = data.xpAwarded || 0;
+        if (xpAwarded > 0) {
+          queueXPGain(xpAwarded);
+        }
         
         setXpClaimed(true);
-        toast.success(`+${SHARE_XP_BONUS} XP earned for sharing!`);
+        setClaimedXPAmount(xpAwarded);
+        toast.success(`+${xpAwarded.toLocaleString()} MP earned for sharing!`);
         await queryClient.invalidateQueries({ queryKey: ["profile"] });
         await queryClient.invalidateQueries({ queryKey: ["xp"] });
         await queryClient.invalidateQueries({ queryKey: ["unshared-bets"] });
@@ -115,10 +132,10 @@ export function ShareXPModal({ open, onOpenChange, bet, profile }: ShareXPModalP
     onError: (error: Error) => {
       if (error.message.includes("already claimed")) {
         setXpClaimed(true);
-        toast.info("XP already claimed for this bet!");
+        toast.info("MP already claimed for this bet!");
         queryClient.invalidateQueries({ queryKey: ["unshared-bets"] });
       } else if (error.message.includes("already been used")) {
-        toast.warning("This tweet was already used for XP. Please share a new tweet!");
+        toast.warning("This tweet was already used for MP. Please share a new tweet!");
       } else {
         setShowManualEntry(true);
         toast.error(error.message || "Failed to verify share");
@@ -204,7 +221,7 @@ export function ShareXPModal({ open, onOpenChange, bet, profile }: ShareXPModalP
         <div className="p-4 sm:p-6 space-y-4 sm:space-y-5 overflow-y-auto max-h-[calc(90vh-2rem)]">
           {/* Header */}
           <div className="text-center">
-            <h2 className="text-xl font-bold">Boost Your XP</h2>
+            <h2 className="text-xl font-bold">Boost Your MP</h2>
           </div>
 
           {/* Ticket Preview */}
@@ -249,7 +266,7 @@ export function ShareXPModal({ open, onOpenChange, bet, profile }: ShareXPModalP
           {!xpClaimed && (
             <div className="space-y-2 pt-2 border-t border-border/50">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <span className="text-xs sm:text-sm font-medium">Claim +{SHARE_XP_BONUS} XP for sharing on X</span>
+                <span className="text-xs sm:text-sm font-medium">Claim +{shareBonusPercent}% MP bonus for sharing on X</span>
                 {hasTwitter && (
                   <Button
                     onClick={() => shareXPMutation.mutate("timeline")}
@@ -293,7 +310,7 @@ export function ShareXPModal({ open, onOpenChange, bet, profile }: ShareXPModalP
           {xpClaimed && (
             <div className="flex items-center justify-center gap-2 text-green-500 pt-2 border-t border-border/50">
               <Check className="h-4 w-4" />
-              <span className="text-sm font-medium">+{SHARE_XP_BONUS} XP Claimed!</span>
+              <span className="text-sm font-medium">+{claimedXPAmount.toLocaleString()} MP Claimed!</span>
             </div>
           )}
 

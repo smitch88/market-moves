@@ -158,7 +158,7 @@ export function ReferralJoin({ referrer, referralCode }: ReferralJoinProps) {
             <FeatureItem
               icon={Sparkles}
               title="Referral Bonus"
-              description="Both you and your referrer earn 10,000 XP"
+              description="Both you and your referrer earn 10,000 MP"
               delay={0.6}
             />
           </motion.div>
@@ -299,7 +299,7 @@ function CampaignModal({ open, onClose }: { open: boolean; onClose: () => void }
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="h-1.5 w-1.5 rounded-full bg-primary" />
-                  <span>Earn XP through referrals</span>
+                  <span>Earn MP through referrals</span>
                 </div>
               </div>
 

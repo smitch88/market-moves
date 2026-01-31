@@ -249,7 +249,7 @@ export function ProfileCard() {
             Invite Friends
           </DialogTitle>
           <DialogDescription>
-            Share your unique referral link and earn 10,000 XP when friends join!
+            Share your unique referral link and earn 10,000 MP when friends join!
           </DialogDescription>
         </DialogHeader>
         
@@ -367,7 +367,7 @@ export function ProfileCard() {
             transition={{ delay: 0.5 }}
             className="text-xs text-center text-muted-foreground"
           >
-            When friends sign up using your link, you both earn 10,000 XP!
+            When friends sign up using your link, you both earn 10,000 MP!
           </motion.p>
         </div>
       </DialogContent>

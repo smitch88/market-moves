@@ -63,7 +63,7 @@ type Period = "all" | "monthly" | "weekly";
 const PAGE_SIZE = 25;
 
 const metricTabs = [
-  { label: "XP", value: "xp" as Metric, icon: Sparkles },
+  { label: "MP", value: "xp" as Metric, icon: Sparkles },
   { label: "PnL", value: "pnl" as Metric, icon: TrendingUp },
   { label: "Volume", value: "volume" as Metric, icon: TrendingUp },
 ];
@@ -471,7 +471,7 @@ export function LeaderboardContent() {
             <div className="w-16 text-center hidden sm:block">Level</div>
           )}
           <div className="w-28 text-right">
-            {metric === "xp" ? "XP" : metric === "volume" ? "Volume" : "PnL"}
+            {metric === "xp" ? "MP" : metric === "volume" ? "Volume" : "PnL"}
           </div>
         </div>
       )}
