@@ -21,7 +21,7 @@ export function KOLNotificationProvider({ children }: { children: React.ReactNod
   } | null>(null);
 
   const { notifications, dismissNotification } = useKOLNotifications({
-    enabled: authenticated, // Only connect if user is authenticated
+    enabled: false, // Only connect if user is authenticated
   });
 
   const handleCopyTrade = useCallback((notification: KOLBetNotification) => {
@@ -54,14 +54,14 @@ export function KOLNotificationProvider({ children }: { children: React.ReactNod
   return (
     <>
       {children}
-      {authenticated && notifications.length > 0 && (
+      {/* {authenticated && notifications.length > 0 && (
         <KOLBetToastContainer
           notifications={notifications}
           onDismiss={dismissNotification}
           onCopyTrade={handleCopyTrade}
           maxVisible={3}
         />
-      )}
+      )} */}
       
       {/* Quick Bet Modal for Copy Trade */}
       {copyTradeData && (
