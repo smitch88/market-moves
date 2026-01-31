@@ -541,7 +541,7 @@ export function QuickBetModal({
                   autoFocus
                 />
                 <div className="grid grid-cols-4 gap-2">
-                  {[100, 500, 1000, balance].map((preset) => {
+                  {[50, 100, 200, balance].map((preset) => {
                     const isSelected = amount === String(Math.min(preset, balance));
                     return (
                       <button

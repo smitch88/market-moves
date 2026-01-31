@@ -665,13 +665,18 @@ export function SportsBettingSidebar({
                     ))
                   ) : (
                     // Dollar buttons for buying
-                    [1, 10, 50, 100].map((val) => (
+                    [50, 100, 200, balance].map((preset) => (
                       <button
-                        key={val}
-                        onClick={() => setAmount((prev) => String((parseInt(prev, 10) || 0) + val))}
-                        className="py-2 text-sm font-medium bg-muted/40 hover:bg-muted rounded-lg transition-colors"
+                        key={preset}
+                        onClick={() => setAmount(String(Math.min(preset, balance)))}
+                        className={cn(
+                          "py-2 text-sm font-medium rounded-lg transition-colors",
+                          amount === String(Math.min(preset, balance))
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-muted/40 hover:bg-muted"
+                        )}
                       >
-                        +${val}
+                        {preset === balance ? "Max" : `$${preset}`}
                       </button>
                     ))
                   )}

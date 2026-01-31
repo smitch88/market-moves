@@ -591,17 +591,20 @@ export function MobileBettingSheet({
                               {pct}%
                             </button>
                           ))
-                        : [10, 50, 100, 500].map((val) => (
+                        : [50, 100, 200, balance].map((preset) => (
                             <button
-                              key={val}
+                              key={preset}
                               onClick={() =>
-                                setAmount((prev) =>
-                                  String((parseInt(prev, 10) || 0) + val)
-                                )
+                                setAmount(String(Math.min(preset, balance)))
                               }
-                              className="py-3 text-sm font-semibold bg-muted/40 hover:bg-muted rounded-xl transition-colors"
+                              className={cn(
+                                "py-3 text-sm font-semibold rounded-xl transition-colors",
+                                amount === String(Math.min(preset, balance))
+                                  ? "bg-primary text-primary-foreground"
+                                  : "bg-muted/40 hover:bg-muted"
+                              )}
                             >
-                              +${val}
+                              {preset === balance ? "Max" : `$${preset}`}
                             </button>
                           ))}
                     </div>

@@ -47,7 +47,7 @@ export function AmountStep({
             className="h-12 text-lg text-center font-semibold bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:ring-ring"
           />
           <div className="grid grid-cols-4 gap-2">
-            {[100, 500, 1000, balance].map((preset) => {
+            {[50, 100, 200, balance].map((preset) => {
               const isSelected = amount === String(Math.min(preset, balance));
               return (
                 <button
