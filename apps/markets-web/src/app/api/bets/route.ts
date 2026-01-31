@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma, BetStatus, BalanceReason } from "@vault/database";
+import { prisma, BetStatus, BalanceReason, Prisma } from "@vault/database";
 import { requireUser } from "@vault/auth";
 import { createPriceSnapshot } from "@/lib/services/price-snapshot-service";
 import { broadcastPriceChange } from "@/lib/services/price-broadcaster";
@@ -12,12 +12,25 @@ const placeBetSchema = z.object({
   amount: z.number().positive().int(),
 });
 
+// Minimum bet amount in dollars
+const MIN_BET_AMOUNT = 1;
+// Maximum bet amount in dollars (prevents accidental large bets)
+const MAX_BET_AMOUNT = 100000;
+
 export async function POST(request: NextRequest) {
   try {
     const user = await requireUser();
     const body = await request.json();
 
     const { marketId, outcomeIndex, amount } = placeBetSchema.parse(body);
+
+    // Validate bet amount bounds
+    if (amount < MIN_BET_AMOUNT) {
+      return NextResponse.json({ error: `Minimum bet amount is $${MIN_BET_AMOUNT}` }, { status: 400 });
+    }
+    if (amount > MAX_BET_AMOUNT) {
+      return NextResponse.json({ error: `Maximum bet amount is $${MAX_BET_AMOUNT.toLocaleString()}` }, { status: 400 });
+    }
 
     // Validate market exists, is published, and is open
     const market = await prisma.market.findUnique({
@@ -52,24 +65,50 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid outcome index" }, { status: 400 });
     }
 
-    // Check user has sufficient balance
-    const currentUser = await prisma.user.findUnique({
-      where: { id: user.id },
-      select: { balance: true, balanceLocked: true },
-    });
-
-    if (!currentUser || currentUser.balanceLocked) {
-      return NextResponse.json({ error: "Account is locked" }, { status: 403 });
-    }
-
-    const userBalance = Number(currentUser.balance);
-    if (userBalance < amount) {
-      return NextResponse.json({ error: "Insufficient balance" }, { status: 400 });
-    }
-
-    // Create bet, update balance, position, and pool in transaction (immediate confirmation)
+    // Create bet, update balance, position, and pool in ATOMIC transaction
+    // All balance checks happen INSIDE the transaction to prevent race conditions
     const result = await prisma.$transaction(async (tx) => {
+      // ATOMIC: Get and lock user row, then validate balance
+      const currentUser = await tx.user.findUnique({
+        where: { id: user.id },
+        select: { balance: true, balanceLocked: true },
+      });
+
+      if (!currentUser) {
+        throw new Error("User not found");
+      }
+
+      if (currentUser.balanceLocked) {
+        throw new Error("Account is locked");
+      }
+
+      const userBalance = Number(currentUser.balance);
+      if (userBalance < amount) {
+        throw new Error("Insufficient balance");
+      }
+
+      // Double-check: ensure new balance won't go negative
+      const newBalance = userBalance - amount;
+      if (newBalance < 0) {
+        throw new Error("Insufficient balance - transaction would result in negative balance");
+      }
+
       const isOutcome0 = outcomeIndex === 0;
+
+      // ATOMIC: Debit user balance FIRST with conditional update to prevent negative balance
+      // This is the critical atomic operation that prevents overdraw
+      const updateResult = await tx.user.updateMany({
+        where: { 
+          id: user.id,
+          balance: { gte: amount }, // Only update if balance >= amount
+        },
+        data: { balance: { decrement: amount } },
+      });
+
+      // If no rows updated, the balance check failed (race condition caught!)
+      if (updateResult.count === 0) {
+        throw new Error("Insufficient balance - concurrent transaction detected");
+      }
 
       // Calculate current price BEFORE the bet (this is the price user is buying at)
       const seed0Num = Number(market.seed0);
@@ -98,20 +137,13 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      // Debit user balance
-      const newBalance = userBalance - amount;
-      await tx.user.update({
-        where: { id: user.id },
-        data: { balance: newBalance },
-      });
-
       // Create balance ledger entry
       await tx.balanceLedger.create({
         data: {
           userId: user.id,
           delta: -amount,
           balanceBefore: userBalance,
-          balanceAfter: newBalance,
+          balanceAfter: newBalance, // newBalance calculated at start of transaction
           reason: BalanceReason.BET_PLACED,
           correlationId: bet.id,
         },

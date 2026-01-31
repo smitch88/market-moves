@@ -276,8 +276,26 @@ export class TradeService {
       throw new Error("User not found");
     }
 
-    // Create pending bet and debit balance in transaction
+    // Create pending bet and debit balance in ATOMIC transaction
     const result = await prisma.$transaction(async (tx) => {
+      // ATOMIC: Re-check balance inside transaction
+      const currentUser = await tx.user.findUnique({
+        where: { id: userId },
+        select: { balance: true, balanceLocked: true },
+      });
+
+      if (!currentUser) {
+        throw new Error("User not found");
+      }
+
+      if (currentUser.balanceLocked) {
+        throw new Error("Account is locked");
+      }
+
+      if (currency.isLessThan(currentUser.balance, amount)) {
+        throw new Error("Insufficient balance");
+      }
+
       // Create the bet (pending tweet verification)
       const bet = await tx.bet.create({
         data: {
@@ -292,19 +310,27 @@ export class TradeService {
         },
       });
 
-      // Debit user balance
-      const newBalance = currency.subtract(user.balance, amount);
-      await tx.user.update({
-        where: { id: userId },
-        data: { balance: newBalance },
+      // ATOMIC: Debit user balance with conditional check
+      const updateResult = await tx.user.updateMany({
+        where: { 
+          id: userId,
+          balance: { gte: amount },
+        },
+        data: { balance: { decrement: amount } },
       });
+
+      if (updateResult.count === 0) {
+        throw new Error("Insufficient balance - concurrent transaction detected");
+      }
+
+      const newBalance = currency.subtract(currentUser.balance, amount);
 
       // Create balance ledger entry
       await tx.balanceLedger.create({
         data: {
           userId,
           delta: currency.multiply(amount, currency.decimal("-1")),
-          balanceBefore: user.balance,
+          balanceBefore: currentUser.balance,
           balanceAfter: newBalance,
           reason: BalanceReason.BET_PLACED,
           correlationId: bet.id,
@@ -376,6 +402,25 @@ export class TradeService {
 
     // Execute everything in one atomic transaction
     const result = await prisma.$transaction(async (tx) => {
+      // ATOMIC: Re-check balance inside transaction and debit atomically
+      // This prevents race conditions from concurrent requests
+      const currentUser = await tx.user.findUnique({
+        where: { id: userId },
+        select: { balance: true, balanceLocked: true },
+      });
+
+      if (!currentUser) {
+        throw new Error("User not found");
+      }
+
+      if (currentUser.balanceLocked) {
+        throw new Error("Account is locked");
+      }
+
+      if (currency.isLessThan(currentUser.balance, amount)) {
+        throw new Error("Insufficient balance");
+      }
+
       // Create the bet (confirmed immediately)
       const bet = await tx.bet.create({
         data: {
@@ -391,19 +436,28 @@ export class TradeService {
         },
       });
 
-      // Debit user balance
-      const newBalance = currency.subtract(user.balance, amount);
-      await tx.user.update({
-        where: { id: userId },
-        data: { balance: newBalance },
+      // ATOMIC: Debit user balance with conditional check
+      const updateResult = await tx.user.updateMany({
+        where: { 
+          id: userId,
+          balance: { gte: amount }, // Only update if balance >= amount
+        },
+        data: { balance: { decrement: amount } },
       });
+
+      // If no rows updated, race condition detected
+      if (updateResult.count === 0) {
+        throw new Error("Insufficient balance - concurrent transaction detected");
+      }
+
+      const newBalance = currency.subtract(currentUser.balance, amount);
 
       // Create balance ledger entry
       await tx.balanceLedger.create({
         data: {
           userId,
           delta: currency.multiply(amount, currency.decimal("-1")),
-          balanceBefore: user.balance,
+          balanceBefore: currentUser.balance,
           balanceAfter: newBalance,
           reason: BalanceReason.BET_PLACED,
           correlationId: bet.id,
@@ -620,8 +674,33 @@ export class TradeService {
       throw new Error(`Proceeds ${currency.formatCurrency(proceedsAfterFee)} below minimum ${currency.formatCurrency(minProceeds)}`);
     }
 
-    // Execute in transaction
+    // Execute in ATOMIC transaction
     const result = await prisma.$transaction(async (tx) => {
+      // ATOMIC: Re-validate position and shares inside transaction
+      const position = await tx.position.findUnique({
+        where: {
+          userId_marketId: { userId, marketId },
+        },
+      });
+
+      if (!position) {
+        throw new Error("Position not found");
+      }
+
+      // Check shares ownership INSIDE transaction to prevent race conditions
+      const userShares = outcomeIndex === 0 ? position.shares0 : position.shares1;
+      if (currency.isLessThan(userShares, shares)) {
+        throw new Error("Insufficient shares - you may have sold some in another transaction");
+      }
+
+      // Verify shares won't go negative
+      const newShares0 = outcomeIndex === 0 ? currency.subtract(position.shares0, shares) : position.shares0;
+      const newShares1 = outcomeIndex === 1 ? currency.subtract(position.shares1, shares) : position.shares1;
+      
+      if (currency.isLessThan(newShares0, 0) || currency.isLessThan(newShares1, 0)) {
+        throw new Error("Insufficient shares - transaction would result in negative shares");
+      }
+
       // Update market reserves
       const newReserve0 = outcomeIndex === 0 ? sellResult.newReserve : sellResult.newOtherReserve;
       const newReserve1 = outcomeIndex === 0 ? sellResult.newOtherReserve : sellResult.newReserve;
@@ -646,28 +725,21 @@ export class TradeService {
         },
       });
 
-      // Update position (reduce shares and also clear amount for CPMM)
-      const position = await tx.position.findUnique({
-        where: {
-          userId_marketId: { userId, marketId },
-        },
-      });
-
-      if (!position) {
-        throw new Error("Position not found");
-      }
-
       // Calculate realized PnL from this sell
       // Realized PnL = proceeds - (shares sold × average cost per share)
       const avgCost = outcomeIndex === 0 ? position.avgCost0 : position.avgCost1;
       const costBasis = currency.multiply(shares, avgCost);
       const realizedPnL = currency.subtract(proceedsAfterFee, costBasis);
 
-      const newShares0 = outcomeIndex === 0 ? currency.subtract(position.shares0, shares) : position.shares0;
-      const newShares1 = outcomeIndex === 1 ? currency.subtract(position.shares1, shares) : position.shares1;
-
-      await tx.position.update({
-        where: { id: position.id },
+      // ATOMIC: Update position with conditional check to prevent negative shares
+      const positionUpdateResult = await tx.position.updateMany({
+        where: {
+          id: position.id,
+          // Only update if shares are still sufficient (race condition protection)
+          ...(outcomeIndex === 0
+            ? { shares0: { gte: shares } }
+            : { shares1: { gte: shares } }),
+        },
         data: {
           ...(outcomeIndex === 0
             ? { 
@@ -683,6 +755,11 @@ export class TradeService {
           lastBetAt: new Date(),
         },
       });
+
+      // If no rows updated, race condition detected
+      if (positionUpdateResult.count === 0) {
+        throw new Error("Insufficient shares - concurrent transaction detected");
+      }
 
       // Get user and update balance + realized PnL in single operation
       const user = await tx.user.findUnique({

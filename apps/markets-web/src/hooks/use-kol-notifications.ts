@@ -40,6 +40,7 @@ interface UseKOLNotificationsOptions {
 export function useKOLNotifications(options: UseKOLNotificationsOptions = {}) {
   const { enabled = true, onNewBet } = options;
   const [isConnected, setIsConnected] = useState(false);
+  // Only store real-time notifications (not historical/initial ones)
   const [notifications, setNotifications] = useState<KOLBetNotification[]>([]);
   const eventSourceRef = useRef<EventSource | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -67,13 +68,13 @@ export function useKOLNotifications(options: UseKOLNotificationsOptions = {}) {
 
         if (message.type === "connected") {
           console.log("[KOL Notifications] Connection confirmed");
-        } else if (message.type === "recent_bets" && Array.isArray(message.data)) {
-          // Initial batch of recent bets
-          setNotifications(message.data);
+        } else if (message.type === "recent_bets") {
+          // Ignore initial batch - we only want real-time push notifications
+          console.log("[KOL Notifications] Ignoring initial batch (push-only mode)");
         } else if (message.type === "kol_bet" && message.data && !Array.isArray(message.data)) {
-          // New KOL bet notification
+          // New KOL bet notification - this is what we want (real-time push)
           const notification = message.data;
-          setNotifications((prev) => [notification, ...prev].slice(0, 20)); // Keep last 20
+          setNotifications((prev) => [notification, ...prev].slice(0, 5)); // Keep last 5 for display
           onNewBetRef.current?.(notification);
         }
       } catch (error) {
