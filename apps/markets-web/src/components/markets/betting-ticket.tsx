@@ -25,6 +25,9 @@ interface BettingTicketProps {
 
 export const BettingTicket = forwardRef<HTMLDivElement, BettingTicketProps>(
   ({ market, event, outcomeLabel, outcomeIndex, amount, userName, userHandle, userAvatar, timestamp = new Date() }, ref) => {
+    // Get the hostname without protocol
+    const hostname = typeof window !== 'undefined' ? window.location.host : 'vault777.com';
+    
     const formattedDate = timestamp.toLocaleDateString("en-US", {
       month: "short",
       day: "numeric",
@@ -132,7 +135,7 @@ export const BettingTicket = forwardRef<HTMLDivElement, BettingTicketProps>(
               Make your prediction at
             </div>
             <div className="text-xs sm:text-sm font-semibold text-[#df2421]">
-              predictions.vault777.com
+              {hostname}
             </div>
           </div>
         </div>
