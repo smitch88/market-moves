@@ -41,6 +41,7 @@ function serializeMarket(market: any) {
     settledAt: market.settledAt?.toISOString() ?? null,
     createdAt: market.createdAt?.toISOString() ?? null,
     updatedAt: market.updatedAt?.toISOString() ?? null,
+    _count: market._count ?? { bets: 0 },
   };
 }
 
@@ -108,6 +109,11 @@ export default async function MarketPage({ params }: PageProps) {
       markets: {
         where: { isPublished: true }, // Only show published markets
         orderBy: { closesAt: "asc" },
+        include: {
+          _count: {
+            select: { bets: true },
+          },
+        },
       },
     },
   });

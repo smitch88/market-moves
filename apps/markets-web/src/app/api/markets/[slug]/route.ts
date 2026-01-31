@@ -209,6 +209,17 @@ export async function GET(
     // Calculate aggregate event stats
     const totalPool = marketsWithStats.reduce((sum, m) => sum + m.stats.totalPool, 0);
     const totalBets = marketsWithStats.reduce((sum, m) => sum + m.stats.totalBets, 0);
+    
+    // Calculate unique users across all bets
+    const uniqueUserIds = new Set<string>();
+    marketsWithStats.forEach(m => {
+      m.bets?.forEach((bet: { user?: { id: string } }) => {
+        if (bet.user?.id) {
+          uniqueUserIds.add(bet.user.id);
+        }
+      });
+    });
+    const uniqueUsers = uniqueUserIds.size;
 
     // Return in backward-compatible format (market -> event)
     return NextResponse.json(
@@ -249,6 +260,7 @@ export async function GET(
           percentA: marketsWithStats[0]?.stats.percent0 || 50, // Legacy alias
           percentB: marketsWithStats[0]?.stats.percent1 || 50, // Legacy alias
           totalBets,
+          uniqueUsers,
           marketCount: marketsWithStats.length,
         },
       },

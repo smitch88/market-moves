@@ -4,7 +4,7 @@ import { useState, useMemo, useCallback } from "react";
 import Link from "next/link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
-import { ArrowLeft, TrendingUp, Users, Wifi, WifiOff } from "lucide-react";
+import { ArrowLeft, TrendingUp, Users, Wifi, WifiOff, BarChart3 } from "lucide-react";
 import type { Market, Event } from "@vault/database";
 import { SportsEventHeader } from "./sports-event-header";
 import { MarketCategoryTabs } from "./market-category-tabs";
@@ -549,10 +549,24 @@ export function SportsEventView({ event, sport }: SportsEventViewProps) {
     setExpandedMarketId(expandedMarketId === marketId ? null : marketId);
   };
 
-  // Calculate stats
-  const totalBets = markets.reduce((sum: number, m: Market & { _count?: { bets?: number } }) => {
-    return sum + (m._count?.bets || 0);
+  // Calculate stats from market data
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const totalBets = markets.reduce((sum: number, m: any) => {
+    // Try stats.totalBets first (from API), then _count.bets (from page), then bets array length
+    return sum + (m.stats?.totalBets ?? m._count?.bets ?? m.bets?.length ?? 0);
   }, 0);
+
+  // Calculate unique users from bets
+  const uniqueUserIds = new Set<string>();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  markets.forEach((m: any) => {
+    m.bets?.forEach((bet: { user?: { id: string } }) => {
+      if (bet.user?.id) {
+        uniqueUserIds.add(bet.user.id);
+      }
+    });
+  });
+  const uniqueUsers = uniqueUserIds.size;
 
   // Render markets based on active category
   const renderMarkets = () => {
@@ -632,23 +646,38 @@ export function SportsEventView({ event, sport }: SportsEventViewProps) {
               <span>{markets.length} markets</span>
             </div>
             <div className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm text-muted-foreground">
-              <Users className="h-3 w-3 sm:h-4 sm:w-4" />
+              <BarChart3 className="h-3 w-3 sm:h-4 sm:w-4" />
               <span>{totalBets} predictions</span>
             </div>
-            {/* Real-time connection indicator */}
-            <div className="flex items-center gap-1 sm:gap-1.5 text-xs">
-              {isConnected ? (
-                <>
-                  <Wifi className="h-3 w-3 text-green-500" />
-                  <span className="text-green-500">Live</span>
-                </>
-              ) : (
-                <>
-                  <WifiOff className="h-3 w-3 text-muted-foreground" />
-                  <span className="text-muted-foreground">Offline</span>
-                </>
-              )}
+            <div className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm text-muted-foreground">
+              <Users className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span>{uniqueUsers} predictors</span>
             </div>
+            {/* Real-time connection indicator - only show if event is live */}
+            {(() => {
+              const now = new Date();
+              const startTime = event.startTime ? new Date(event.startTime) : null;
+              const endTime = event.endTime ? new Date(event.endTime) : null;
+              const isEventLive = startTime && now >= startTime && (!endTime || now <= endTime);
+              
+              if (!isEventLive) return null;
+              
+              return (
+                <div className="flex items-center gap-1 sm:gap-1.5 text-xs">
+                  {isConnected ? (
+                    <>
+                      <Wifi className="h-3 w-3 text-green-500" />
+                      <span className="text-green-500">Live</span>
+                    </>
+                  ) : (
+                    <>
+                      <WifiOff className="h-3 w-3 text-muted-foreground" />
+                      <span className="text-muted-foreground">Offline</span>
+                    </>
+                  )}
+                </div>
+              );
+            })()}
           </motion.div>
 
           {/* Category tabs */}
