@@ -22,9 +22,14 @@ interface XPAnimationContextType {
   activeBalanceChange: number | null;
   isAnimating: boolean;
   ringPulse: boolean;
+  // Optimistic offsets (for immediate count-up before data refresh)
+  optimisticXPOffset: number;
+  optimisticBalanceOffset: number;
   // Clear active changes after animation
   clearActiveXP: () => void;
   clearActiveBalance: () => void;
+  // Reset optimistic offsets (call when data is refetched)
+  resetOptimisticOffsets: () => void;
 }
 
 const XPAnimationContext = createContext<XPAnimationContextType | null>(null);
@@ -46,6 +51,8 @@ export function XPAnimationProvider({ children }: XPAnimationProviderProps) {
   const [activeBalanceChange, setActiveBalanceChange] = useState<number | null>(null);
   const [isAnimating, setIsAnimating] = useState(false);
   const [ringPulse, setRingPulse] = useState(false);
+  const [optimisticXPOffset, setOptimisticXPOffset] = useState(0);
+  const [optimisticBalanceOffset, setOptimisticBalanceOffset] = useState(0);
   const queueRef = useRef<PendingChange[]>([]);
 
   // Queue XP gain to be triggered later (e.g., after modal closes)
@@ -67,6 +74,12 @@ export function XPAnimationProvider({ children }: XPAnimationProviderProps) {
 
   const clearActiveBalance = useCallback(() => {
     setActiveBalanceChange(null);
+  }, []);
+
+  // Reset optimistic offsets (call when data is refetched from server)
+  const resetOptimisticOffsets = useCallback(() => {
+    setOptimisticXPOffset(0);
+    setOptimisticBalanceOffset(0);
   }, []);
 
   // Flush the queue - trigger all pending animations
@@ -94,9 +107,13 @@ export function XPAnimationProvider({ children }: XPAnimationProviderProps) {
     
     if (totalXP > 0) {
       setActiveXPChange(totalXP);
+      // Add optimistic offset for immediate count-up
+      setOptimisticXPOffset(prev => prev + totalXP);
     }
     if (totalBalance !== 0) {
       setActiveBalanceChange(totalBalance);
+      // Add optimistic offset for immediate count-up
+      setOptimisticBalanceOffset(prev => prev + totalBalance);
     }
     
     // Reset ring pulse after animation
@@ -120,8 +137,11 @@ export function XPAnimationProvider({ children }: XPAnimationProviderProps) {
         activeBalanceChange,
         isAnimating,
         ringPulse,
+        optimisticXPOffset,
+        optimisticBalanceOffset,
         clearActiveXP,
         clearActiveBalance,
+        resetOptimisticOffsets,
       }}
     >
       {children}
@@ -201,7 +221,7 @@ interface AnimatedXPDisplayProps {
 }
 
 export function AnimatedXPDisplay({ xp, isLoading }: AnimatedXPDisplayProps) {
-  const { activeXPChange, clearActiveXP } = useXPAnimation();
+  const { activeXPChange, clearActiveXP, optimisticXPOffset } = useXPAnimation();
   const [showChange, setShowChange] = useState(false);
   const [displayedChange, setDisplayedChange] = useState<number | null>(null);
 
@@ -218,10 +238,13 @@ export function AnimatedXPDisplay({ xp, isLoading }: AnimatedXPDisplayProps) {
     );
   }
 
+  // Use optimistic offset for immediate count-up before data refreshes
+  const displayedXP = xp + optimisticXPOffset;
+
   return (
     <div className="relative">
       <AnimatedNumber 
-        value={xp} 
+        value={displayedXP} 
         className="text-base font-semibold text-foreground tabular-nums"
       />
       <AnimatePresence>
@@ -275,7 +298,7 @@ interface AnimatedBalanceDisplayProps {
 }
 
 export function AnimatedBalanceDisplay({ balance, isLoading }: AnimatedBalanceDisplayProps) {
-  const { activeBalanceChange, clearActiveBalance } = useXPAnimation();
+  const { activeBalanceChange, clearActiveBalance, optimisticBalanceOffset } = useXPAnimation();
   const [showChange, setShowChange] = useState(false);
   const [displayedChange, setDisplayedChange] = useState<number | null>(null);
 
@@ -292,10 +315,13 @@ export function AnimatedBalanceDisplay({ balance, isLoading }: AnimatedBalanceDi
     );
   }
 
+  // Use optimistic offset for immediate count-up before data refreshes
+  const displayedBalance = balance + optimisticBalanceOffset;
+
   return (
     <div className="relative">
       <AnimatedNumber 
-        value={balance} 
+        value={displayedBalance} 
         prefix="$"
         className="text-base font-semibold text-[#21C55E]"
       />

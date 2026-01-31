@@ -11,8 +11,8 @@ import { SearchBar } from "./search-bar";
 import { SearchModal } from "./search-modal";
 import { Search, Bug } from "lucide-react";
 import { useAuthFetch } from "@/lib/auth/auth-fetch";
-import { useState, Suspense } from "react";
-import { AnimatedXPDisplay, AnimatedBalanceDisplay } from "./xp-animation";
+import { useState, Suspense, useEffect, useRef } from "react";
+import { AnimatedXPDisplay, AnimatedBalanceDisplay, useXPAnimation } from "./xp-animation";
 import { cn } from "@vault/ui/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -63,7 +63,7 @@ export function Header() {
   });
 
   // Fetch XP with auto-refresh
-  const { data: xpData, isLoading: xpLoading } = useQuery({
+  const { data: xpData, isLoading: xpLoading, dataUpdatedAt: xpUpdatedAt } = useQuery({
     queryKey: ["xp"],
     queryFn: async () => {
       const res = await authFetch("/api/me/xp");
@@ -77,6 +77,34 @@ export function Header() {
 
   const xp = xpData?.xp ?? 0;
   const balance = profile?.balance ?? 0;
+
+  // Get resetOptimisticOffsets from animation context
+  const { resetOptimisticOffsets } = useXPAnimation();
+  
+  // Track when data was last updated to reset optimistic offsets
+  const prevXpUpdatedAtRef = useRef<number | undefined>(undefined);
+  
+  // Reset optimistic offsets when actual data is refetched
+  // Add a small delay to ensure animations have started
+  useEffect(() => {
+    // Skip the initial render
+    if (prevXpUpdatedAtRef.current === undefined) {
+      prevXpUpdatedAtRef.current = xpUpdatedAt;
+      return;
+    }
+    
+    // If XP data was updated (refetched), reset optimistic offsets after a delay
+    // This ensures the count-up animation has time to start before reset
+    if (xpUpdatedAt && xpUpdatedAt !== prevXpUpdatedAtRef.current) {
+      const timer = setTimeout(() => {
+        resetOptimisticOffsets();
+      }, 300); // Small delay to let animation start
+      
+      prevXpUpdatedAtRef.current = xpUpdatedAt;
+      
+      return () => clearTimeout(timer);
+    }
+  }, [xpUpdatedAt, resetOptimisticOffsets]);
   // Show loading state while Privy is initializing or data is loading
   const isLoadingUserData = !canFetchAuthData || profileLoading || xpLoading;
 
