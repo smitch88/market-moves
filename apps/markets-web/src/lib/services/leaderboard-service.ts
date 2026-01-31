@@ -15,7 +15,7 @@ import { calculateLevel } from "./xp-service";
 // TYPES
 // ============================================================================
 
-export type LeaderboardMetric = "xp" | "pnl" | "volume";
+export type LeaderboardMetric = "xp" | "pnl" | "volume" | "creators";
 export type LeaderboardPeriod = "all" | "monthly" | "weekly";
 
 export interface LeaderboardEntry {
@@ -824,6 +824,8 @@ export async function getLeaderboard(
     result = await getXPLeaderboard(period, page, pageSize);
   } else if (metric === "volume") {
     result = await getVolumeLeaderboard(period, page, pageSize);
+  } else if (metric === "creators") {
+    result = await getCreatorLeaderboard(period, page, pageSize);
   } else {
     result = await getPnLLeaderboard(period, page, pageSize);
   }
@@ -853,6 +855,9 @@ export async function getUserRank(
   }
   if (metric === "volume") {
     return getUserVolumeRank(userId, period);
+  }
+  if (metric === "creators") {
+    return getCreatorRank(userId, period);
   }
   return getUserPnLRank(userId, period);
 }
@@ -888,5 +893,198 @@ export async function getUserLeaderboardEntry(
     profileImageUrl: user.profileImageUrl,
     value: rankResult.value,
     level: rankResult.level,
+  };
+}
+
+// ============================================================================
+// CREATOR (KOL) LEADERBOARD
+// ============================================================================
+
+export interface CreatorLeaderboardEntry extends LeaderboardEntry {
+  followerCount: number;
+  followerPnL: number;
+  followerVolume: number;
+  isKOL: boolean;
+}
+
+/**
+ * Get Creator/KOL leaderboard ranked by follower performance
+ * For "all" period: uses total follower volume and PnL
+ * For weekly/monthly: uses follower activity in that period
+ */
+export async function getCreatorLeaderboard(
+  period: LeaderboardPeriod = "all",
+  page: number = 1,
+  pageSize: number = 25
+): Promise<{ entries: CreatorLeaderboardEntry[]; total: number }> {
+  const skip = (page - 1) * pageSize;
+
+  // Get all KOLs
+  const kols = await prisma.user.findMany({
+    where: { isKOL: true },
+    select: {
+      id: true,
+      handle: true,
+      name: true,
+      profileImageUrl: true,
+      xp: true,
+      isKOL: true,
+      kolApprovedAt: true,
+      _count: {
+        select: {
+          followers: true,
+        },
+      },
+    },
+  });
+
+  if (kols.length === 0) {
+    return { entries: [], total: 0 };
+  }
+
+  // Get follower aggregates for each KOL
+  const kolIds = kols.map((k) => k.id);
+  const startDate = getPeriodStartDate(period);
+
+  // Get follower stats in parallel
+  const kolStats = await Promise.all(
+    kolIds.map(async (kolId) => {
+      // Get followers
+      const followers = await prisma.user.findMany({
+        where: { captainId: kolId },
+        select: {
+          id: true,
+          realizedPnL: true,
+          totalVolume: true,
+        },
+      });
+
+      let followerPnL = 0;
+      let followerVolume = 0;
+
+      if (period === "all") {
+        // All-time: use stored totals
+        for (const follower of followers) {
+          followerPnL += Number(follower.realizedPnL);
+          followerVolume += Number(follower.totalVolume);
+        }
+      } else if (startDate) {
+        // Period-based: aggregate from bets
+        const followerIds = followers.map((f) => f.id);
+        
+        if (followerIds.length > 0) {
+          // Get volume
+          const volumeAgg = await prisma.bet.aggregate({
+            where: {
+              userId: { in: followerIds },
+              status: BetStatus.CONFIRMED,
+              createdAt: { gte: startDate },
+            },
+            _sum: { amount: true },
+          });
+          followerVolume = Number(volumeAgg._sum.amount ?? 0);
+
+          // Get PnL from settled bets
+          const settledBets = await prisma.bet.findMany({
+            where: {
+              userId: { in: followerIds },
+              status: { in: [BetStatus.WON, BetStatus.LOST] },
+              createdAt: { gte: startDate },
+              payout: { not: null },
+              tradeType: "BUY",
+            },
+            select: {
+              amount: true,
+              payout: true,
+            },
+          });
+
+          for (const bet of settledBets) {
+            followerPnL += Number(bet.payout ?? 0) - Number(bet.amount);
+          }
+        }
+      }
+
+      return {
+        kolId,
+        followerPnL: Math.round(followerPnL),
+        followerVolume: Math.round(followerVolume),
+        followerCount: followers.length,
+      };
+    })
+  );
+
+  // Create a map of KOL stats
+  const statsMap = new Map(kolStats.map((s) => [s.kolId, s]));
+
+  // Build entries with combined data
+  const entriesWithStats = kols.map((kol) => {
+    const stats = statsMap.get(kol.id)!;
+    return {
+      userId: kol.id,
+      handle: kol.handle,
+      name: kol.name,
+      profileImageUrl: kol.profileImageUrl,
+      level: calculateLevel(kol.xp),
+      isKOL: kol.isKOL,
+      followerCount: kol._count.followers,
+      followerPnL: stats.followerPnL,
+      followerVolume: stats.followerVolume,
+      // Rank by follower volume (primary metric)
+      value: stats.followerVolume,
+    };
+  });
+
+  // Sort by follower volume (descending)
+  entriesWithStats.sort((a, b) => b.value - a.value);
+
+  const total = entriesWithStats.length;
+  const paginatedEntries = entriesWithStats.slice(skip, skip + pageSize);
+
+  const entries: CreatorLeaderboardEntry[] = paginatedEntries.map(
+    (entry, index) => ({
+      rank: skip + index + 1,
+      userId: entry.userId,
+      handle: entry.handle,
+      name: entry.name,
+      profileImageUrl: entry.profileImageUrl,
+      value: entry.value,
+      level: entry.level,
+      followerCount: entry.followerCount,
+      followerPnL: entry.followerPnL,
+      followerVolume: entry.followerVolume,
+      isKOL: entry.isKOL,
+    })
+  );
+
+  return { entries, total };
+}
+
+/**
+ * Get a KOL's creator rank
+ */
+export async function getCreatorRank(
+  userId: string,
+  period: LeaderboardPeriod = "all"
+): Promise<UserRankResult | null> {
+  // First check if user is a KOL
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { isKOL: true },
+  });
+
+  if (!user?.isKOL) return null;
+
+  // Get full creator leaderboard (might be inefficient for large datasets,
+  // but works for now since KOL count is typically small)
+  const { entries, total } = await getCreatorLeaderboard(period, 1, 1000);
+
+  const userEntry = entries.find((e) => e.userId === userId);
+  if (!userEntry) return null;
+
+  return {
+    rank: userEntry.rank,
+    value: userEntry.value,
+    totalUsers: total,
   };
 }

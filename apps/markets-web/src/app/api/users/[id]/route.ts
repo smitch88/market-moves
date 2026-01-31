@@ -32,6 +32,7 @@ export async function GET(
         profileImageUrl: true,
         createdAt: true,
         xp: true,
+        isKOL: true,
       },
     });
 
@@ -51,6 +52,7 @@ export async function GET(
           profileImageUrl: true,
           createdAt: true,
           xp: true,
+          isKOL: true,
         },
       });
     }
@@ -74,11 +76,14 @@ export async function GET(
         profileImageUrl: user.profileImageUrl,
         createdAt: user.createdAt.toISOString(),
         xp: user.xp,
+        isKOL: user.isKOL,
       },
       stats: {
         realizedPnL: stats.realizedPnL,
         unrealizedPnL: stats.unrealizedPnL,
         totalPnL: stats.totalPnL,
+        totalVolume: stats.totalVolume,
+        largestWin: stats.largestWin,
         winRate: stats.winRate,
         totalBets: stats.totalBets,
         wonBets: stats.wonBets,

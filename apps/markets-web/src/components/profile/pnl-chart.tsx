@@ -188,9 +188,9 @@ export function PnLChart({
   };
 
   return (
-    <div className="border border-border rounded-xl p-5">
+    <div className="border border-border rounded-xl p-4 flex flex-col h-full">
       {/* Header with P&L value and time range */}
-      <div className="flex items-start justify-between mb-4">
+      <div className="flex items-start justify-between mb-3 flex-shrink-0">
         <div>
           <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
             <span
@@ -233,9 +233,9 @@ export function PnLChart({
         </div>
       </div>
 
-      {/* Chart */}
+      {/* Chart - fills remaining space */}
       <div
-        className="h-[120px] -mx-2"
+        className="flex-1 min-h-[120px] -mx-2"
         onMouseLeave={() => interactive && setHoveredPnL(null)}
       >
         {hasChartData ? (

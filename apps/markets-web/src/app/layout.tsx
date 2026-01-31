@@ -14,6 +14,7 @@ import { ThemeProvider } from "@/components/providers/theme-provider";
 import { PrivyProvider } from "@/components/providers/privy-provider";
 import { QueryProvider } from "@/components/providers/query-provider";
 import { XPAnimationProvider } from "@/components/layout/xp-animation";
+import { KOLNotificationProvider } from "@/components/kol";
 import { DevTools } from "@/components/dev/dev-tools";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { WelcomeModal } from "@/components/welcome/welcome-modal";
@@ -50,13 +51,15 @@ export default function RootLayout({
           <QueryProvider>
             <PrivyProvider>
               <XPAnimationProvider>
-                <div className="pb-20 md:pb-0">
-                  {children}
-                </div>
-                <MobileNav />
-                <WelcomeModal />
-                <DevTools />
-                <ThemedToaster />
+                <KOLNotificationProvider>
+                  <div className="pb-20 md:pb-0">
+                    {children}
+                  </div>
+                  <MobileNav />
+                  <WelcomeModal />
+                  <DevTools />
+                  <ThemedToaster />
+                </KOLNotificationProvider>
               </XPAnimationProvider>
             </PrivyProvider>
           </QueryProvider>

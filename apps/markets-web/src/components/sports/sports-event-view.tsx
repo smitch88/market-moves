@@ -26,6 +26,8 @@ import {
   type MarketCategoryConfig,
 } from "./sport-configs";
 import { useMarketUpdates, type PriceUpdate } from "@/hooks/use-market-updates";
+import { EventActivityPanel } from "@/components/events/event-activity-panel";
+import { EventKOLsPanel } from "@/components/events/event-kols-panel";
 
 interface SportsEventViewProps {
   event: Event & {
@@ -673,15 +675,24 @@ export function SportsEventView({ event, sport }: SportsEventViewProps) {
           </motion.div>
         </div>
 
-        {/* Right column: Betting Sidebar (sticky) - hidden on mobile */}
+        {/* Right column: Betting Sidebar + Info Panels (sticky) - hidden on mobile */}
         <div className="hidden lg:block lg:col-span-1">
-          <div className="lg:sticky lg:top-20">
+          <div className="lg:sticky lg:top-20 space-y-4">
             <SportsBettingSidebar
               event={event}
               selectedMarket={selectedMarket}
               selectedOutcome={selectedOutcome}
               onClearSelection={handleClearSelection}
             />
+            
+            {/* Activity Panel */}
+            <EventActivityPanel 
+              eventSlug={event.slug} 
+              marketId={selectedMarketId || undefined}
+            />
+            
+            {/* Top KOLs Panel */}
+            <EventKOLsPanel eventSlug={event.slug} />
           </div>
         </div>
       </div>

@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
  * GET /api/leaderboard
  *
  * Query params:
- * - metric: "xp" | "pnl" | "volume" (default: "xp")
+ * - metric: "xp" | "pnl" | "volume" | "creators" (default: "xp")
  * - period: "all" | "monthly" | "weekly" (default: "all")
  * - page: number (default: 1)
  * - pageSize: number (default: 25, max: 50)
@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
     const pageSizeParam = searchParams.get("pageSize") || "25";
 
     // Validate metric
-    const validMetrics: LeaderboardMetric[] = ["xp", "pnl", "volume"];
+    const validMetrics: LeaderboardMetric[] = ["xp", "pnl", "volume", "creators"];
     const metric = validMetrics.includes(metricParam as LeaderboardMetric)
       ? (metricParam as LeaderboardMetric)
       : "xp";

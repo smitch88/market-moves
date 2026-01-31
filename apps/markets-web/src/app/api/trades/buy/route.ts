@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@vault/database";
 import { requireUser } from "@vault/auth";
 import { tradeService } from "@/lib/services/trade-service";
 import * as currency from "@/lib/utils/currency";
 import { getXPConfig, getXPStatus } from "@/lib/services/xp-service";
+import { updateUserStreak } from "@/lib/services/streak-service";
+import { createKOLBetNotification, isUserKOL } from "@/lib/services/kol-service";
+import { broadcastKOLBet } from "@/app/api/kol-bets/stream/route";
 import { z } from "zod";
 
 const buySchema = z.object({
@@ -69,6 +73,53 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Update user's streak (placing a bet counts as daily activity)
+    const streakResult = await updateUserStreak(user.id);
+
+    // If user is a KOL, create a bet notification for broadcasting
+    const userIsKOL = await isUserKOL(user.id);
+    if (userIsKOL && result.bet) {
+      try {
+        // Get market info for the notification
+        const market = await prisma.market.findUnique({
+          where: { id: marketId },
+          select: {
+            eventId: true,
+            question: true,
+            outcomes: true,
+            event: {
+              select: {
+                id: true,
+                title: true,
+                slug: true,
+              },
+            },
+          },
+        });
+
+        if (market) {
+          const outcomes = JSON.parse(market.outcomes) as string[];
+          const outcomeLabel = outcomes[outcomeIndex] || `Outcome ${outcomeIndex}`;
+
+          const notification = await createKOLBetNotification(
+            user.id,
+            result.bet.id,
+            marketId,
+            market.eventId,
+            amount,
+            outcomeIndex,
+            outcomeLabel
+          );
+
+          // Broadcast to all connected SSE clients
+          broadcastKOLBet(notification);
+        }
+      } catch (err) {
+        // Don't fail the trade if notification creation fails
+        console.error("Failed to create KOL bet notification:", err);
+      }
+    }
+
     return NextResponse.json({
       bet: result.bet,
       quote: {
@@ -85,6 +136,12 @@ export async function POST(request: NextRequest) {
       },
       xpAwarded,
       xpReason,
+      streak: {
+        current: streakResult.newStreak,
+        multiplier: streakResult.multiplier,
+        isNewDay: streakResult.isNewDay,
+        badgesAwarded: streakResult.badgesAwarded,
+      },
       message: "Trade executed successfully!",
     });
   } catch (error) {

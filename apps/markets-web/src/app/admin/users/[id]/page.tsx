@@ -44,6 +44,8 @@ import {
   ShieldOff,
   AlertTriangle,
   RefreshCw,
+  Star,
+  StarOff,
 } from "lucide-react";
 
 // X Icon component
@@ -66,11 +68,14 @@ interface UserDetailResponse {
     profileImageUrl: string | null;
     createdAt: string;
     referralCode: string | null;
+    isKOL: boolean;
+    kolApprovedAt: string | null;
     _count: {
       bets: number;
       positions: number;
       referrals: number;
       xpTransactions: number;
+      followers: number;
     };
   };
   stats: {
@@ -249,6 +254,24 @@ export default function AdminUserDetailPage({
     },
   });
 
+  // KOL status mutation
+  const kolMutation = useMutation({
+    mutationFn: async (grant: boolean) => {
+      const res = await fetch(`/api/admin/users/${id}/kol`, {
+        method: grant ? "POST" : "DELETE",
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || `Failed to ${grant ? "grant" : "revoke"} KOL status`);
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["adminUserDetail", id] });
+      queryClient.invalidateQueries({ queryKey: ["adminUsers"] });
+    },
+  });
+
   const handleAdjustSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const amount = parseInt(adjustAmount, 10);
@@ -342,6 +365,12 @@ export default function AdminUserDetailPage({
                 >
                   {user.role}
                 </Badge>
+                {user.isKOL && (
+                  <Badge variant="outline" className="border-yellow-500/50 text-yellow-500">
+                    <Star className="h-3 w-3 mr-1 fill-yellow-500" />
+                    KOL
+                  </Badge>
+                )}
               </div>
               <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-1 text-xs sm:text-sm text-muted-foreground">
                 {user.handle && (
@@ -396,6 +425,25 @@ export default function AdminUserDetailPage({
               <Shield className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
             )}
             {user.role === "ADMIN" ? <><span className="hidden sm:inline">Remove </span>Admin</> : <><span className="hidden sm:inline">Make </span>Admin</>}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => kolMutation.mutate(!user.isKOL)}
+            disabled={kolMutation.isPending}
+            className={cn(
+              "text-xs sm:text-sm",
+              user.isKOL && "border-yellow-500/50 text-yellow-500 hover:text-yellow-400"
+            )}
+          >
+            {kolMutation.isPending ? (
+              <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 animate-spin" />
+            ) : user.isKOL ? (
+              <StarOff className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+            ) : (
+              <Star className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+            )}
+            {user.isKOL ? <><span className="hidden sm:inline">Remove </span>KOL</> : <><span className="hidden sm:inline">Make </span>KOL</>}
           </Button>
           <Button
             variant="outline"

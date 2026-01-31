@@ -21,12 +21,15 @@ interface UserProfile {
   profileImageUrl: string | null;
   createdAt: string;
   xp: number;
+  isKOL: boolean;
 }
 
 interface UserStats {
   realizedPnL: number;
   unrealizedPnL: number;
   totalPnL: number;
+  totalVolume: number;
+  largestWin: number;
   winRate: number;
   totalBets: number;
   wonBets: number;
@@ -138,10 +141,15 @@ export function PublicProfileContent({ handle }: PublicProfileContentProps) {
           handle={user.handle}
           showHandleLink={true}
           joinedAt={user.createdAt}
+          isKOL={user.isKOL}
           stats={[
             {
-              label: "Positions Value",
+              label: "Positions",
               value: formatMoney(positionsValue || 0, { compact: true }),
+            },
+            {
+              label: "Volume",
+              value: formatMoney(stats.totalVolume || 0, { compact: true }),
             },
             {
               label: "Win Rate",
@@ -150,10 +158,6 @@ export function PublicProfileContent({ handle }: PublicProfileContentProps) {
                 stats.totalBets > 0
                   ? `(${stats.wonBets}W-${stats.lostBets}L)`
                   : undefined,
-            },
-            {
-              label: "Predictions",
-              value: stats.totalBets.toLocaleString(),
             },
           ]}
         />

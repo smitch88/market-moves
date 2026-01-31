@@ -17,6 +17,7 @@ import {
   Image as ImageIcon,
   TrendingUp,
 } from "lucide-react";
+import { CaptainSelector } from "./captain-selector";
 import { cn } from "@vault/ui/lib/utils";
 import Image from "next/image";
 import { useAuthFetch } from "@/lib/auth/auth-fetch";
@@ -210,99 +211,102 @@ export function ProfileSettings({ profile, showReferrals = true, onlyReferrals =
   // If only showing referrals, render just that section
   if (onlyReferrals) {
     return (
-      <div className="max-w-xl space-y-8">
-        {/* Referral Link */}
-        <div className="space-y-2">
-          <Label className="text-sm font-medium">Referral Link</Label>
-          <div className="flex items-center gap-2">
-            <Input
-              value={referralLink}
-              readOnly
-              className="bg-card border-border font-mono text-sm"
-            />
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={handleCopyReferral}
-              className="flex-shrink-0"
-            >
-              {copied ? (
-                <Check className="h-4 w-4 text-green-500" />
-              ) : (
-                <Copy className="h-4 w-4" />
-              )}
-            </Button>
+      <div className="space-y-6">
+        {/* Two column layout for referral link and volume */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Left: Referral Link Section */}
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Referral Link</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  value={referralLink}
+                  readOnly
+                  className="bg-card border-border font-mono text-sm"
+                />
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={handleCopyReferral}
+                  className="flex-shrink-0"
+                >
+                  {copied ? (
+                    <Check className="h-4 w-4 text-green-500" />
+                  ) : (
+                    <Copy className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Share this link to invite friends and earn rewards
+              </p>
+            </div>
+
+            {/* Share buttons */}
+            <div className="grid grid-cols-2 gap-3">
+              <Button 
+                onClick={handleCopyReferral} 
+                variant="outline"
+              >
+                {copied ? (
+                  <>
+                    <Check className="h-4 w-4 mr-2 text-green-500" />
+                    Copied
+                  </>
+                ) : (
+                  <>
+                    <Copy className="h-4 w-4 mr-2" />
+                    Copy Link
+                  </>
+                )}
+              </Button>
+              <Button
+                onClick={handleShareTwitter}
+                className="bg-black hover:bg-black/80 text-white"
+              >
+                <Twitter className="h-4 w-4 mr-2" />
+                Share on X
+              </Button>
+            </div>
+
+            {/* Referral code and friends count */}
+            <div className="pt-4 border-t border-border">
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <span className="text-sm text-muted-foreground">Your referral code</span>
+                  <code className="block px-3 py-1.5 bg-card border border-border rounded-md font-mono text-sm font-medium w-fit">
+                    {profile.referralCode}
+                  </code>
+                </div>
+                <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-card border border-border">
+                  <Users className="h-4 w-4 text-muted-foreground" />
+                  <span className="font-semibold text-lg">{friendsInvited}</span>
+                  <span className="text-sm text-muted-foreground">invited</span>
+                </div>
+              </div>
+            </div>
           </div>
-          <p className="text-xs text-muted-foreground">
-            Share this link to invite friends and earn rewards
-          </p>
-        </div>
 
-        {/* Share buttons */}
-        <div className="grid grid-cols-2 gap-3">
-          <Button 
-            onClick={handleCopyReferral} 
-            variant="outline"
-          >
-            {copied ? (
-              <>
-                <Check className="h-4 w-4 mr-2 text-green-500" />
-                Copied
-              </>
-            ) : (
-              <>
-                <Copy className="h-4 w-4 mr-2" />
-                Copy Link
-              </>
-            )}
-          </Button>
-          <Button
-            onClick={handleShareTwitter}
-            className="bg-black hover:bg-black/80 text-white"
-          >
-            <Twitter className="h-4 w-4 mr-2" />
-            Share on X
-          </Button>
-        </div>
-
-        {/* Referral code and friends count */}
-        <div className="pt-6 border-t border-border">
-          <div className="flex items-center justify-between">
-            <div className="space-y-1">
-              <span className="text-sm text-muted-foreground">Your referral code</span>
-              <code className="block px-3 py-1.5 bg-card border border-border rounded-md font-mono text-sm font-medium w-fit">
-                {profile.referralCode}
-              </code>
-            </div>
-            <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-card border border-border">
-              <Users className="h-4 w-4 text-muted-foreground" />
-              <span className="font-semibold text-lg">{friendsInvited}</span>
-              <span className="text-sm text-muted-foreground">invited</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Total Referred Volume */}
-        <div className="pt-6 border-t border-border">
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm font-medium">Total Volume from Referrals</span>
-            </div>
-            <div className="flex items-baseline gap-1">
-              {referralStatsLoading ? (
-                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-              ) : (
-                <>
-                  <span className="text-3xl font-bold">
+          {/* Right: Total Referred Volume */}
+          <div className="flex flex-col justify-center p-6 rounded-xl border border-border bg-card/50">
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="h-5 w-5 text-primary" />
+                <span className="text-sm font-medium">Total Volume from Referrals</span>
+              </div>
+              <div className="flex items-baseline gap-1">
+                {referralStatsLoading ? (
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                ) : (
+                  <span className="text-4xl font-bold">
                     ${(referralStats?.totalReferredVolume ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </span>
-                </>
-              )}
+                )}
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Combined trading volume from all users you&apos;ve referred
+              </p>
             </div>
-            <p className="text-xs text-muted-foreground">
-              Combined trading volume from all users you&apos;ve referred
-            </p>
           </div>
         </div>
       </div>
@@ -469,6 +473,11 @@ export function ProfileSettings({ profile, showReferrals = true, onlyReferrals =
                 </Button>
               )}
             </div>
+          </div>
+
+          {/* Captain (KOL) Selection */}
+          <div className="pt-4 border-t border-border">
+            <CaptainSelector />
           </div>
 
           <div className="pt-4 border-t border-border">

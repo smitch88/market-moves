@@ -19,6 +19,7 @@ export interface EffectiveUser {
   balanceLocked: boolean;
   referralCode: string;
   hasSeenWelcomeModal: boolean;
+  isKOL: boolean;
   createdAt: Date;
   updatedAt: Date;
   _impersonated?: boolean;

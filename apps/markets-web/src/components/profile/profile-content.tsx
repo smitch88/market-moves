@@ -10,7 +10,7 @@ import { ProfileSettings } from "./profile-settings";
 import { ProfilePositions } from "./profile-positions";
 import { ProfileRequests } from "./profile-requests";
 import { ProfileBookmarks } from "./profile-bookmarks";
-import { ProfileHeaderCard } from "./profile-header-card";
+import { ProfileHeaderCard, type StreakData } from "./profile-header-card";
 import { PnLChart } from "./pnl-chart";
 import { ProfileContentSkeleton } from "./profile-content-skeleton";
 import { MarketRequestModal } from "./market-request-modal";
@@ -31,6 +31,7 @@ interface UserStats {
   wonBets: number;
   lostBets: number;
   openPositions: number;
+  largestWin: number;
 }
 
 interface PnLHistoryPoint {
@@ -110,6 +111,16 @@ export function ProfileContent({ userId }: ProfileContentProps) {
     },
   });
 
+  const { data: streak } = useQuery<StreakData>({
+    queryKey: ["streak"],
+    queryFn: async () => {
+      const res = await authFetch("/api/me/streak");
+      if (!res.ok) return null;
+      return res.json();
+    },
+    staleTime: 60 * 1000,
+  });
+
   if (profileLoading) {
     return <ProfileContentSkeleton />;
   }
@@ -143,11 +154,18 @@ export function ProfileContent({ userId }: ProfileContentProps) {
           handle={twitterHandle}
           showHandleLink={true}
           joinedAt={profile.createdAt}
-          onRequestMarket={() => setRequestModalOpen(true)}
+          onRequestMarket={profile?.isKOL ? () => setRequestModalOpen(true) : undefined}
+          streak={streak}
+          isKOL={profile?.isKOL ?? false}
+          referralCode={profile?.referralCode}
           stats={[
             {
-              label: "Positions Value",
+              label: "Positions",
               value: formatMoney(positionsValue || 0, { compact: true }),
+            },
+            {
+              label: "Volume",
+              value: formatMoney(stats?.totalVolume || 0, { compact: true }),
             },
             {
               label: "Win Rate",
@@ -156,10 +174,6 @@ export function ProfileContent({ userId }: ProfileContentProps) {
                 stats && stats.totalBets > 0
                   ? `(${stats.wonBets}W-${stats.lostBets}L)`
                   : undefined,
-            },
-            {
-              label: "Predictions",
-              value: stats?.totalBets?.toLocaleString() || 0,
             },
           ]}
         />

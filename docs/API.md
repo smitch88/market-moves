@@ -606,6 +606,274 @@ Get a specific data point by key.
 
 ---
 
+## Streak & KOL Endpoints
+
+### GET /api/me/streak
+Get current user's streak information.
+
+**Response:**
+```json
+{
+  "currentStreak": 5,
+  "longestStreak": 12,
+  "lastActiveDate": "2024-01-15T00:00:00.000Z",
+  "multiplier": 1.4,
+  "badges": [
+    {
+      "badgeType": "streak_7",
+      "earnedAt": "2024-01-10T00:00:00.000Z"
+    }
+  ],
+  "nextTier": {
+    "daysNeeded": 2,
+    "multiplier": 3.0,
+    "badge": "streak_7"
+  }
+}
+```
+
+---
+
+### GET /api/me/captain
+Get user's current KOL captain.
+
+**Response:**
+```json
+{
+  "captain": {
+    "id": "user_id",
+    "name": "KOL Name",
+    "handle": "kol_handle",
+    "profileImageUrl": "..."
+  }
+}
+```
+
+---
+
+### PUT /api/me/captain
+Set or remove user's KOL captain.
+
+**Request Body:**
+```json
+{
+  "captainId": "kol_user_id"
+}
+```
+
+Pass `null` to remove captain.
+
+---
+
+### GET /api/kols
+List all approved KOLs (Key Opinion Leaders).
+
+**Response:**
+```json
+{
+  "kols": [
+    {
+      "id": "user_id",
+      "name": "KOL Name",
+      "handle": "kol_handle",
+      "profileImageUrl": "...",
+      "followerCount": 150,
+      "kolApprovedAt": "2024-01-01T00:00:00.000Z"
+    }
+  ]
+}
+```
+
+---
+
+### GET /api/kol-bets/stream
+Server-Sent Events stream for real-time KOL bet notifications.
+
+**Event Format:**
+```json
+{
+  "type": "kol_bet",
+  "data": {
+    "id": "notification_id",
+    "kolUserId": "...",
+    "kolHandle": "kol_handle",
+    "kolName": "KOL Name",
+    "kolProfileImageUrl": "...",
+    "marketId": "...",
+    "eventId": "...",
+    "amount": 500,
+    "outcomeIndex": 0,
+    "outcomeLabel": "Yes",
+    "createdAt": "2024-01-15T12:00:00.000Z"
+  }
+}
+```
+
+---
+
+### GET /api/events/[slug]/activity
+Get recent betting activity for an event (accepts slug or id).
+
+**Query Parameters:**
+| Param | Type | Description |
+|-------|------|-------------|
+| marketId | string | Filter to specific market |
+| limit | number | Max results (default: 15, max: 50) |
+
+**Response:**
+```json
+{
+  "bets": [
+    {
+      "id": "bet_id",
+      "user": {
+        "id": "...",
+        "name": "User Name",
+        "handle": "username",
+        "profileImageUrl": "...",
+        "isKOL": false
+      },
+      "market": {
+        "id": "...",
+        "question": "Who will win?"
+      },
+      "amount": 100,
+      "outcomeIndex": 0,
+      "outcomeLabel": "Team A",
+      "createdAt": "2024-01-15T12:00:00.000Z"
+    }
+  ]
+}
+```
+
+---
+
+### GET /api/events/[slug]/kols
+Get top KOLs who have bet on an event (accepts slug or id).
+
+**Query Parameters:**
+| Param | Type | Description |
+|-------|------|-------------|
+| limit | number | Max KOLs (default: 5, max: 10) |
+
+**Response:**
+```json
+{
+  "kols": [
+    {
+      "kolUserId": "...",
+      "handle": "kol_handle",
+      "name": "KOL Name",
+      "profileImageUrl": "...",
+      "totalVolume": 5000,
+      "betCount": 12
+    }
+  ]
+}
+```
+
+---
+
+### GET /api/leaderboard (Updated)
+
+**Query Parameters:**
+| Param | Type | Description |
+|-------|------|-------------|
+| metric | string | `xp`, `pnl`, `volume`, or `creators` |
+| period | string | `all`, `monthly`, or `weekly` |
+| page | number | Page number (default: 1) |
+| pageSize | number | Results per page (default: 25) |
+
+The `creators` metric returns KOL rankings by follower volume with additional fields:
+- `followerCount` - Number of followers
+- `followerPnL` - Total follower PnL
+- `followerVolume` - Total follower volume
+
+---
+
+## Cron Endpoints
+
+### GET /api/cron/daily-kol-competition
+Vercel Cron Job - runs daily at midnight UTC.
+
+**Security:** Requires `CRON_SECRET` in Authorization header.
+
+**Actions:**
+1. Calculates KOL daily performance based on follower activity
+2. Determines winning KOL (highest follower volume)
+3. Awards 50,000 MP to winning KOL
+4. Awards 5,000 MP to each follower of the winning KOL
+5. Creates `DailyKOLSnapshot` records for all participants
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Competition complete! Winner: KOL Name",
+  "summary": {
+    "date": "2024-01-15",
+    "winner": {
+      "id": "user_id",
+      "name": "KOL Name",
+      "followerVolume": 50000,
+      "followerPnL": 5000,
+      "xpAwarded": 50000
+    },
+    "totalParticipants": 10,
+    "followersRewarded": 150,
+    "totalXpDistributed": 800000,
+    "durationMs": 1234
+  }
+}
+```
+
+---
+
+## Admin KOL Endpoints
+
+### POST /api/admin/users/[id]/kol
+Grant KOL status to a user.
+
+**Response:**
+```json
+{
+  "success": true,
+  "user": {
+    "id": "...",
+    "handle": "username",
+    "isKOL": true,
+    "kolApprovedAt": "2024-01-15T00:00:00.000Z"
+  }
+}
+```
+
+---
+
+### DELETE /api/admin/users/[id]/kol
+Revoke KOL status from a user.
+
+---
+
+### POST /api/admin/kol-competition
+Manually trigger daily KOL competition (admin only).
+
+**Query Parameters:**
+| Param | Type | Description |
+|-------|------|-------------|
+| date | string | ISO date for specific date (optional) |
+
+---
+
+### GET /api/admin/kol-competition
+Get recent competition history.
+
+**Query Parameters:**
+| Param | Type | Description |
+|-------|------|-------------|
+| days | number | Number of days (default: 7) |
+
+---
+
 ## Error Response Format
 
 All error responses follow this format:

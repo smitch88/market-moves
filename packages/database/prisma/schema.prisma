@@ -38,6 +38,21 @@ model User {
   xp           Int    @default(0) // Total XP earned
   referralCode String @unique @default(cuid())
 
+  // Streak tracking
+  currentStreak  Int       @default(0) // Current consecutive days active
+  longestStreak  Int       @default(0) // Longest streak ever achieved
+  lastActiveDate DateTime? // Last date user performed a streak-qualifying action
+
+  // KOL/Creator status
+  isKOL          Boolean   @default(false) // Whether user is a designated KOL
+  kolApprovedAt  DateTime? // When KOL status was granted
+  kolApprovedBy  String?   // Admin ID who approved KOL status
+
+  // Captain attribution (user follows a KOL as their "captain")
+  captainId String?
+  captain   User?   @relation("CaptainFollowers", fields: [captainId], references: [id])
+  followers User[]  @relation("CaptainFollowers")
+
   // UI state
   hasSeenWelcomeModal Boolean @default(false)
 
@@ -64,11 +79,16 @@ model User {
   bookmarks              Bookmark[]
   xpTradeTrackers        XPTradeTracker[]
   xpDailyTotals          XPDailyTotal[]
+  streakBadges           StreakBadge[]
+  kolBetNotifications    KOLBetNotification[]
+  dailyKOLSnapshots      DailyKOLSnapshot[]
 
   @@index([email])
   @@index([twitterSubject])
   @@index([referralCode])
   @@index([handle])
+  @@index([isKOL])
+  @@index([captainId])
 }
 
 // ============================================================================
@@ -223,6 +243,78 @@ model XPDailyTotal {
 }
 
 // ============================================================================
+// STREAK & BADGES
+// ============================================================================
+
+/// Streak badges earned by users for consecutive daily activity
+model StreakBadge {
+  id        String   @id @default(cuid())
+  userId    String
+  badgeType String   // "streak_3", "streak_7", "streak_14", "streak_30", "streak_100"
+  earnedAt  DateTime @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, badgeType])
+  @@index([userId])
+  @@index([badgeType])
+}
+
+// ============================================================================
+// KOL (Key Opinion Leader) SYSTEM
+// ============================================================================
+
+/// KOL bet notifications for broadcasting to users
+model KOLBetNotification {
+  id           String   @id @default(cuid())
+  kolUserId    String
+  betId        String   @unique
+  marketId     String
+  eventId      String   // For easier filtering by event
+  amount       Decimal  @db.Decimal(19, 2)
+  outcomeIndex Int
+  outcomeLabel String   // Cached outcome label for display
+  createdAt    DateTime @default(now())
+  expiresAt    DateTime // Auto-cleanup after 24h
+
+  // Relations
+  kolUser User   @relation(fields: [kolUserId], references: [id], onDelete: Cascade)
+  bet     Bet    @relation(fields: [betId], references: [id], onDelete: Cascade)
+  market  Market @relation(fields: [marketId], references: [id], onDelete: Cascade)
+  event   Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([kolUserId])
+  @@index([marketId])
+  @@index([eventId])
+  @@index([createdAt])
+  @@index([expiresAt])
+}
+
+/// Daily snapshot for KOL competition tracking
+model DailyKOLSnapshot {
+  id             String   @id @default(cuid())
+  date           DateTime @db.Date // Date only
+  kolUserId      String
+  followerPnL    Decimal  @db.Decimal(19, 2) // Total PnL of followers that day
+  followerVolume Decimal  @db.Decimal(19, 2) // Total volume traded by followers
+  followerCount  Int      // Number of followers at snapshot time
+  xpBonusAwarded Int      @default(0) // XP bonus awarded for winning
+  isWinner       Boolean  @default(false) // Whether this KOL won the daily competition
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  kolUser User @relation(fields: [kolUserId], references: [id], onDelete: Cascade)
+
+  @@unique([date, kolUserId])
+  @@index([kolUserId])
+  @@index([date])
+  @@index([isWinner])
+}
+
+// ============================================================================
 // EVENTS & MARKETS
 // ============================================================================
 
@@ -258,9 +350,10 @@ model Event {
   updatedAt   DateTime       @updatedAt
 
   // Relations
-  markets   Market[]
-  tags      Tag[]      @relation("EventToTag")
-  bookmarks Bookmark[]
+  markets             Market[]
+  tags                Tag[]                @relation("EventToTag")
+  bookmarks           Bookmark[]
+  kolBetNotifications KOLBetNotification[]
 
   @@index([category])
   @@index([eventType])
@@ -323,6 +416,7 @@ model Market {
   pnlLedger            PnLLedger[]
   resolutionDataPoints ResolutionDataPoint[]
   xpTradeTrackers      XPTradeTracker[]
+  kolBetNotifications  KOLBetNotification[]
 
   @@index([eventId])
   @@index([status])
@@ -374,9 +468,10 @@ model Bet {
   tradeType     TradeType @default(BUY)
 
   // Relations
-  market     Market      @relation(fields: [marketId], references: [id])
-  tweetProof TweetProof? @relation(fields: [tweetProofId], references: [id])
-  user       User        @relation(fields: [userId], references: [id])
+  market             Market              @relation(fields: [marketId], references: [id])
+  tweetProof         TweetProof?         @relation(fields: [tweetProofId], references: [id])
+  user               User                @relation(fields: [userId], references: [id])
+  kolBetNotification KOLBetNotification?
 
   @@index([userId])
   @@index([marketId])
@@ -655,6 +750,8 @@ enum AdminAction {
   USER_ROLE_UPDATE
   USER_UPDATE
   USER_XP_ADJUST
+  USER_KOL_GRANT
+  USER_KOL_REVOKE
   CONFIG_UPDATE
   EVENT_CREATE
   EVENT_UPDATE
@@ -674,6 +771,9 @@ enum XPReason {
   PENALTY // Penalty/correction
   SHARE_TWEET // XP earned from sharing bet on X
   REFERRAL_BONUS // XP earned from referral (both referrer and referred)
+  KOL_DAILY_WIN // XP bonus for winning KOL daily competition
+  KOL_FOLLOWER_BONUS // XP bonus for followers of winning KOL
+  STREAK_BONUS // XP bonus from streak multiplier
 }
 
 enum MarketRequestStatus {

@@ -26,12 +26,15 @@ export async function GET(
         profileImageUrl: true,
         createdAt: true,
         referralCode: true,
+        isKOL: true,
+        kolApprovedAt: true,
         _count: {
           select: {
             bets: { where: { status: "CONFIRMED" } },
             positions: true,
             referralsGiven: true,
             xpLedger: true,
+            followers: true,
           },
         },
       },

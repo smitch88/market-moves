@@ -15,3 +15,12 @@ export * from "./price-broadcaster";
 
 // User stats and PnL tracking
 export * from "./stats-service";
+
+// Streak system
+export * from "./streak-service";
+
+// KOL (Key Opinion Leader) system
+export * from "./kol-service";
+
+// KOL daily competition
+export * from "./kol-competition-service";

@@ -48,6 +48,8 @@ import {
   X,
   ArrowUpDown,
   MoreHorizontal,
+  Star,
+  StarOff,
 } from "lucide-react";
 
 interface User {
@@ -59,10 +61,13 @@ interface User {
   balance: number;
   xp: number;
   twitterId?: string | null;
+  isKOL?: boolean;
+  kolApprovedAt?: string | null;
   createdAt: string;
   _count: {
     bets: number;
     positions: number;
+    followers?: number;
   };
 }
 
@@ -75,9 +80,10 @@ interface UsersResponse {
 }
 
 const roleOptions = [
-  { value: "all", label: "All Roles" },
-  { value: "USER", label: "Users" },
-  { value: "ADMIN", label: "Admins" },
+  { value: "all", label: "All Users" },
+  { value: "USER", label: "Users Only" },
+  { value: "ADMIN", label: "Admins Only" },
+  { value: "KOL", label: "KOLs Only" },
 ];
 
 const sortOptions = [
@@ -131,7 +137,9 @@ export default function AdminUsersPage() {
       if (searchQuery) {
         params.set("search", searchQuery);
       }
-      if (roleFilter !== "all") {
+      if (roleFilter === "KOL") {
+        params.set("isKOL", "true");
+      } else if (roleFilter !== "all") {
         params.set("role", roleFilter);
       }
       if (sortBy) {
@@ -273,6 +281,23 @@ export default function AdminUsersPage() {
       queryClient.invalidateQueries({ queryKey: ["adminUsers"] });
       setRoleDialogOpen(false);
       setRoleChangeUser(null);
+    },
+  });
+
+  // KOL status mutation
+  const kolMutation = useMutation({
+    mutationFn: async ({ userId, grant }: { userId: string; grant: boolean }) => {
+      const res = await fetch(`/api/admin/users/${userId}/kol`, {
+        method: grant ? "POST" : "DELETE",
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || `Failed to ${grant ? "grant" : "revoke"} KOL status`);
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["adminUsers"] });
     },
   });
 
@@ -488,6 +513,12 @@ export default function AdminUsersPage() {
                           >
                             {user.role}
                           </Badge>
+                          {user.isKOL && (
+                            <Badge variant="outline" className="text-xs border-yellow-500 text-yellow-500">
+                              <Star className="h-3 w-3 mr-1 fill-yellow-500" />
+                              KOL
+                            </Badge>
+                          )}
                         </div>
                         {user.handle && (
                           <p className="text-xs text-muted-foreground">@{user.handle}</p>
@@ -520,6 +551,23 @@ export default function AdminUsersPage() {
                               <>
                                 <Shield className="h-4 w-4 mr-2" />
                                 Make Admin
+                              </>
+                            )}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem 
+                            onClick={() => kolMutation.mutate({ userId: user.id, grant: !user.isKOL })} 
+                            className="cursor-pointer"
+                            disabled={kolMutation.isPending}
+                          >
+                            {user.isKOL ? (
+                              <>
+                                <StarOff className="h-4 w-4 mr-2 text-yellow-500" />
+                                Revoke KOL
+                              </>
+                            ) : (
+                              <>
+                                <Star className="h-4 w-4 mr-2 text-yellow-500" />
+                                Grant KOL
                               </>
                             )}
                           </DropdownMenuItem>
@@ -580,6 +628,9 @@ export default function AdminUsersPage() {
                       <th className="text-left p-4 font-medium text-muted-foreground">
                         Role
                       </th>
+                      <th className="text-center p-4 font-medium text-muted-foreground">
+                        KOL
+                      </th>
                       <th className="text-right p-4 font-medium text-muted-foreground">
                         Balance
                       </th>
@@ -632,6 +683,16 @@ export default function AdminUsersPage() {
                             {user.role}
                           </Badge>
                         </td>
+                        <td className="p-4 text-center">
+                          {user.isKOL ? (
+                            <Badge variant="outline" className="border-yellow-500 text-yellow-500">
+                              <Star className="h-3 w-3 mr-1 fill-yellow-500" />
+                              KOL
+                            </Badge>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </td>
                         <td className="p-4 text-right font-mono text-[#df2421]">
                           ${user.balance.toLocaleString()}
                         </td>
@@ -676,6 +737,23 @@ export default function AdminUsersPage() {
                                   </>
                                 )}
                               </DropdownMenuItem>
+                              <DropdownMenuItem 
+                                onClick={() => kolMutation.mutate({ userId: user.id, grant: !user.isKOL })} 
+                                className="cursor-pointer"
+                                disabled={kolMutation.isPending}
+                              >
+                                {user.isKOL ? (
+                                  <>
+                                    <StarOff className="h-4 w-4 mr-2 text-yellow-500" />
+                                    Revoke KOL
+                                  </>
+                                ) : (
+                                  <>
+                                    <Star className="h-4 w-4 mr-2 text-yellow-500" />
+                                    Grant KOL
+                                  </>
+                                )}
+                              </DropdownMenuItem>
                               <DropdownMenuSeparator />
                               <DropdownMenuLabel className="text-xs text-muted-foreground font-normal">Balance</DropdownMenuLabel>
                               <DropdownMenuItem onClick={() => openAdjustDialog(user, true)} className="cursor-pointer">
@@ -704,7 +782,7 @@ export default function AdminUsersPage() {
                     {users.length === 0 && (
                       <tr>
                         <td
-                          colSpan={8}
+                          colSpan={9}
                           className="p-8 text-center text-muted-foreground"
                         >
                           No users yet

@@ -17,6 +17,7 @@
  */
 
 import { prisma, XPReason, Prisma } from "@vault/database";
+import { getStreakMultiplier } from "./streak-service";
 
 // ============================================================================
 // TYPES
@@ -40,6 +41,10 @@ export interface XPAwardResult {
   reason?: string;
   /** Volume traded in this market today (after this trade) */
   marketVolume?: number;
+  /** Streak multiplier applied */
+  streakMultiplier?: number;
+  /** Base XP before streak multiplier */
+  baseXp?: number;
 }
 
 export interface XPProtectionConfig {
@@ -477,16 +482,50 @@ export async function awardXPForVolume(
 
   // Get configuration
   const config = await getXPConfig();
-  const baseXP = Math.floor(absVolume * config.xpPerDollar);
+  const rawBaseXP = Math.floor(absVolume * config.xpPerDollar);
 
-  if (baseXP <= 0) {
+  if (rawBaseXP <= 0) {
     return null;
   }
 
+  // Fetch user's streak for multiplier
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { currentStreak: true, lastActiveDate: true },
+  });
+
+  // Check if streak is still valid (active today or yesterday)
   const today = getTodayDate();
+  const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000);
+  let effectiveStreak = user?.currentStreak ?? 0;
+  
+  if (user?.lastActiveDate) {
+    const lastActiveDay = new Date(Date.UTC(
+      user.lastActiveDate.getUTCFullYear(),
+      user.lastActiveDate.getUTCMonth(),
+      user.lastActiveDate.getUTCDate()
+    ));
+    
+    // If last active was before yesterday, streak is broken
+    if (lastActiveDay < yesterday) {
+      effectiveStreak = 0;
+    }
+  } else {
+    effectiveStreak = 0;
+  }
+
+  // Apply streak multiplier to base XP
+  const streakMultiplier = getStreakMultiplier(effectiveStreak);
+  const baseXP = Math.floor(rawBaseXP * streakMultiplier);
+
   let xpToAward = baseXP;
   let reason: string | undefined;
   let currentMarketVolume = 0;
+  
+  // Add streak info to reason if multiplier > 1
+  if (streakMultiplier > 1) {
+    reason = `${streakMultiplier}x streak bonus applied`;
+  }
 
   // If marketId provided, apply protection checks
   if (marketId) {
@@ -540,17 +579,19 @@ export async function awardXPForVolume(
   // If no XP to award after protections, return early
   if (xpToAward <= 0) {
     // Still need to get user's current XP for the response
-    const user = await prisma.user.findUnique({
+    const currentUser = await prisma.user.findUnique({
       where: { id: userId },
       select: { xp: true },
     });
     return {
       xpAwarded: 0,
-      newXp: user?.xp ?? 0,
-      newLevel: calculateLevel(user?.xp ?? 0),
+      newXp: currentUser?.xp ?? 0,
+      newLevel: calculateLevel(currentUser?.xp ?? 0),
       leveledUp: false,
       reason,
       marketVolume: currentMarketVolume + absVolume,
+      streakMultiplier,
+      baseXp: rawBaseXP,
     };
   }
 
@@ -644,6 +685,8 @@ export async function awardXPForVolume(
     leveledUp: levelAfter > levelBefore,
     reason,
     marketVolume: currentMarketVolume + absVolume,
+    streakMultiplier,
+    baseXp: rawBaseXP,
   };
 }
 

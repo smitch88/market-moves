@@ -23,6 +23,8 @@ import {
   ChevronLeft,
   ChevronRight,
   User,
+  Star,
+  Users,
 } from "lucide-react";
 import { cn } from "@vault/ui/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
@@ -39,11 +41,16 @@ interface LeaderboardEntry {
   profileImageUrl: string | null;
   value: number;
   level?: number;
+  // Captain-specific fields
+  followerCount?: number;
+  followerPnL?: number;
+  followerVolume?: number;
+  isKOL?: boolean;
 }
 
 interface LeaderboardResponse {
   entries: LeaderboardEntry[];
-  metric: "xp" | "pnl";
+  metric: "xp" | "pnl" | "volume" | "creators";
   period: "all" | "monthly" | "weekly";
   page: number;
   pageSize: number;
@@ -53,7 +60,7 @@ interface LeaderboardResponse {
   updatedAt: string;
 }
 
-type Metric = "xp" | "pnl" | "volume";
+type Metric = "xp" | "pnl" | "volume" | "creators";
 type Period = "all" | "monthly" | "weekly";
 
 // ============================================================================
@@ -66,6 +73,7 @@ const metricTabs = [
   { label: "MP", value: "xp" as Metric, icon: Sparkles },
   { label: "PnL", value: "pnl" as Metric, icon: TrendingUp },
   { label: "Volume", value: "volume" as Metric, icon: TrendingUp },
+  { label: "Captains", value: "creators" as Metric, icon: Star },
 ];
 
 const periodTabs = [
@@ -191,17 +199,24 @@ function LeaderboardRow({
 
       {/* Avatar + Name */}
       <div className="flex-1 flex items-center gap-3 min-w-0">
-        <Avatar className="h-10 w-10 border border-border/30">
-          <AvatarImage src={entry.profileImageUrl || undefined} />
-          <AvatarFallback
-            className={cn(
-              "bg-gradient-to-br text-white text-sm",
-              getAvatarGradient(index)
-            )}
-          >
-            {displayName[0].toUpperCase()}
-          </AvatarFallback>
-        </Avatar>
+        <div className="relative">
+          <Avatar className="h-10 w-10 border border-border/30">
+            <AvatarImage src={entry.profileImageUrl || undefined} />
+            <AvatarFallback
+              className={cn(
+                "bg-gradient-to-br text-white text-sm",
+                getAvatarGradient(index)
+              )}
+            >
+              {displayName[0].toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
+          {entry.isKOL && (
+            <div className="absolute -bottom-1 -right-1 bg-[#df2421] rounded-full p-0.5 border border-background">
+              <Star className="w-2.5 h-2.5 text-white fill-white" />
+            </div>
+          )}
+        </div>
         <div className="min-w-0">
           <p className={cn(
             "font-medium truncate",
@@ -221,7 +236,7 @@ function LeaderboardRow({
         </div>
       </div>
 
-      {/* Level */}
+      {/* Level - for XP metric */}
       {metric === "xp" && (
         <div className="w-16 text-center hidden sm:block">
           <Badge
@@ -230,6 +245,16 @@ function LeaderboardRow({
           >
             Lvl {entry.level ?? 0}
           </Badge>
+        </div>
+      )}
+
+      {/* Followers - for captains metric */}
+      {metric === "creators" && (
+        <div className="w-20 text-center hidden sm:flex items-center justify-center gap-1">
+          <Users className="h-3.5 w-3.5 text-muted-foreground" />
+          <span className="text-sm text-muted-foreground">
+            {entry.followerCount ?? 0}
+          </span>
         </div>
       )}
 
@@ -242,6 +267,8 @@ function LeaderboardRow({
               ? "text-primary"
               : metric === "volume"
               ? "text-blue-400"
+              : metric === "creators"
+              ? "text-yellow-500"
               : entry.value >= 0
               ? "text-emerald-400"
               : "text-red-400"
@@ -251,8 +278,18 @@ function LeaderboardRow({
             ? formatXp(entry.value) 
             : metric === "volume"
             ? formatVolume(entry.value)
+            : metric === "creators"
+            ? formatVolume(entry.value)
             : formatPnl(entry.value)}
         </span>
+        {metric === "creators" && entry.followerPnL !== undefined && (
+          <p className={cn(
+            "text-xs",
+            entry.followerPnL >= 0 ? "text-emerald-400/70" : "text-red-400/70"
+          )}>
+            {formatPnl(entry.followerPnL)} PnL
+          </p>
+        )}
       </div>
     </>
   );
@@ -461,7 +498,7 @@ export function LeaderboardContent() {
             <Search className="absolute left-0 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/40" />
             <input
               type="text"
-              placeholder="Search users..."
+              placeholder={metric === "creators" ? "Search captains..." : "Search users..."}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-6 py-1 text-sm font-normal normal-case tracking-normal bg-transparent border-none outline-none focus:outline-none placeholder:text-muted-foreground/40"
@@ -470,8 +507,11 @@ export function LeaderboardContent() {
           {metric === "xp" && (
             <div className="w-16 text-center hidden sm:block">Level</div>
           )}
+          {metric === "creators" && (
+            <div className="w-20 text-center hidden sm:block">Followers</div>
+          )}
           <div className="w-28 text-right">
-            {metric === "xp" ? "MP" : metric === "volume" ? "Volume" : "PnL"}
+            {metric === "xp" ? "MP" : metric === "volume" ? "Volume" : metric === "creators" ? "Vol" : "PnL"}
           </div>
         </div>
       )}

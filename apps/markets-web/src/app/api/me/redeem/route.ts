@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma, BalanceReason, PnLReason } from "@vault/database";
 import { getEffectiveUser } from "@/lib/auth/get-effective-user";
 import { createPnLSnapshot } from "@/lib/services/stats-service";
+import { updateUserStreak } from "@/lib/services/streak-service";
 import { z } from "zod";
 import { Prisma } from "@vault/database";
 
@@ -234,7 +235,22 @@ export async function POST(request: NextRequest) {
       createPnLSnapshot(user.id).catch(console.error);
     }
 
-    return NextResponse.json(result);
+    // Update user's streak (redeeming positions counts as daily activity)
+    let streakInfo = null;
+    if (result.positionsRedeemed > 0) {
+      const streakResult = await updateUserStreak(user.id);
+      streakInfo = {
+        current: streakResult.newStreak,
+        multiplier: streakResult.multiplier,
+        isNewDay: streakResult.isNewDay,
+        badgesAwarded: streakResult.badgesAwarded,
+      };
+    }
+
+    return NextResponse.json({
+      ...result,
+      streak: streakInfo,
+    });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(

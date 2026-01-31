@@ -25,6 +25,7 @@ export interface UserStats {
   wonBets: number;
   lostBets: number;
   openPositions: number;
+  largestWin: number;      // Largest single winning bet profit
 }
 
 export interface PnLHistoryPoint {
@@ -360,6 +361,34 @@ export async function calculateVolume(userId: string): Promise<number> {
 }
 
 /**
+ * Calculate the largest single winning bet profit
+ */
+export async function calculateLargestWin(userId: string): Promise<number> {
+  const wonBets = await prisma.bet.findMany({
+    where: {
+      userId,
+      status: BetStatus.WON,
+      payout: { not: null },
+      tradeType: "BUY",
+    },
+    select: {
+      amount: true,
+      payout: true,
+    },
+  });
+
+  let largestWin = 0;
+  for (const bet of wonBets) {
+    const profit = Number(bet.payout ?? 0) - Number(bet.amount);
+    if (profit > largestWin) {
+      largestWin = profit;
+    }
+  }
+
+  return largestWin;
+}
+
+/**
  * Get comprehensive user stats
  */
 export async function getUserStats(userId: string): Promise<UserStats> {
@@ -377,6 +406,7 @@ export async function getUserStats(userId: string): Promise<UserStats> {
     unrealizedPnL,
     betCounts,
     openPositions,
+    largestWin,
   ] = await Promise.all([
     calculateUnrealizedPnL(userId),
     prisma.bet.groupBy({
@@ -400,6 +430,7 @@ export async function getUserStats(userId: string): Promise<UserStats> {
         ],
       },
     }),
+    calculateLargestWin(userId),
   ]);
 
   // Calculate bet stats
@@ -427,6 +458,7 @@ export async function getUserStats(userId: string): Promise<UserStats> {
     wonBets,
     lostBets,
     openPositions,
+    largestWin,
   };
 }
 

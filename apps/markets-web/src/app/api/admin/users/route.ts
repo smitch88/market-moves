@@ -18,6 +18,7 @@ export async function GET(request: NextRequest) {
       Math.max(1, parseInt(searchParams.get("pageSize") || "50", 10))
     );
     const role = searchParams.get("role");
+    const isKOL = searchParams.get("isKOL");
     const search = searchParams.get("search")?.trim();
     const sortBy = searchParams.get("sortBy") || "createdAt";
     const sortOrder = searchParams.get("sortOrder") || "desc";
@@ -28,6 +29,9 @@ export async function GET(request: NextRequest) {
     const whereClause: Record<string, unknown> = {};
     if (role) {
       whereClause.role = role;
+    }
+    if (isKOL === "true") {
+      whereClause.isKOL = true;
     }
     if (search) {
       whereClause.OR = [
@@ -56,11 +60,14 @@ export async function GET(request: NextRequest) {
           xp: true,
           twitterSubject: true,
           profileImageUrl: true,
+          isKOL: true,
+          kolApprovedAt: true,
           createdAt: true,
           _count: {
             select: {
               bets: { where: { status: "CONFIRMED" } },
               positions: true,
+              followers: true,
             },
           },
         },

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@vault/auth";
 import { tradeService } from "@/lib/services/trade-service";
+import { updateUserStreak } from "@/lib/services/streak-service";
 import * as currency from "@/lib/utils/currency";
 import { z } from "zod";
 
@@ -49,6 +50,9 @@ export async function POST(request: NextRequest) {
 
     const sharesNum = currency.toNumber(result.shares);
     const proceedsNum = currency.toNumber(result.proceeds || currency.zero());
+
+    // Update user's streak (selling a position counts as daily activity)
+    const streakResult = await updateUserStreak(user.id);
     
     return NextResponse.json({
       success: result.success,
@@ -65,6 +69,12 @@ export async function POST(request: NextRequest) {
         currency.toNumber(result.newReserves[1]),
       ],
       priceImpact: currency.toNumber(result.priceImpact),
+      streak: {
+        current: streakResult.newStreak,
+        multiplier: streakResult.multiplier,
+        isNewDay: streakResult.isNewDay,
+        badgesAwarded: streakResult.badgesAwarded,
+      },
       message: `Successfully sold ${sharesNum.toFixed(2)} shares for ${currency.formatCurrency(proceedsNum)}`,
     });
   } catch (error) {

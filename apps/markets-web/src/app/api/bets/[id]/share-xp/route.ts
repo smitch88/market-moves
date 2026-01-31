@@ -9,6 +9,7 @@ import {
   verifyTweetByUrl,
 } from "@/lib/services/tweet-verification";
 import { calculateLevel, getXPConfig } from "@/lib/services/xp-service";
+import { updateUserStreak } from "@/lib/services/streak-service";
 import { z } from "zod";
 
 const shareXPSchema = z.object({
@@ -215,6 +216,9 @@ export async function POST(
     const levelBefore = calculateLevel(result.xpBefore);
     const levelAfter = calculateLevel(result.xpAfter);
 
+    // Update user's streak (claiming share XP counts as daily activity)
+    const streakResult = await updateUserStreak(user.id);
+
     return NextResponse.json({
       verified: true,
       xpAwarded: xpBonus,
@@ -224,6 +228,12 @@ export async function POST(
       tweetId: verificationResult.tweetId,
       message: `+${xpBonus.toLocaleString()} XP for sharing!`,
       shareBonusPercent: xpConfig.shareBonusPercent,
+      streak: {
+        current: streakResult.newStreak,
+        multiplier: streakResult.multiplier,
+        isNewDay: streakResult.isNewDay,
+        badgesAwarded: streakResult.badgesAwarded,
+      },
     });
   } catch (error) {
     if (error instanceof z.ZodError) {

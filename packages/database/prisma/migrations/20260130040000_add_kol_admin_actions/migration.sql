@@ -1,0 +1,3 @@
+-- Add KOL admin action enum values
+ALTER TYPE "AdminAction" ADD VALUE IF NOT EXISTS 'USER_KOL_GRANT';
+ALTER TYPE "AdminAction" ADD VALUE IF NOT EXISTS 'USER_KOL_REVOKE';
