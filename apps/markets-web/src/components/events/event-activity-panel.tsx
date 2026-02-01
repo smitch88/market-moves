@@ -102,7 +102,7 @@ export function EventActivityPanel({
     queryFn: async () => {
       const params = new URLSearchParams();
       if (marketId) params.set("marketId", marketId);
-      params.set("limit", "15");
+      params.set("limit", "5");
       
       const res = await fetch(`/api/events/${eventSlug}/activity?${params}`);
       if (!res.ok) throw new Error("Failed to fetch activity");
@@ -128,13 +128,8 @@ export function EventActivityPanel({
       >
         <Activity className="h-4 w-4 text-primary" />
         <h3 className="font-semibold text-sm">
-          Activity
+          Recent Activity
         </h3>
-        {bets.length > 0 && (
-          <span className="text-xs text-muted-foreground">
-            ({bets.length})
-          </span>
-        )}
         <div className="ml-auto flex items-center gap-2">
           {isLoading && (
             <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
@@ -158,7 +153,7 @@ export function EventActivityPanel({
             transition={{ duration: 0.2, ease: "easeInOut" }}
             className="overflow-hidden"
           >
-            <div className="max-h-[300px] overflow-y-auto">
+            <div>
         {error ? (
           <div className="p-4 text-center text-sm text-muted-foreground">
             Failed to load activity
