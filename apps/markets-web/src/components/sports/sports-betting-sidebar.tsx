@@ -11,10 +11,13 @@ import {
   Button,
   Input,
   toast,
+  Dialog,
+  DialogContent,
 } from "@vault/ui";
 import type { Market, Event } from "@vault/database";
 import { cn } from "@vault/ui/lib/utils";
 import { SuccessModal } from "../markets/betting-panel/success-modal";
+import { BettingTicket } from "../markets/betting-ticket";
 import { useAuthFetch } from "@/lib/auth/auth-fetch";
 import { useXPAnimation } from "@/components/layout/xp-animation";
 
@@ -67,6 +70,9 @@ export function SportsBettingSidebar({
   const [copied, setCopied] = useState(false);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const ticketRef = useRef<HTMLDivElement>(null);
+  
+  // Dev-only: ticket preview modal
+  const [showTicketPreview, setShowTicketPreview] = useState(false);
 
   // Price change tracking
   const [previousPrice, setPreviousPrice] = useState<number | null>(null);
@@ -266,7 +272,6 @@ export function SportsBettingSidebar({
       return await toPng(ticketRef.current, {
         quality: 1.0,
         pixelRatio: 2,
-        backgroundColor: "#000000",
       });
     } catch {
       return null;
@@ -335,18 +340,21 @@ export function SportsBettingSidebar({
   if (!selectedMarket) {
     if (compact) return null;
     return (
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="bg-card/60 backdrop-blur-sm border border-border/40 rounded-2xl p-6"
-      >
-        <div className="flex flex-col items-center justify-center py-8 text-center">
-          <h3 className="font-semibold text-foreground mb-1">Place Your Bet</h3>
-          <p className="text-sm text-muted-foreground max-w-[200px]">
-            Select an outcome from any market to get started
-          </p>
-        </div>
-      </motion.div>
+      <>
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-card/60 backdrop-blur-sm border border-border/40 rounded-2xl p-6"
+        >
+          <div className="flex flex-col items-center justify-center py-8 text-center">
+            <h3 className="font-semibold text-foreground mb-1">Place Your Bet</h3>
+            <p className="text-sm text-muted-foreground max-w-[200px]">
+              Select an outcome from any market to get started
+            </p>
+          </div>
+        </motion.div>
+        
+      </>
     );
   }
 

@@ -57,6 +57,21 @@ interface EventMarketsResponse {
 
 type BettingStep = "market" | "outcome" | "amount" | "success";
 
+// Bet size options
+const BET_SIZE_OPTIONS = [50, 100, 200, 500] as const;
+const STORAGE_KEY = "vault-quick-bet-size";
+
+// Helper to get stored bet size from localStorage (can be preset or custom)
+function getStoredBetSize(): number {
+  if (typeof window === "undefined") return 100;
+  const stored = localStorage.getItem(STORAGE_KEY);
+  if (stored) {
+    const num = Number(stored);
+    if (!isNaN(num) && num > 0) return num;
+  }
+  return 100; // Default
+}
+
 // Helper to parse outcomes from JSON
 function parseOutcomes(outcomes: string): string[] {
   try {
@@ -100,6 +115,46 @@ export function QuickBetModal({
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const ticketRef = useRef<HTMLDivElement>(null);
   
+  // Quick bet size preference (stored in localStorage)
+  const [quickBetSize, setQuickBetSize] = useState<number>(100);
+  const [showBetSizeSelector, setShowBetSizeSelector] = useState(false);
+  const [isCustomAmount, setIsCustomAmount] = useState(false);
+  const [customAmountInput, setCustomAmountInput] = useState("");
+  const customInputRef = useRef<HTMLInputElement>(null);
+  
+  // Load stored bet size on mount
+  useEffect(() => {
+    const stored = getStoredBetSize();
+    setQuickBetSize(stored);
+    // Check if it's a custom amount (not in presets)
+    if (!BET_SIZE_OPTIONS.includes(stored as typeof BET_SIZE_OPTIONS[number])) {
+      setIsCustomAmount(true);
+      setCustomAmountInput(String(stored));
+    }
+  }, []);
+  
+  // Focus custom input when switching to custom mode
+  useEffect(() => {
+    if (isCustomAmount && showBetSizeSelector && customInputRef.current) {
+      customInputRef.current.focus();
+    }
+  }, [isCustomAmount, showBetSizeSelector]);
+  
+  // Save bet size to localStorage when changed
+  const handleBetSizeChange = (size: number) => {
+    setQuickBetSize(size);
+    localStorage.setItem(STORAGE_KEY, String(size));
+    setShowBetSizeSelector(false);
+    setIsCustomAmount(!BET_SIZE_OPTIONS.includes(size as typeof BET_SIZE_OPTIONS[number]));
+  };
+  
+  const handleCustomAmountSubmit = () => {
+    const num = parseInt(customAmountInput, 10);
+    if (num > 0) {
+      handleBetSizeChange(num);
+    }
+  };
+  
   // Share for XP state
   const [xpClaimed, setXpClaimed] = useState(false);
   const [claimedXPAmount, setClaimedXPAmount] = useState(0);
@@ -125,6 +180,7 @@ export function QuickBetModal({
       setClaimedXPAmount(0);
       setTweetUrl("");
       setShowManualEntry(false);
+      setShowBetSizeSelector(false);
     }
   }, [open, initialMarket, initialOutcome, getInitialStep]);
 
@@ -167,18 +223,21 @@ export function QuickBetModal({
   const balance = profile?.balance ?? 10000;
   const markets = data?.markets || [];
   const event = data?.event;
+  
+  // Auto-select market if only one, or use initial market
+  const effectiveMarket = selectedMarket || initialMarket || (markets.length === 1 ? markets[0] : null);
+  const outcomes = effectiveMarket ? parseOutcomes(effectiveMarket.outcomes) : [];
 
-  // Place bet mutation
+  // Place bet mutation - accepts market, outcome, and amount as parameters for immediate betting
   const placeBetMutation = useMutation({
-    mutationFn: async () => {
-      if (!selectedMarket) throw new Error("No market selected");
+    mutationFn: async (params: { market: MarketData; outcomeIndex: number; betAmount: number }) => {
       const res = await authFetch("/api/trades/buy", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          marketId: selectedMarket.id,
-          outcomeIndex: selectedOutcome,
-          amount: parseInt(amount, 10),
+          marketId: params.market.id,
+          outcomeIndex: params.outcomeIndex,
+          amount: params.betAmount,
           maxSlippage: 0.25, // 25% max slippage
         }),
       });
@@ -186,13 +245,16 @@ export function QuickBetModal({
         const error = await res.json();
         throw new Error(error.error || "Failed to place bet");
       }
-      return res.json();
+      const data = await res.json();
+      return { ...data, ...params };
     },
     onSuccess: async (data) => {
-      const betAmount = parseInt(amount, 10);
+      const { betAmount, outcomeIndex, market } = data;
       setBetId(data.bet.id);
+      setSelectedMarket(market);
+      setSelectedOutcome(outcomeIndex);
       setConfirmedBetAmount(betAmount);
-      setConfirmedOutcome(selectedOutcome);
+      setConfirmedOutcome(outcomeIndex);
       setStep("success");
 
       // Queue animations for when modal closes
@@ -276,21 +338,36 @@ export function QuickBetModal({
     onOpenChange(newOpen);
   }, [onOpenChange, flushQueue]);
 
-  // Handlers
-  const handleSelectMarket = (market: MarketData) => {
-    setSelectedMarket(market);
-    // If only one market, we came here from a direct click, go to outcome
-    setStep("outcome");
-  };
-
-  const handleSelectOutcome = (index: number) => {
-    // Require authentication before advancing to amount step
+  // Handlers - clicking Yes/No now places the bet immediately
+  const handleSelectMarketAndOutcome = (market: MarketData, outcomeIndex: number) => {
+    // Require authentication before placing bet
     if (!authenticated) {
       login();
       return;
     }
-    setSelectedOutcome(index);
-    setStep("amount");
+    // Place bet immediately with the selected quick bet size
+    const betAmount = Math.min(quickBetSize, balance);
+    if (betAmount <= 0) {
+      toast.error("Insufficient balance");
+      return;
+    }
+    placeBetMutation.mutate({ market, outcomeIndex, betAmount });
+  };
+
+  const handleSelectOutcome = (index: number) => {
+    // Require authentication before placing bet
+    if (!authenticated) {
+      login();
+      return;
+    }
+    if (!effectiveMarket) return;
+    // Place bet immediately with the selected quick bet size
+    const betAmount = Math.min(quickBetSize, balance);
+    if (betAmount <= 0) {
+      toast.error("Insufficient balance");
+      return;
+    }
+    placeBetMutation.mutate({ market: effectiveMarket, outcomeIndex: index, betAmount });
   };
 
   const handlePlaceBet = () => {
@@ -299,8 +376,13 @@ export function QuickBetModal({
       login();
       return;
     }
+    if (!selectedMarket || selectedOutcome === null) return;
     if (!amount || parseInt(amount, 10) <= 0) return;
-    placeBetMutation.mutate();
+    placeBetMutation.mutate({ 
+      market: selectedMarket, 
+      outcomeIndex: selectedOutcome, 
+      betAmount: parseInt(amount, 10) 
+    });
   };
 
   const handleBack = () => {
@@ -331,7 +413,6 @@ export function QuickBetModal({
       const dataUrl = await toPng(ticketRef.current, {
         quality: 1.0,
         pixelRatio: 2,
-        backgroundColor: "#000000",
       });
       return dataUrl;
     } catch (error) {
@@ -401,10 +482,6 @@ export function QuickBetModal({
     }
   };
 
-  // Auto-select market if only one, or use initial market
-  const effectiveMarket = selectedMarket || initialMarket || (markets.length === 1 ? markets[0] : null);
-  const outcomes = effectiveMarket ? parseOutcomes(effectiveMarket.outcomes) : [];
-
   // If only one market or initial market provided, skip market selection step
   const showMarketStep = step === "market" && markets.length > 1 && !initialMarket;
   const actualStep = step === "market" && (markets.length === 1 || initialMarket) ? "outcome" : step;
@@ -427,10 +504,92 @@ export function QuickBetModal({
               <h2 className="text-lg font-bold">Quick Bet</h2>
               <p className="text-sm text-muted-foreground line-clamp-1">{eventTitle}</p>
             </div>
-            {authenticated && actualStep !== "success" && (
-              <div className="text-right flex-shrink-0">
-                <p className="text-xs text-muted-foreground">Balance</p>
-                <p className="text-sm font-semibold text-[#22C55E]">${balance.toLocaleString()}</p>
+            {actualStep !== "success" && (
+              <div className="relative flex-shrink-0 mr-6">
+                {/* Custom bet size selector */}
+                <button
+                  onClick={() => setShowBetSizeSelector(!showBetSizeSelector)}
+                  className="h-8 px-3 rounded-lg bg-muted border border-border text-sm font-semibold cursor-pointer hover:bg-accent transition-colors flex items-center gap-1.5"
+                >
+                  <span>${quickBetSize}</span>
+                  <ChevronRight className={cn(
+                    "h-3.5 w-3.5 transition-transform",
+                    showBetSizeSelector && "rotate-90"
+                  )} />
+                </button>
+                
+                {/* Dropdown */}
+                {showBetSizeSelector && (
+                  <>
+                    {/* Backdrop */}
+                    <div 
+                      className="fixed inset-0 z-10" 
+                      onClick={() => setShowBetSizeSelector(false)} 
+                    />
+                    <div className="absolute right-0 top-full mt-1 z-20 bg-card border border-border rounded-xl shadow-lg overflow-hidden min-w-[140px]">
+                      {/* Preset options */}
+                      {BET_SIZE_OPTIONS.map((size) => (
+                        <button
+                          key={size}
+                          onClick={() => {
+                            setIsCustomAmount(false);
+                            handleBetSizeChange(size);
+                          }}
+                          className={cn(
+                            "w-full px-4 py-2.5 text-sm font-medium text-left hover:bg-muted transition-colors flex items-center justify-between",
+                            quickBetSize === size && !isCustomAmount && "bg-primary/10 text-primary"
+                          )}
+                        >
+                          <span>${size}</span>
+                          {quickBetSize === size && !isCustomAmount && (
+                            <Check className="h-4 w-4" />
+                          )}
+                        </button>
+                      ))}
+                      
+                      {/* Divider */}
+                      <div className="border-t border-border" />
+                      
+                      {/* Custom option */}
+                      {isCustomAmount ? (
+                        <div className="px-3 py-2">
+                          <div className="flex items-center gap-1">
+                            <span className="text-sm font-medium">$</span>
+                            <input
+                              ref={customInputRef}
+                              type="number"
+                              value={customAmountInput}
+                              onChange={(e) => setCustomAmountInput(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  handleCustomAmountSubmit();
+                                }
+                              }}
+                              onBlur={() => {
+                                if (customAmountInput && parseInt(customAmountInput, 10) > 0) {
+                                  handleCustomAmountSubmit();
+                                }
+                              }}
+                              placeholder="Amount"
+                              className="h-8 px-2 rounded-lg bg-muted border border-border text-sm font-semibold w-24"
+                              min={1}
+                            />
+                          </div>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            setIsCustomAmount(true);
+                            setCustomAmountInput("");
+                          }}
+                          className="w-full px-4 py-2.5 text-sm font-medium text-left hover:bg-muted transition-colors text-muted-foreground"
+                        >
+                          Custom...
+                        </button>
+                      )}
+                    </div>
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -455,64 +614,131 @@ export function QuickBetModal({
               </Button>
             </div>
           ) : showMarketStep ? (
-            // Market Selection Step
+            // Market Selection Step - with inline outcome buttons
             <div className="space-y-3">
-              <p className="text-sm text-muted-foreground">Select a market:</p>
-              <div className="space-y-2 max-h-[60vh] sm:max-h-[50vh] overflow-y-auto -mx-1 px-1">
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-muted-foreground">
+                  {authenticated ? "Tap to bet:" : "Sign in to bet:"}
+                </p>
+                {authenticated && (
+                  <p className="text-xs text-muted-foreground">
+                    Balance: <span className="text-[#22C55E] font-medium">${balance.toLocaleString()}</span>
+                  </p>
+                )}
+              </div>
+              <div className="space-y-3 max-h-[60vh] sm:max-h-[50vh] overflow-y-auto -mx-1 px-1">
                 {markets.map((market) => {
                   const marketOutcomes = parseOutcomes(market.outcomes);
                   return (
-                    <button
+                    <div
                       key={market.id}
-                      onClick={() => handleSelectMarket(market)}
-                      className="w-full p-4 rounded-xl border border-border bg-card hover:bg-muted/50 transition-colors text-left"
+                      className="p-4 rounded-xl border border-border bg-card"
                     >
                       <p className="font-medium text-sm mb-3">
                         {market.question}
                       </p>
-                      <div className="flex flex-wrap items-center gap-2 text-xs">
-                        <span className="px-2.5 py-1.5 rounded-lg bg-outcome-yes/10 text-outcome-yes font-medium whitespace-nowrap">
-                          {marketOutcomes[0]} {market.stats.percent0}%
-                        </span>
-                        <span className="px-2.5 py-1.5 rounded-lg bg-outcome-no/10 text-outcome-no font-medium whitespace-nowrap">
-                          {marketOutcomes[1]} {market.stats.percent1}%
-                        </span>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleSelectMarketAndOutcome(market, 0)}
+                          disabled={placeBetMutation.isPending}
+                          className="flex-1 h-14 rounded-lg font-medium text-sm transition-all duration-200 flex flex-col items-center justify-center bg-outcome-yes/[0.08] border border-outcome-yes/30 text-outcome-yes hover:bg-outcome-yes/[0.15] hover:border-outcome-yes/50 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {placeBetMutation.isPending ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <>
+                              <span className="flex items-center gap-1.5">
+                                {marketOutcomes[0]}
+                                <span className="text-outcome-yes/60">{market.stats.percent0}%</span>
+                              </span>
+                              <span className="text-xs font-semibold mt-0.5">
+                                ${Math.min(quickBetSize, balance)}
+                              </span>
+                            </>
+                          )}
+                        </button>
+                        <button
+                          onClick={() => handleSelectMarketAndOutcome(market, 1)}
+                          disabled={placeBetMutation.isPending}
+                          className="flex-1 h-14 rounded-lg font-medium text-sm transition-all duration-200 flex flex-col items-center justify-center bg-outcome-no/[0.08] border border-outcome-no/30 text-outcome-no hover:bg-outcome-no/[0.15] hover:border-outcome-no/50 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {placeBetMutation.isPending ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <>
+                              <span className="flex items-center gap-1.5">
+                                {marketOutcomes[1]}
+                                <span className="text-outcome-no/60">{market.stats.percent1}%</span>
+                              </span>
+                              <span className="text-xs font-semibold mt-0.5">
+                                ${Math.min(quickBetSize, balance)}
+                              </span>
+                            </>
+                          )}
+                        </button>
                       </div>
-                    </button>
+                    </div>
                   );
                 })}
               </div>
             </div>
           ) : actualStep === "outcome" && effectiveMarket ? (
-            // Outcome Selection Step
+            // Single market - Outcome Selection Step
             <div className="space-y-4">
-              <div className="text-center py-3 px-4 rounded-lg bg-muted/30 border border-border">
-                <p className="text-sm font-medium">
+              <div className="p-4 rounded-xl border border-border bg-card">
+                <p className="font-medium text-sm mb-3">
                   {effectiveMarket.question}
                 </p>
-              </div>
-              <p className="text-sm text-muted-foreground">
-                {authenticated ? "Pick your prediction:" : "Sign in and pick your prediction:"}
-              </p>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => handleSelectOutcome(0)}
-                  className="flex-1 h-16 rounded-xl font-semibold text-base transition-all duration-200 flex flex-col items-center justify-center gap-1 bg-outcome-yes/[0.08] border border-outcome-yes/30 text-outcome-yes hover:bg-outcome-yes/[0.15] hover:border-outcome-yes/50 active:scale-[0.98]"
-                >
-                  <span className="text-sm">{outcomes[0]}</span>
-                  <span className="text-xs font-medium text-outcome-yes/70">
-                    {effectiveMarket.stats.percent0}%
-                  </span>
-                </button>
-                <button
-                  onClick={() => handleSelectOutcome(1)}
-                  className="flex-1 h-16 rounded-xl font-semibold text-base transition-all duration-200 flex flex-col items-center justify-center gap-1 bg-outcome-no/[0.08] border border-outcome-no/30 text-outcome-no hover:bg-outcome-no/[0.15] hover:border-outcome-no/50 active:scale-[0.98]"
-                >
-                  <span className="text-sm">{outcomes[1]}</span>
-                  <span className="text-xs font-medium text-outcome-no/70">
-                    {effectiveMarket.stats.percent1}%
-                  </span>
-                </button>
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-xs text-muted-foreground">
+                    {authenticated ? "Tap to bet:" : "Sign in to bet:"}
+                  </p>
+                  {authenticated && (
+                    <p className="text-xs text-muted-foreground">
+                      Balance: <span className="text-[#22C55E] font-medium">${balance.toLocaleString()}</span>
+                    </p>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleSelectOutcome(0)}
+                    disabled={placeBetMutation.isPending}
+                    className="flex-1 h-16 rounded-lg font-semibold text-sm transition-all duration-200 flex flex-col items-center justify-center bg-outcome-yes/[0.08] border border-outcome-yes/30 text-outcome-yes hover:bg-outcome-yes/[0.15] hover:border-outcome-yes/50 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {placeBetMutation.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <>
+                        <span className="flex items-center gap-1.5">
+                          {outcomes[0]}
+                          <span className="text-outcome-yes/60 font-medium">{effectiveMarket.stats.percent0}%</span>
+                        </span>
+                        <span className="text-xs font-semibold mt-0.5">
+                          ${Math.min(quickBetSize, balance)}
+                        </span>
+                      </>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => handleSelectOutcome(1)}
+                    disabled={placeBetMutation.isPending}
+                    className="flex-1 h-16 rounded-lg font-semibold text-sm transition-all duration-200 flex flex-col items-center justify-center bg-outcome-no/[0.08] border border-outcome-no/30 text-outcome-no hover:bg-outcome-no/[0.15] hover:border-outcome-no/50 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {placeBetMutation.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <>
+                        <span className="flex items-center gap-1.5">
+                          {outcomes[1]}
+                          <span className="text-outcome-no/60 font-medium">{effectiveMarket.stats.percent1}%</span>
+                        </span>
+                        <span className="text-xs font-semibold mt-0.5">
+                          ${Math.min(quickBetSize, balance)}
+                        </span>
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
           ) : actualStep === "amount" && effectiveMarket && selectedOutcome !== null ? (

@@ -632,7 +632,12 @@ export function SportsEventView({ event, sport }: SportsEventViewProps) {
         {/* Left column: Header + Markets */}
         <div className="lg:col-span-2 space-y-4 sm:space-y-6">
           {/* Sports Header */}
-          <SportsEventHeader event={event} />
+          <SportsEventHeader 
+            event={event}
+            onSelectOutcome={handleSelectOutcome}
+            selectedMarketId={selectedMarketId}
+            selectedOutcome={selectedOutcome}
+          />
 
           {/* Quick stats bar */}
           <motion.div

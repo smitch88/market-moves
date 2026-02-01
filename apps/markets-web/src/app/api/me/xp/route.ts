@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getEffectiveUser } from "@/lib/auth/get-effective-user";
-import { getUserXPInfo, getXPHistory } from "@/lib/services/xp-service";
+import { getUserXPInfo } from "@/lib/services/xp-service";
 
 /**
  * GET /api/me/xp

@@ -289,7 +289,6 @@ export function MobileBettingSheet({
       return await toPng(ticketRef.current, {
         quality: 1.0,
         pixelRatio: 2,
-        backgroundColor: "#000000",
       });
     } catch {
       return null;

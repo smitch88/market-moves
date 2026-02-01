@@ -14,6 +14,12 @@ interface TeamData {
 
 interface SportsEventHeaderProps {
   event: Event & { markets: Market[] };
+  /** Optional callback when a team is clicked to place a bet */
+  onSelectOutcome?: (marketId: string, outcomeIndex: number) => void;
+  /** Currently selected market ID */
+  selectedMarketId?: string | null;
+  /** Currently selected outcome index */
+  selectedOutcome?: number | null;
 }
 
 // Parse outcomes from JSON
@@ -82,7 +88,12 @@ function formatVolume(v: number): string {
   return `$${v.toFixed(0)}`;
 }
 
-export function SportsEventHeader({ event }: SportsEventHeaderProps) {
+export function SportsEventHeader({ 
+  event, 
+  onSelectOutcome,
+  selectedMarketId,
+  selectedOutcome,
+}: SportsEventHeaderProps) {
   // Find the primary/moneyline market
   const primaryMarket = event.markets.find(
     (m) => m.question.includes("vs.") && !m.question.includes("O/U") && !m.question.includes("1H")
@@ -152,11 +163,16 @@ export function SportsEventHeader({ event }: SportsEventHeaderProps) {
         {/* Team matchup section */}
         <div className="flex items-center justify-between gap-2 sm:gap-6">
           {/* Team 0 */}
-          <motion.div
+          <motion.button
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.15 }}
-            className="flex-1 flex flex-col items-center text-center min-w-0"
+            onClick={() => primaryMarket && onSelectOutcome?.(primaryMarket.id, 0)}
+            disabled={!onSelectOutcome || !primaryMarket}
+            className={cn(
+              "flex-1 flex flex-col items-center text-center min-w-0 p-2 sm:p-3 rounded-2xl transition-all",
+              onSelectOutcome && primaryMarket && "cursor-pointer hover:bg-white/5 active:scale-[0.98]"
+            )}
           >
             <div
               className={cn(
@@ -170,7 +186,7 @@ export function SportsEventHeader({ event }: SportsEventHeaderProps) {
             </div>
             <h2 className="font-bold text-sm sm:text-lg md:text-xl truncate max-w-full">{team0.name}</h2>
             <span className="text-xl sm:text-3xl font-bold text-outcome-yes mt-0.5 sm:mt-1">{percent0}%</span>
-          </motion.div>
+          </motion.button>
 
           {/* Center divider with VS */}
           <motion.div
@@ -203,11 +219,16 @@ export function SportsEventHeader({ event }: SportsEventHeaderProps) {
           </motion.div>
 
           {/* Team 1 */}
-          <motion.div
+          <motion.button
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.15 }}
-            className="flex-1 flex flex-col items-center text-center min-w-0"
+            onClick={() => primaryMarket && onSelectOutcome?.(primaryMarket.id, 1)}
+            disabled={!onSelectOutcome || !primaryMarket}
+            className={cn(
+              "flex-1 flex flex-col items-center text-center min-w-0 p-2 sm:p-3 rounded-2xl transition-all",
+              onSelectOutcome && primaryMarket && "cursor-pointer hover:bg-white/5 active:scale-[0.98]"
+            )}
           >
             <div
               className={cn(
@@ -221,7 +242,7 @@ export function SportsEventHeader({ event }: SportsEventHeaderProps) {
             </div>
             <h2 className="font-bold text-sm sm:text-lg md:text-xl truncate max-w-full">{team1.name}</h2>
             <span className="text-xl sm:text-3xl font-bold text-outcome-no mt-0.5 sm:mt-1">{percent1}%</span>
-          </motion.div>
+          </motion.button>
         </div>
 
         {/* Bottom stats row */}
