@@ -73,13 +73,11 @@ async function fetchPublicPnLHistory(handle: string): Promise<PnLHistoryPoint[]>
   return res.json();
 }
 
-async function fetchPublicPositions(handle: string): Promise<PublicPosition[]> {
+// Fetch positions value summary - uses different query key than ProfilePositions
+async function fetchPublicPositionsValue(handle: string): Promise<number> {
   const res = await fetch(`/api/users/${handle}/positions`);
-  if (!res.ok) return [];
-  return res.json();
-}
-
-function calculatePositionsValue(positions: PublicPosition[]): number {
+  if (!res.ok) return 0;
+  const positions: PublicPosition[] = await res.json();
   return positions.reduce((total, pos) => total + (pos.totalValue || 0), 0);
 }
 
@@ -99,9 +97,10 @@ export function PublicProfileContent({ handle }: PublicProfileContentProps) {
     enabled: !!profileData,
   });
 
-  const { data: positions } = useQuery({
-    queryKey: ["public-positions", handle],
-    queryFn: () => fetchPublicPositions(handle),
+  // Use a different query key to avoid conflict with ProfilePositions
+  const { data: positionsValue } = useQuery({
+    queryKey: ["public-positions-value", handle],
+    queryFn: () => fetchPublicPositionsValue(handle),
     enabled: !!profileData,
   });
 
@@ -128,7 +127,6 @@ export function PublicProfileContent({ handle }: PublicProfileContentProps) {
     user.name || user.handle || `User ${user.id.slice(0, 8)}...`;
   const avatarUrl = user.profileImageUrl;
   const totalPnL = stats.totalPnL;
-  const positionsValue = calculatePositionsValue(positions || []);
 
   return (
     <div className="max-w-6xl mx-auto overflow-hidden">
@@ -145,7 +143,7 @@ export function PublicProfileContent({ handle }: PublicProfileContentProps) {
           stats={[
             {
               label: "Positions",
-              value: formatMoney(positionsValue || 0, { compact: true }),
+              value: formatMoney(positionsValue ?? 0, { compact: true }),
             },
             {
               label: "Volume",

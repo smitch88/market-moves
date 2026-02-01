@@ -79,14 +79,14 @@ export function Header() {
   const balance = profile?.balance ?? 0;
 
   // Get reset functions from animation context
-  const { resetBalanceOffset, resetXPOffset } = useXPAnimation();
+  const { resetBalanceOffset, resetXPOffset, markXPServerUpdated, markBalanceServerUpdated } = useXPAnimation();
   
   // Track previous values to reset optimistic offsets when actual data changes
   const prevXpRef = useRef<number | undefined>(undefined);
   const prevBalanceRef = useRef<number | undefined>(undefined);
   const initializedRef = useRef(false);
   
-  // Reset balance offset when actual balance changes from server
+  // Reset offsets when actual data changes from server
   useEffect(() => {
     // Skip initialization
     if (!initializedRef.current) {
@@ -100,19 +100,21 @@ export function Header() {
       return;
     }
     
-    // If balance changed, reset balance offset immediately
+    // If balance changed, reset balance offset and mark balance as updated
     // The AnimatedNumber will handle the animation from old to new value
     if (balance !== prevBalanceRef.current) {
       resetBalanceOffset();
+      markBalanceServerUpdated();
       prevBalanceRef.current = balance;
     }
     
-    // If XP changed, reset XP offset immediately
+    // If XP changed, reset XP offset and mark XP as updated
     if (xp !== prevXpRef.current) {
       resetXPOffset();
+      markXPServerUpdated();
       prevXpRef.current = xp;
     }
-  }, [balance, xp, resetBalanceOffset, resetXPOffset]);
+  }, [balance, xp, resetBalanceOffset, resetXPOffset, markXPServerUpdated, markBalanceServerUpdated]);
   // Show loading state while Privy is initializing or data is loading
   const isLoadingUserData = !canFetchAuthData || profileLoading || xpLoading;
 

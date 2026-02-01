@@ -32,6 +32,9 @@ interface XPAnimationContextType {
   resetOptimisticOffsets: () => void;
   resetBalanceOffset: () => void;
   resetXPOffset: () => void;
+  // Mark that server data has updated (prevents double-counting)
+  markXPServerUpdated: () => void;
+  markBalanceServerUpdated: () => void;
 }
 
 const XPAnimationContext = createContext<XPAnimationContextType | null>(null);
@@ -56,17 +59,25 @@ export function XPAnimationProvider({ children }: XPAnimationProviderProps) {
   const [optimisticXPOffset, setOptimisticXPOffset] = useState(0);
   const [optimisticBalanceOffset, setOptimisticBalanceOffset] = useState(0);
   const queueRef = useRef<PendingChange[]>([]);
+  // Track whether server has updated since items were queued - SEPARATE for XP and balance
+  // This prevents double-counting if server data arrives before flushQueue runs
+  const xpServerUpdatedSinceQueueRef = useRef(false);
+  const balanceServerUpdatedSinceQueueRef = useRef(false);
 
   // Queue XP gain to be triggered later (e.g., after modal closes)
   const queueXPGain = useCallback((amount: number) => {
     if (amount <= 0) return;
     queueRef.current.push({ type: "xp", amount });
+    // Reset the XP flag - we're expecting a server update for XP
+    xpServerUpdatedSinceQueueRef.current = false;
   }, []);
 
   // Queue balance change to be triggered later
   const queueBalanceChange = useCallback((amount: number) => {
     if (amount === 0) return;
     queueRef.current.push({ type: "balance", amount });
+    // Reset the balance flag - we're expecting a server update for balance
+    balanceServerUpdatedSinceQueueRef.current = false;
   }, []);
 
   // Clear active changes
@@ -94,6 +105,17 @@ export function XPAnimationProvider({ children }: XPAnimationProviderProps) {
     setOptimisticXPOffset(0);
   }, []);
 
+  // Mark that XP server data has been updated (called from header when XP changes)
+  // This prevents double-counting if flushQueue runs after server data arrives
+  const markXPServerUpdated = useCallback(() => {
+    xpServerUpdatedSinceQueueRef.current = true;
+  }, []);
+
+  // Mark that balance server data has been updated (called from header when balance changes)
+  const markBalanceServerUpdated = useCallback(() => {
+    balanceServerUpdatedSinceQueueRef.current = true;
+  }, []);
+
   // Flush the queue - trigger all pending animations
   const flushQueue = useCallback(() => {
     const queue = queueRef.current;
@@ -113,19 +135,24 @@ export function XPAnimationProvider({ children }: XPAnimationProviderProps) {
       }
     });
     
-    // Trigger animations
+    // Trigger animations (always show the floating indicator)
     setIsAnimating(true);
     setRingPulse(true);
     
     if (totalXP > 0) {
       setActiveXPChange(totalXP);
-      // Add optimistic offset for immediate count-up
-      setOptimisticXPOffset(prev => prev + totalXP);
+      // Only add optimistic offset if XP server data hasn't already updated
+      // This prevents double-counting in the fast-server case
+      if (!xpServerUpdatedSinceQueueRef.current) {
+        setOptimisticXPOffset(prev => prev + totalXP);
+      }
     }
     if (totalBalance !== 0) {
       setActiveBalanceChange(totalBalance);
-      // Add optimistic offset for immediate count-up
-      setOptimisticBalanceOffset(prev => prev + totalBalance);
+      // Only add optimistic offset if balance server data hasn't already updated
+      if (!balanceServerUpdatedSinceQueueRef.current) {
+        setOptimisticBalanceOffset(prev => prev + totalBalance);
+      }
     }
     
     // Reset ring pulse after animation
@@ -156,6 +183,8 @@ export function XPAnimationProvider({ children }: XPAnimationProviderProps) {
         resetOptimisticOffsets,
         resetBalanceOffset,
         resetXPOffset,
+        markXPServerUpdated,
+        markBalanceServerUpdated,
       }}
     >
       {children}
@@ -235,7 +264,7 @@ interface AnimatedXPDisplayProps {
 }
 
 export function AnimatedXPDisplay({ xp, isLoading }: AnimatedXPDisplayProps) {
-  const { activeXPChange, clearActiveXP } = useXPAnimation();
+  const { activeXPChange, clearActiveXP, optimisticXPOffset } = useXPAnimation();
   const [showChange, setShowChange] = useState(false);
   const [displayedChange, setDisplayedChange] = useState<number | null>(null);
 
@@ -252,9 +281,9 @@ export function AnimatedXPDisplay({ xp, isLoading }: AnimatedXPDisplayProps) {
     );
   }
 
-  // Use server XP directly - AnimatedNumber handles the animation
-  // from old to new value when server confirms the change
-  const displayedXP = xp;
+  // Use server XP + optimistic offset for immediate feedback
+  // When server data refreshes, header.tsx resets the offset
+  const displayedXP = xp + optimisticXPOffset;
 
   return (
     <div className="relative">
@@ -313,7 +342,7 @@ interface AnimatedBalanceDisplayProps {
 }
 
 export function AnimatedBalanceDisplay({ balance, isLoading }: AnimatedBalanceDisplayProps) {
-  const { activeBalanceChange, clearActiveBalance } = useXPAnimation();
+  const { activeBalanceChange, clearActiveBalance, optimisticBalanceOffset } = useXPAnimation();
   const [showChange, setShowChange] = useState(false);
   const [displayedChange, setDisplayedChange] = useState<number | null>(null);
 
@@ -330,9 +359,9 @@ export function AnimatedBalanceDisplay({ balance, isLoading }: AnimatedBalanceDi
     );
   }
 
-  // Use server balance directly - AnimatedNumber handles the animation
-  // from old to new value when server confirms the change
-  const displayedBalance = balance;
+  // Use server balance + optimistic offset for immediate feedback
+  // When server data refreshes, header.tsx resets the offset
+  const displayedBalance = balance + optimisticBalanceOffset;
 
   return (
     <div className="relative">
