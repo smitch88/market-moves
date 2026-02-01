@@ -70,6 +70,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     },
     select: { 
       title: true, 
+      description: true,
       bannerUrl: true,
       markets: {
         where: { isPublished: true }, // Only published markets
@@ -83,15 +84,35 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     return { title: "Event Not Found | Vault Markets" };
   }
 
-  const question = event.markets[0]?.question || event.title;
+  const title = event.title;
+  const description = event.description || event.markets[0]?.question || `Predict the outcome of ${title} on Vault Markets`;
+  
+  // Build image array for Open Graph
+  const images = event.bannerUrl 
+    ? [{
+        url: event.bannerUrl,
+        width: 1200,
+        height: 630,
+        alt: title,
+      }]
+    : undefined;
 
   return {
-    title: `${question} | Vault Markets`,
-    description: question,
+    title: `${title} | Vault Markets`,
+    description,
     openGraph: {
-      title: question,
-      description: `Predict the outcome on Vault Markets`,
+      type: "website",
+      title: `${title} | Vault Markets`,
+      description,
+      images,
+      siteName: "Vault777 Markets",
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: `${title} | Vault Markets`,
+      description,
       images: event.bannerUrl ? [event.bannerUrl] : undefined,
+      creator: "@vault777",
     },
   };
 }
