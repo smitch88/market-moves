@@ -221,8 +221,9 @@ Level 20: 400,000 XP
    - Configurable via admin panel
 
 2. **Market Cooldown**
-   - Default: 5 minutes between earning XP from same market
+   - Default: 1 minute between earning XP from same market
    - Prevents rapid cycling
+   - Cooldown is per-market (trading in one market doesn't affect cooldown in another)
 
 3. **Volume-Based Diminishing Returns**
    - Default threshold: $10,000 per tier

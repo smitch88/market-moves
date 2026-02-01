@@ -148,11 +148,11 @@ The XP system includes a **three-layer protection system** to prevent abuse and 
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| `market_cooldown_seconds` | 300 | Seconds before earning XP again from the same market |
+| `market_cooldown_seconds` | 60 | Seconds before earning XP again from the same market |
 
 - Prevents rapid cycling within a single market
-- Default is 5 minutes between XP-earning trades
-- Each market has its own independent cooldown
+- Default is 1 minute between XP-earning trades
+- Each market has its own independent cooldown (cooldown only applies to the specific market, not across all markets)
 
 ### 4.3 Volume-Based Diminishing Returns
 
@@ -342,7 +342,7 @@ Located at `/admin/xp`, this page allows administrators to:
   "config": {
     "xpPerDollar": 10,
     "dailyXpCap": 50000,
-    "marketCooldownSeconds": 300,
+    "marketCooldownSeconds": 60,
     "marketVolumeThreshold": 10000,
     "shareBonusPercent": 20
   },
@@ -627,7 +627,7 @@ const levelInfo = getLevelInfo(user.xp);
 |---------|-----|---------|-------|
 | XP per Dollar | `xp_per_dollar_volume` | 10 | 1-100 |
 | Daily Cap | `daily_xp_cap` | 50,000 | 1K-1M |
-| Market Cooldown | `market_cooldown_seconds` | 300 (5 min) | 0-3600 |
+| Market Cooldown | `market_cooldown_seconds` | 60 (1 min) | 0-3600 |
 | Volume Threshold | `market_volume_threshold` | $10,000 | $10-$100K |
 | Share Bonus | `share_bonus_percent` | 20% | 0-100% |
 | Referral Bonus | (hardcoded) | 10,000 XP | N/A |
@@ -643,7 +643,7 @@ const levelInfo = getLevelInfo(user.xp);
 
 ### Protections Applied
 1. Daily cap (50,000 XP)
-2. Market cooldown (5 minutes)
+2. Market cooldown (1 minute per market)
 3. Volume diminishing returns (per $10K tier)
 4. Buy-only (no sell XP)
 

@@ -133,7 +133,7 @@ Users earn XP through:
 | Protection | Default |
 |------------|---------|
 | Daily XP Cap | 50,000 XP |
-| Market Cooldown | 5 minutes |
+| Market Cooldown | 1 minute (per market) |
 | Volume Diminishing Returns | $10k per tier |
 | No Sell XP | Sells don't earn XP |
 

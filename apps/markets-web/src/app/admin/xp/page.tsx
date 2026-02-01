@@ -462,7 +462,7 @@ export default function AdminXPPage() {
                 Market Cooldown
               </h4>
               <p className="text-sm text-muted-foreground mt-1">
-                After trading in a market, users must wait {localConfig?.marketCooldownSeconds ?? 300} seconds
+                After trading in a market, users must wait {localConfig?.marketCooldownSeconds ?? 60} seconds
                 before earning MP from that market again.
               </p>
             </div>
