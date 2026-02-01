@@ -14,6 +14,8 @@ import {
   MobileBettingSheet,
 } from "@/components/sports";
 import { useMarketUpdates, type PriceUpdate } from "@/hooks/use-market-updates";
+import { EventActivityPanel } from "@/components/events/event-activity-panel";
+import { EventKOLsPanel } from "@/components/events/event-kols-panel";
 
 // Extended market type with display fields
 type MarketWithDisplay = Market & {
@@ -309,15 +311,24 @@ export function MarketDetail({ event }: MarketDetailProps) {
           </motion.div>
         </div>
 
-        {/* Right column: Betting Sidebar (sticky) - hidden on mobile */}
+        {/* Right column: Betting Sidebar + Info Panels (sticky) - hidden on mobile */}
         <div className="hidden lg:block lg:col-span-1">
-          <div className="lg:sticky lg:top-20">
+          <div className="lg:sticky lg:top-20 space-y-4">
             <SportsBettingSidebar
               event={event}
               selectedMarket={selectedMarket}
               selectedOutcome={selectedOutcome}
               onClearSelection={handleClearSelection}
             />
+            
+            {/* Activity Panel */}
+            <EventActivityPanel 
+              eventSlug={event.slug} 
+              marketId={selectedMarketId || undefined}
+            />
+            
+            {/* Top Captains Panel */}
+            <EventKOLsPanel eventSlug={event.slug} />
           </div>
         </div>
       </div>

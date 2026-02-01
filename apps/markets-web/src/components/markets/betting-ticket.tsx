@@ -48,13 +48,13 @@ export const BettingTicket = forwardRef<HTMLDivElement, BettingTicketProps>(
         }}
       >
         {/* Content */}
-        <div className="absolute inset-0 px-[6%] pt-[3%] pb-[6%] flex flex-col justify-between">
+        <div className="absolute inset-0 px-[5%] xs:px-[6%] pt-[2%] xs:pt-[3%] pb-[5%] xs:pb-[6%] flex flex-col justify-between">
             {/* Top section */}
             <div>
               {/* Header - centered */}
-              <div className="flex items-center justify-center gap-2 mb-2">
-                <img src="/logo.svg" alt="Vault Markets" className="w-14 h-14" />
-                <span className="text-lg font-medium tracking-wide text-white uppercase">Prediction Receipt</span>
+              <div className="flex items-center justify-center gap-1.5 xs:gap-2 mb-1.5 xs:mb-2">
+                <img src="/logo.svg" alt="Vault Markets" className="w-10 h-10 xs:w-14 xs:h-14" />
+                <span className="text-xs xs:text-lg font-medium tracking-wide text-white uppercase">Prediction Receipt</span>
               </div>
 
               {/* Divider line - gradient fading on edges */}
@@ -67,20 +67,40 @@ export const BettingTicket = forwardRef<HTMLDivElement, BettingTicketProps>(
             </div>
 
             {/* Market Section */}
-            <div className="text-center -my-2">
-              <div className="flex items-center justify-center gap-1.5 mb-0.5">
-                <div className="w-[6px] h-[6px] rounded-full bg-[#FB2C36]" />
-                <span className="text-xs text-[#FB2C36ee] uppercase tracking-wider">Market</span>
+            <div className="text-center -my-1 xs:-my-2">
+              <div className="flex items-center justify-center gap-1 xs:gap-1.5 mb-0.5">
+                <div className="w-[5px] h-[5px] xs:w-[6px] xs:h-[6px] rounded-full bg-[#FB2C36]" />
+                <span className="text-[10px] xs:text-xs text-[#FB2C36ee] uppercase tracking-wider">Market</span>
               </div>
-              <div className="text-2xl font-medium text-white/80 leading-tight">{event.title}</div>
+              <div 
+                className="font-medium text-white/80 leading-none whitespace-nowrap overflow-hidden text-ellipsis"
+                style={{
+                  fontSize: 
+                    event.title.length > 70 ? "0.5rem" : 
+                    event.title.length > 55 ? "0.6rem" : 
+                    event.title.length > 45 ? "0.7rem" : 
+                    event.title.length > 35 ? "0.85rem" : 
+                    event.title.length > 25 ? "1.1rem" : 
+                    "1.5rem",
+                }}
+              >
+                {event.title}
+              </div>
               {market.question !== event.title && (
-                <div className="text-sm text-white/50 mt-0.5">{market.question}</div>
+                <div 
+                  className="text-white/50 mt-0.5 line-clamp-2"
+                  style={{
+                    fontSize: (market.question?.length || 0) > 60 ? "0.75rem" : "0.875rem",
+                  }}
+                >
+                  {market.question}
+                </div>
               )}
             </div>
 
             {/* Your Pick Section - gradient left and right */}
             <div 
-              className="py-4 -mx-[6%] px-[6%] text-center relative overflow-hidden"
+              className="py-2.5 xs:py-4 -mx-[5%] xs:-mx-[6%] px-[5%] xs:px-[6%] text-center relative overflow-hidden"
               style={{
                 background: "linear-gradient(90deg, transparent 0%, rgba(251, 44, 54, 0.15) 30%, rgba(251, 44, 54, 0.2) 70%, transparent 100%)",
               }}
@@ -94,7 +114,7 @@ export const BettingTicket = forwardRef<HTMLDivElement, BettingTicketProps>(
               />
               {/* Subtle glow above bottom border */}
               <div 
-                className="absolute bottom-0 left-0 right-0 h-[40px] pointer-events-none"
+                className="absolute bottom-0 left-0 right-0 h-[30px] xs:h-[40px] pointer-events-none"
                 style={{
                   background: "radial-gradient(ellipse 50% 100% at 50% 100%, rgba(251, 44, 54, 0.4) 0%, transparent 70%)",
                 }}
@@ -106,23 +126,23 @@ export const BettingTicket = forwardRef<HTMLDivElement, BettingTicketProps>(
                   background: "linear-gradient(90deg, transparent 0%, rgba(251, 44, 54, 0.5) 30%, rgba(251, 44, 54, 0.5) 70%, transparent 100%)",
                 }}
               />
-              <div className="text-sm text-[#FB2C36] uppercase tracking-wider mb-0.5">Your Pick</div>
-              <div className="text-2xl font-medium text-white/80 leading-tight">{outcomeLabel}</div>
+              <div className="text-xs xs:text-sm text-[#FB2C36] uppercase tracking-wider mb-0.5">Your Pick</div>
+              <div className="text-lg xs:text-2xl font-medium text-white/80 leading-tight">{outcomeLabel}</div>
             </div>
 
             {/* User & Time Info */}
-            <div className="flex items-center justify-between -my-2">
-              <div className="flex items-center gap-2">
+            <div className="flex items-center justify-between -my-1 xs:-my-2">
+              <div className="flex items-center gap-1.5 xs:gap-2">
                 {userAvatar ? (
                   <img 
                     src={userAvatar} 
                     alt={userName || userHandle || "User"} 
-                    className="w-10 h-10 rounded-full"
+                    className="w-8 h-8 xs:w-10 xs:h-10 rounded-full"
                     style={{ border: "2px solid #FB2C36" }}
                   />
                 ) : (
                   <div 
-                    className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-xs"
+                    className="w-8 h-8 xs:w-10 xs:h-10 rounded-full flex items-center justify-center text-white font-bold text-[10px] xs:text-xs"
                     style={{ 
                       background: "linear-gradient(135deg, #FB2C36 0%, #a01a22 100%)",
                       border: "2px solid #FB2C36",
@@ -132,17 +152,17 @@ export const BettingTicket = forwardRef<HTMLDivElement, BettingTicketProps>(
                   </div>
                 )}
                 <div>
-                  <div className="font-semibold text-white text-sm leading-tight">
+                  <div className="font-semibold text-white text-xs xs:text-sm leading-tight">
                     {userName || userHandle || "Anonymous"}
                   </div>
                   {userHandle && (
-                    <div className="text-xs text-white/50 leading-tight">@{userHandle}</div>
+                    <div className="text-[10px] xs:text-xs text-white/50 leading-tight">@{userHandle}</div>
                   )}
                 </div>
               </div>
               <div className="text-right">
-                <div className="text-white text-sm font-semibold leading-tight">{formattedDate}</div>
-                <div className="text-xs text-white/50 leading-tight">{formattedTime}</div>
+                <div className="text-white text-xs xs:text-sm font-semibold leading-tight">{formattedDate}</div>
+                <div className="text-[10px] xs:text-xs text-white/50 leading-tight">{formattedTime}</div>
               </div>
             </div>
 
@@ -153,8 +173,8 @@ export const BettingTicket = forwardRef<HTMLDivElement, BettingTicketProps>(
                 className="absolute left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none"
                 style={{
                   top: "50%",
-                  width: "200px",
-                  height: "200px",
+                  width: "150px",
+                  height: "150px",
                   background: "radial-gradient(circle at 50% 50%, rgba(251, 44, 54, 0.23) 0%, transparent 80%)",
                 }}
               />
@@ -165,14 +185,14 @@ export const BettingTicket = forwardRef<HTMLDivElement, BettingTicketProps>(
                   background: "linear-gradient(90deg, transparent 0%, rgba(251, 44, 54, 0.4) 40%, rgba(251, 44, 54, 0.4) 60%, transparent 100%)",
                 }}
               />
-              <div className="relative pt-3 pb-2 text-center">
-                <div className="text-xs text-white/50 uppercase tracking-wider mb-1">Wager</div>
-                <div className="text-4xl font-normal text-[#FB2C36] leading-none">
+              <div className="relative pt-2 xs:pt-3 pb-1.5 xs:pb-2 text-center">
+                <div className="text-[10px] xs:text-xs text-white/50 uppercase tracking-wider mb-0.5 xs:mb-1">Wager</div>
+                <div className="text-2xl xs:text-4xl font-normal text-[#FB2C36] leading-none">
                   ${amount.toLocaleString()}
                 </div>
               </div>
               {/* Dashed divider - gradient */}
-              <div className="relative h-[1px] mt-2">
+              <div className="relative h-[1px] mt-1.5 xs:mt-2">
                 <div 
                   className="absolute inset-0"
                   style={{
@@ -186,9 +206,9 @@ export const BettingTicket = forwardRef<HTMLDivElement, BettingTicketProps>(
 
             {/* Bottom CTA */}
             <div className="text-center">
-              <div className="text-xs text-white/60 uppercase tracking-wider mb-1.5">Make your prediction at</div>
+              <div className="text-[10px] xs:text-xs text-white/60 uppercase tracking-wider mb-1 xs:mb-1.5">Make your prediction at</div>
               <div 
-                className="inline-block px-5 py-2 rounded-full text-sm font-semibold tracking-wide"
+                className="inline-block px-3 xs:px-5 py-1.5 xs:py-2 rounded-full text-xs xs:text-sm font-semibold tracking-wide"
                 style={{
                   background: "transparent",
                   borderBottom: "1px solid rgba(255, 255, 255, 0.3)",
