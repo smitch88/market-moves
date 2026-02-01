@@ -215,7 +215,7 @@ export const BettingTicket = forwardRef<HTMLDivElement, BettingTicketProps>(
                   boxShadow: "inset 0 0 8px rgba(251, 44, 54, 0.6), inset 0 0 15px rgba(251, 44, 54, 0.3)",
                 }}
               >
-                <span className="text-white">PREDICTIONS.</span>
+                <span className="text-white">MARKETS.</span>
                 <span className="text-[#FB2C36]">VAULT777.com</span>
               </div>
             </div>

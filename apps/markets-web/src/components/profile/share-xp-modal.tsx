@@ -266,7 +266,7 @@ export function ShareXPModal({ open, onOpenChange, bet, profile }: ShareXPModalP
           {!xpClaimed && (
             <div className="space-y-2 pt-2 border-t border-border/50">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <span className="text-xs sm:text-sm font-medium">Claim +{shareBonusPercent}% MP bonus for sharing on X</span>
+                <span className="text-xs sm:text-sm font-medium">Claim +{shareBonusPercent}% MP bonus for sharing</span>
                 {hasTwitter && (
                   <Button
                     onClick={() => shareXPMutation.mutate("timeline")}
@@ -280,7 +280,7 @@ export function ShareXPModal({ open, onOpenChange, bet, profile }: ShareXPModalP
                     ) : (
                       <Check className="h-3 w-3" />
                     )}
-                    Verify Tweet
+                    Verify Post
                   </Button>
                 )}
               </div>

@@ -84,7 +84,7 @@ export function VerifyStep({
           {isLoading ? (
             <Loader2 className="h-4 w-4 animate-spin mx-auto" />
           ) : (
-            "Verify Tweet"
+            "Verify Post"
           )}
         </button>
 
