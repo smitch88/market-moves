@@ -18,6 +18,7 @@ import { useAuthFetch } from "@/lib/auth/auth-fetch";
 import { BettingTicket } from "@/components/markets/betting-ticket";
 import { XIcon } from "@/components/markets/x-icon";
 import { useXPAnimation } from "@/components/layout/xp-animation";
+import { useQuickBetSize, BET_SIZE_OPTIONS } from "@/hooks/use-quick-bet-size";
 
 interface QuickBetModalProps {
   open: boolean;
@@ -56,21 +57,6 @@ interface EventMarketsResponse {
 }
 
 type BettingStep = "market" | "outcome" | "amount" | "success";
-
-// Bet size options
-const BET_SIZE_OPTIONS = [50, 100, 200, 500] as const;
-const STORAGE_KEY = "vault-quick-bet-size";
-
-// Helper to get stored bet size from localStorage (can be preset or custom)
-function getStoredBetSize(): number {
-  if (typeof window === "undefined") return 100;
-  const stored = localStorage.getItem(STORAGE_KEY);
-  if (stored) {
-    const num = Number(stored);
-    if (!isNaN(num) && num > 0) return num;
-  }
-  return 100; // Default
-}
 
 // Helper to parse outcomes from JSON
 function parseOutcomes(outcomes: string): string[] {
@@ -115,37 +101,25 @@ export function QuickBetModal({
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const ticketRef = useRef<HTMLDivElement>(null);
   
-  // Quick bet size preference (stored in localStorage)
-  const [quickBetSize, setQuickBetSize] = useState<number>(100);
+  // Quick bet size preference (synced across all modals via custom hook)
+  const { quickBetSize, setQuickBetSize, isCustomAmount } = useQuickBetSize();
   const [showBetSizeSelector, setShowBetSizeSelector] = useState(false);
-  const [isCustomAmount, setIsCustomAmount] = useState(false);
+  const [showCustomInput, setShowCustomInput] = useState(false);
   const [customAmountInput, setCustomAmountInput] = useState("");
   const customInputRef = useRef<HTMLInputElement>(null);
   
-  // Load stored bet size on mount
-  useEffect(() => {
-    const stored = getStoredBetSize();
-    setQuickBetSize(stored);
-    // Check if it's a custom amount (not in presets)
-    if (!BET_SIZE_OPTIONS.includes(stored as typeof BET_SIZE_OPTIONS[number])) {
-      setIsCustomAmount(true);
-      setCustomAmountInput(String(stored));
-    }
-  }, []);
-  
   // Focus custom input when switching to custom mode
   useEffect(() => {
-    if (isCustomAmount && showBetSizeSelector && customInputRef.current) {
+    if (showCustomInput && showBetSizeSelector && customInputRef.current) {
       customInputRef.current.focus();
     }
-  }, [isCustomAmount, showBetSizeSelector]);
+  }, [showCustomInput, showBetSizeSelector]);
   
-  // Save bet size to localStorage when changed
+  // Save bet size (synced across all modals via hook)
   const handleBetSizeChange = (size: number) => {
     setQuickBetSize(size);
-    localStorage.setItem(STORAGE_KEY, String(size));
     setShowBetSizeSelector(false);
-    setIsCustomAmount(!BET_SIZE_OPTIONS.includes(size as typeof BET_SIZE_OPTIONS[number]));
+    setShowCustomInput(false);
   };
   
   const handleCustomAmountSubmit = () => {
@@ -181,8 +155,13 @@ export function QuickBetModal({
       setTweetUrl("");
       setShowManualEntry(false);
       setShowBetSizeSelector(false);
+      setShowCustomInput(false);
+      // Sync custom input with current quick bet size if it's custom
+      if (isCustomAmount) {
+        setCustomAmountInput(String(quickBetSize));
+      }
     }
-  }, [open, initialMarket, initialOutcome, getInitialStep]);
+  }, [open, initialMarket, initialOutcome, getInitialStep, isCustomAmount, quickBetSize]);
 
   // Fetch event markets
   const { data, isLoading, error } = useQuery<EventMarketsResponse>({
@@ -531,10 +510,7 @@ export function QuickBetModal({
                       {BET_SIZE_OPTIONS.map((size) => (
                         <button
                           key={size}
-                          onClick={() => {
-                            setIsCustomAmount(false);
-                            handleBetSizeChange(size);
-                          }}
+                          onClick={() => handleBetSizeChange(size)}
                           className={cn(
                             "w-full px-4 py-2.5 text-sm font-medium text-left hover:bg-muted transition-colors flex items-center justify-between",
                             quickBetSize === size && !isCustomAmount && "bg-primary/10 text-primary"
@@ -551,7 +527,7 @@ export function QuickBetModal({
                       <div className="border-t border-border" />
                       
                       {/* Custom option */}
-                      {isCustomAmount ? (
+                      {showCustomInput || isCustomAmount ? (
                         <div className="px-3 py-2">
                           <div className="flex items-center gap-1">
                             <span className="text-sm font-medium">$</span>
@@ -579,7 +555,7 @@ export function QuickBetModal({
                       ) : (
                         <button
                           onClick={() => {
-                            setIsCustomAmount(true);
+                            setShowCustomInput(true);
                             setCustomAmountInput("");
                           }}
                           className="w-full px-4 py-2.5 text-sm font-medium text-left hover:bg-muted transition-colors text-muted-foreground"
