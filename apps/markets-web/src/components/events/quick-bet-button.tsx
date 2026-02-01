@@ -33,7 +33,7 @@ export function QuickBetButton({ eventId, eventTitle, className }: QuickBetButto
       <button
         onClick={handleClick}
         className={cn(
-          "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold",
+          "flex items-center gap-1 xs:gap-1.5 px-2 xs:px-3 py-1.5 rounded-full text-[11px] xs:text-xs font-semibold",
           "bg-primary/90 text-primary-foreground hover:bg-primary",
           "transition-all duration-200 hover:scale-105 active:scale-95",
           "shadow-lg shadow-primary/25",
@@ -41,8 +41,9 @@ export function QuickBetButton({ eventId, eventTitle, className }: QuickBetButto
         )}
         title="Quick Bet"
       >
-        <Zap className="h-3.5 w-3.5" />
-        <span>Quick Bet</span>
+        <Zap className="h-3 w-3 xs:h-3.5 xs:w-3.5" />
+        <span className="hidden xs:inline">Quick Bet</span>
+        <span className="xs:hidden">Bet</span>
       </button>
 
       <QuickBetModal

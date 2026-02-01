@@ -119,7 +119,8 @@ export function BookmarkButton({ eventId, className }: BookmarkButtonProps) {
       onClick={handleClick}
       disabled={isPending}
       className={cn(
-        "flex items-center justify-center w-8 h-8 rounded-full transition-all duration-200",
+        "flex items-center justify-center rounded-full transition-all duration-200",
+        "w-8 h-8", // Default size, can be overridden via className
         "hover:scale-110 active:scale-95",
         isBookmarked
           ? "bg-primary/20 text-primary"
@@ -130,9 +131,9 @@ export function BookmarkButton({ eventId, className }: BookmarkButtonProps) {
       title={isBookmarked ? "Remove bookmark" : "Add bookmark"}
     >
       {isBookmarked ? (
-        <BookmarkCheck className="h-4 w-4" />
+        <BookmarkCheck className="h-[55%] w-[55%]" />
       ) : (
-        <Bookmark className="h-4 w-4" />
+        <Bookmark className="h-[55%] w-[55%]" />
       )}
     </button>
   );

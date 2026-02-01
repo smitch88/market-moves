@@ -126,9 +126,9 @@ export function Header() {
         isImpersonating ? "border-red-500/50" : "border-border/40"
       )}
     >
-      <div className="max-w-7xl mx-auto flex h-16 items-center gap-6 px-4 w-full">
+      <div className="max-w-7xl mx-auto flex h-16 items-center gap-2 xs:gap-4 sm:gap-6 px-3 xs:px-4 w-full">
         {/* Logo and Nav - Left side */}
-        <div className="flex items-center gap-6 flex-shrink-0">
+        <div className="flex items-center gap-2 xs:gap-4 sm:gap-6 flex-shrink-0">
           <Link href="/" className="flex items-center gap-2">
             <motion.div
               whileHover={{ scale: 1.05 }}
@@ -140,12 +140,12 @@ export function Header() {
                 alt="Vault Markets"
                 width={40}
                 height={28}
-                className="h-7 w-auto"
+                className="h-6 xs:h-7 w-auto"
                 priority
               />
             </motion.div>
             {isImpersonating && (
-              <Badge variant="destructive" className="text-[10px] gap-1 animate-pulse">
+              <Badge variant="destructive" className="text-[10px] gap-1 animate-pulse hidden xs:flex">
                 <Bug className="h-3 w-3" />
                 Impersonating
               </Badge>
@@ -184,26 +184,26 @@ export function Header() {
         </div>
 
         {/* Right side */}
-        <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0 ml-auto">
+        <div className="flex items-center gap-1.5 xs:gap-2 sm:gap-3 flex-shrink-0 ml-auto">
           {/* Mobile search button */}
           <motion.button
-            className="md:hidden p-2 rounded-lg hover:bg-muted transition-colors"
+            className="md:hidden p-1.5 xs:p-2 rounded-lg hover:bg-muted transition-colors"
             onClick={() => setSearchModalOpen(true)}
             aria-label="Search"
             whileTap={{ scale: 0.9 }}
           >
-            <Search className="h-5 w-5 text-muted-foreground" />
+            <Search className="h-4 w-4 xs:h-5 xs:w-5 text-muted-foreground" />
           </motion.button>
 
           {/* XP and Balance stats - shown when logged in */}
           {hasSession && (
-            <div className="hidden sm:flex items-center gap-5 mr-2">
+            <div className="hidden sm:flex items-center gap-3 lg:gap-5 mr-1 lg:mr-2">
               <div className="flex flex-col items-center min-h-[44px]">
-                <span className="text-[11px] text-muted-foreground font-medium tracking-wide">MP</span>
+                <span className="text-[10px] lg:text-[11px] text-muted-foreground font-medium tracking-wide">MP</span>
                 <AnimatedXPDisplay xp={xp} isLoading={isLoadingUserData} />
               </div>
               <div className="flex flex-col items-center min-h-[44px]">
-                <span className="text-[11px] text-muted-foreground font-medium tracking-wide">Balance</span>
+                <span className="text-[10px] lg:text-[11px] text-muted-foreground font-medium tracking-wide">Balance</span>
                 <AnimatedBalanceDisplay balance={balance} isLoading={isLoadingUserData} />
               </div>
             </div>

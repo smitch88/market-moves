@@ -138,20 +138,20 @@ export function EventCard({ event, index = 0 }: EventCardProps) {
 
             {/* Stats */}
             <div className="mt-auto pt-4 border-t border-border/50">
-              <div className="flex items-center justify-between text-xs">
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-1.5 text-muted-foreground">
-                    <BarChart3 className="h-4 w-4 text-primary" />
+              <div className="flex items-center justify-between text-xs gap-2">
+                <div className="flex items-center gap-2 xs:gap-3 min-w-0 flex-wrap">
+                  <div className="flex items-center gap-1 xs:gap-1.5 text-muted-foreground">
+                    <BarChart3 className="h-3.5 w-3.5 xs:h-4 xs:w-4 text-primary flex-shrink-0" />
                     <span className="font-semibold">{event._count.markets}</span>
-                    <span className="text-muted-foreground/70">markets</span>
+                    <span className="text-muted-foreground/70 hidden xs:inline">markets</span>
                   </div>
-                  <div className="flex items-center gap-1.5">
-                    <TrendingUp className="h-4 w-4 text-primary" />
+                  <div className="flex items-center gap-1 xs:gap-1.5">
+                    <TrendingUp className="h-3.5 w-3.5 xs:h-4 xs:w-4 text-primary flex-shrink-0" />
                     <span className="font-semibold text-foreground">{formatVolume(event._aggregations.totalVolume)}</span>
                   </div>
                 </div>
-                {/* Placeholder for button spacing */}
-                <div className="w-[140px]" />
+                {/* Placeholder for button spacing - responsive */}
+                <div className="w-[100px] xs:w-[140px] flex-shrink-0" />
               </div>
             </div>
           </div>
@@ -159,8 +159,8 @@ export function EventCard({ event, index = 0 }: EventCardProps) {
       </Link>
       
       {/* Action buttons - positioned outside Link to prevent click propagation */}
-      <div className="absolute bottom-[0.75rem] right-5 flex items-center gap-2 z-10">
-        <BookmarkButton eventId={event.id} />
+      <div className="absolute bottom-[0.75rem] right-3 xs:right-5 flex items-center gap-1.5 xs:gap-2 z-10">
+        <BookmarkButton eventId={event.id} className="w-7 h-7 xs:w-8 xs:h-8" />
         <QuickBetButton eventId={event.id} eventTitle={event.title} />
       </div>
     </motion.div>

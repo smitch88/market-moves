@@ -157,7 +157,7 @@ export function MarketFilters() {
       variants={containerVariants}
     >
       {/* Mobile: Dropdown menus in a single row */}
-      <div className="flex sm:hidden items-center gap-2 w-full">
+      <div className="flex sm:hidden items-center gap-1.5 xs:gap-2 w-full">
         {/* View Dropdown - Mobile */}
         <DropdownMenu open={viewMenuOpen} onOpenChange={setViewMenuOpen}>
           <DropdownMenuTrigger asChild>
@@ -165,15 +165,15 @@ export function MarketFilters() {
               variant="outline"
               size="sm"
               className={cn(
-                "flex-1 justify-between gap-2 h-9 px-3 rounded-full bg-transparent border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted/50",
+                "flex-1 min-w-0 justify-between gap-1 xs:gap-2 h-8 xs:h-9 px-2 xs:px-3 rounded-full bg-transparent border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted/50",
                 isPending && "opacity-50 pointer-events-none"
               )}
             >
-              <span className="flex items-center gap-1.5">
-                <ViewIcon className="h-3.5 w-3.5" />
-                <span className="font-medium text-foreground">{currentViewOption.label}</span>
+              <span className="flex items-center gap-1 xs:gap-1.5 min-w-0">
+                <ViewIcon className="h-3 w-3 xs:h-3.5 xs:w-3.5 flex-shrink-0" />
+                <span className="font-medium text-foreground text-xs xs:text-sm truncate">{currentViewOption.label}</span>
               </span>
-              <ChevronDown className="h-3.5 w-3.5" />
+              <ChevronDown className="h-3 w-3 xs:h-3.5 xs:w-3.5 flex-shrink-0" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-48">
@@ -207,15 +207,15 @@ export function MarketFilters() {
               variant="outline"
               size="sm"
               className={cn(
-                "flex-1 justify-between gap-2 h-9 px-3 rounded-full bg-transparent border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted/50",
+                "flex-1 min-w-0 justify-between gap-1 xs:gap-2 h-8 xs:h-9 px-2 xs:px-3 rounded-full bg-transparent border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted/50",
                 isPending && "opacity-50 pointer-events-none"
               )}
             >
-              <span className="flex items-center gap-1.5">
-                <CategoryIcon className="h-3.5 w-3.5" />
-                <span className="font-medium text-foreground">{currentCategoryOption.label}</span>
+              <span className="flex items-center gap-1 xs:gap-1.5 min-w-0">
+                <CategoryIcon className="h-3 w-3 xs:h-3.5 xs:w-3.5 flex-shrink-0" />
+                <span className="font-medium text-foreground text-xs xs:text-sm truncate">{currentCategoryOption.label}</span>
               </span>
-              <ChevronDown className="h-3.5 w-3.5" />
+              <ChevronDown className="h-3 w-3 xs:h-3.5 xs:w-3.5 flex-shrink-0" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-48">
@@ -249,14 +249,14 @@ export function MarketFilters() {
               variant="outline"
               size="sm"
               className={cn(
-                "h-9 w-9 p-0 rounded-full bg-transparent border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted/50",
+                "h-8 w-8 xs:h-9 xs:w-9 p-0 rounded-full bg-transparent border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted/50 flex-shrink-0",
                 isPending && "opacity-50 pointer-events-none"
               )}
             >
               {currentSortDir === "desc" ? (
-                <ArrowDown className="h-3.5 w-3.5" />
+                <ArrowDown className="h-3 w-3 xs:h-3.5 xs:w-3.5" />
               ) : (
-                <ArrowUp className="h-3.5 w-3.5" />
+                <ArrowUp className="h-3 w-3 xs:h-3.5 xs:w-3.5" />
               )}
             </Button>
           </DropdownMenuTrigger>

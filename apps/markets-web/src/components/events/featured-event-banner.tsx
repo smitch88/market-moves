@@ -320,59 +320,59 @@ export function FeaturedEventBanner({ events }: FeaturedEventBannerProps) {
             >
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-0">
               {/* Left Side - Event Info */}
-              <div className="p-6 flex flex-col">
+              <div className="p-4 xs:p-6 flex flex-col">
                 {/* Header */}
-                <div className="mb-4">
+                <div className="mb-3 xs:mb-4">
                   {/* Category Badge */}
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium bg-primary/10 text-primary border border-primary/20">
-                      <span className="h-1.5 w-1.5 bg-primary rounded-full animate-pulse" />
+                  <div className="flex items-center gap-1.5 xs:gap-2 mb-2">
+                    <span className="inline-flex items-center gap-1 xs:gap-1.5 px-1.5 xs:px-2 py-0.5 rounded text-[10px] xs:text-xs font-medium bg-primary/10 text-primary border border-primary/20">
+                      <span className="h-1 w-1 xs:h-1.5 xs:w-1.5 bg-primary rounded-full animate-pulse" />
                       LIVE
                     </span>
-                    <span className="text-xs text-muted-foreground font-medium">
+                    <span className="text-[10px] xs:text-xs text-muted-foreground font-medium truncate">
                       {currentEvent.category}
                     </span>
                   </div>
 
                   {/* Title */}
-                  <h2 className="text-xl font-bold leading-tight">
+                  <h2 className="text-base xs:text-xl font-bold leading-tight line-clamp-2">
                     {currentEvent.title}
                   </h2>
                 </div>
 
                 {/* Outcome Buttons */}
-                <div className="flex items-stretch gap-3 mb-4">
+                <div className="flex items-stretch gap-2 xs:gap-3 mb-4">
                   {outcomes.slice(0, 2).map((outcome, index) => {
                     const percent = index === 0 ? percent0 : percent1;
                     const price = index === 0 ? price0 : price1;
                     const payout = index === 0 ? estimatedPayout0 : estimatedPayout1;
 
                     return (
-                      <div key={index} className="flex-1 flex flex-col gap-2">
+                      <div key={index} className="flex-1 min-w-0 flex flex-col gap-2">
                         <motion.button
                           onClick={(e) => handleOutcomeClick(e, index)}
                           whileHover={{ scale: 1.02 }}
                           whileTap={{ scale: 0.98 }}
                           className={cn(
-                            "w-full px-4 py-3 rounded-xl font-semibold transition-all",
+                            "w-full px-2 xs:px-4 py-2 xs:py-3 rounded-xl font-semibold transition-all",
                             index === 0
                               ? "bg-primary text-primary-foreground hover:bg-primary/90"
                               : "bg-card text-foreground border-2 border-border hover:bg-muted"
                           )}
                         >
-                          <div className="flex items-center justify-center gap-2">
-                            <span className="text-base truncate">
+                          <div className="flex items-center justify-center gap-1 xs:gap-2 min-w-0">
+                            <span className="text-sm xs:text-base truncate min-w-0">
                               {outcome.length > 8
                                 ? outcome.substring(0, 6) + "..."
                                 : outcome}
                             </span>
-                            <span className="text-lg font-bold tabular-nums">
+                            <span className="text-base xs:text-lg font-bold tabular-nums flex-shrink-0">
                               {Math.round(price * 100)}%
                             </span>
                           </div>
                         </motion.button>
-                        <div className="text-center text-sm">
-                          <span className="text-muted-foreground">$100 → </span>
+                        <div className="text-center text-xs xs:text-sm">
+                          <span className="text-muted-foreground hidden xs:inline">$100 → </span>
                           <span className="font-semibold text-primary">
                             ${payout}
                           </span>
@@ -384,8 +384,8 @@ export function FeaturedEventBanner({ events }: FeaturedEventBannerProps) {
 
                 {/* Description / News */}
                 {currentEvent.description && (
-                  <div className="mb-4">
-                    <p className="text-sm text-muted-foreground">
+                  <div className="mb-3 xs:mb-4">
+                    <p className="text-xs xs:text-sm text-muted-foreground">
                       <span className="font-medium text-foreground">News</span>
                       {" · "}
                       <span className="line-clamp-2">{currentEvent.description}</span>
@@ -394,9 +394,9 @@ export function FeaturedEventBanner({ events }: FeaturedEventBannerProps) {
                 )}
 
                 {/* Footer: Volume + Carousel Navigation */}
-                <div className="mt-auto flex items-center justify-between pt-4 border-t border-border/50">
-                  <div className="flex items-center gap-4">
-                    <span className="text-sm font-semibold">
+                <div className="mt-auto flex items-center justify-between gap-2 pt-4 border-t border-border/50">
+                  <div className="flex items-center gap-2 xs:gap-4 min-w-0">
+                    <span className="text-xs xs:text-sm font-semibold flex-shrink-0">
                       {formatVolume(currentEvent._aggregations.totalVolume)}
                     </span>
                     <button
@@ -404,7 +404,7 @@ export function FeaturedEventBanner({ events }: FeaturedEventBannerProps) {
                         e.preventDefault();
                         e.stopPropagation();
                       }}
-                      className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                      className="hidden xs:flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
                     >
                       <Plus className="h-3.5 w-3.5" />
                       <span>More markets</span>
@@ -413,21 +413,21 @@ export function FeaturedEventBanner({ events }: FeaturedEventBannerProps) {
 
                   {/* Carousel Navigation */}
                   {events.length > 1 && (
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-1.5 xs:gap-3 flex-shrink-0">
                       <button
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
                           goToPrev();
                         }}
-                        className="h-7 w-7 rounded-full bg-muted/50 hover:bg-muted flex items-center justify-center transition-colors"
+                        className="h-6 w-6 xs:h-7 xs:w-7 rounded-full bg-muted/50 hover:bg-muted flex items-center justify-center transition-colors"
                         aria-label="Previous event"
                       >
-                        <ChevronLeft className="h-4 w-4" />
+                        <ChevronLeft className="h-3.5 w-3.5 xs:h-4 xs:w-4" />
                       </button>
 
                       {/* Dots */}
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1 xs:gap-1.5">
                         {events.map((_, index) => (
                           <button
                             key={index}
@@ -437,9 +437,9 @@ export function FeaturedEventBanner({ events }: FeaturedEventBannerProps) {
                               setCurrentIndex(index);
                             }}
                             className={cn(
-                              "h-2 w-2 rounded-full transition-all",
+                              "h-1.5 w-1.5 xs:h-2 xs:w-2 rounded-full transition-all",
                               index === currentIndex
-                                ? "bg-primary w-4"
+                                ? "bg-primary w-3 xs:w-4"
                                 : "bg-muted-foreground/30 hover:bg-muted-foreground/50"
                             )}
                             aria-label={`Go to event ${index + 1}`}
@@ -453,10 +453,10 @@ export function FeaturedEventBanner({ events }: FeaturedEventBannerProps) {
                           e.stopPropagation();
                           goToNext();
                         }}
-                        className="h-7 w-7 rounded-full bg-muted/50 hover:bg-muted flex items-center justify-center transition-colors"
+                        className="h-6 w-6 xs:h-7 xs:w-7 rounded-full bg-muted/50 hover:bg-muted flex items-center justify-center transition-colors"
                         aria-label="Next event"
                       >
-                        <ChevronRight className="h-4 w-4" />
+                        <ChevronRight className="h-3.5 w-3.5 xs:h-4 xs:w-4" />
                       </button>
                     </div>
                   )}
@@ -464,15 +464,15 @@ export function FeaturedEventBanner({ events }: FeaturedEventBannerProps) {
               </div>
 
               {/* Right Side - Chart */}
-              <div className="relative border-l border-border/50 bg-muted/5 p-4 flex flex-col">
+              <div className="relative border-l border-border/50 bg-muted/5 p-3 xs:p-4 flex flex-col">
                 {/* Top: Countdown + Date + Live indicator */}
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2 text-sm">
-                    <Clock className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-muted-foreground">Begins in</span>
-                    <span className="font-semibold">{countdown}</span>
+                <div className="flex items-center justify-between mb-2 xs:mb-3 gap-2">
+                  <div className="flex items-center gap-1.5 xs:gap-2 text-xs xs:text-sm min-w-0">
+                    <Clock className="h-3.5 w-3.5 xs:h-4 xs:w-4 text-muted-foreground flex-shrink-0" />
+                    <span className="text-muted-foreground hidden xs:inline">Begins in</span>
+                    <span className="font-semibold truncate">{countdown}</span>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-shrink-0">
                     {isLive ? (
                       <span className="flex items-center gap-1 text-xs text-green-500">
                         <Wifi className="h-3 w-3" />
@@ -526,20 +526,20 @@ export function FeaturedEventBanner({ events }: FeaturedEventBannerProps) {
                 </div>
 
                 {/* Legend at bottom */}
-                <div className="flex items-center justify-center gap-6 mt-3 pt-3 border-t border-border/30">
+                <div className="flex items-center justify-center gap-3 xs:gap-6 mt-2 xs:mt-3 pt-2 xs:pt-3 border-t border-border/30">
                   {outcomes.slice(0, 2).map((outcome, index) => {
                     const percent = index === 0 ? percent0 : percent1;
                     const color = outcomeColors[index] || (index === 0 ? "#22C55E" : "#EF4444");
 
                     return (
-                      <div key={index} className="flex items-center gap-2">
+                      <div key={index} className="flex items-center gap-1 xs:gap-2 min-w-0">
                         <div
-                          className="h-2.5 w-2.5 rounded-full"
+                          className="h-2 w-2 xs:h-2.5 xs:w-2.5 rounded-full flex-shrink-0"
                           style={{ backgroundColor: color }}
                         />
-                        <span className="text-sm text-muted-foreground">{outcome}</span>
+                        <span className="text-xs xs:text-sm text-muted-foreground truncate max-w-[60px] xs:max-w-none">{outcome}</span>
                         <span
-                          className="text-sm font-bold tabular-nums"
+                          className="text-xs xs:text-sm font-bold tabular-nums flex-shrink-0"
                           style={{ color }}
                         >
                           {percent}%
