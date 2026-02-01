@@ -255,7 +255,7 @@ export function FAQContent() {
           Can't find what you're looking for? Reach out and we'll help you out.
         </p>
         <a
-          href="https://twitter.com/vault777"
+          href="https://x.com/UseVault777"
           target="_blank"
           rel="noopener noreferrer"
           className="inline-flex items-center gap-2 px-6 py-2.5 rounded-lg bg-primary text-primary-foreground font-medium hover:bg-primary/90 transition-colors"
