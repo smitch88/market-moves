@@ -29,6 +29,7 @@ interface ProfileSettingsProps {
     handle: string | null;
     name: string | null;
     profileImageUrl: string | null;
+    bannerImageUrl: string | null;
     twitterSubject?: string | null;
     role: string;
     referralCode: string;
@@ -72,14 +73,19 @@ export function ProfileSettings({ profile, showReferrals = true, onlyReferrals =
   const [handle, setHandle] = useState(profile.handle || "");
   const [name, setName] = useState(profile.name || "");
   const [profileImageUrl, setProfileImageUrl] = useState(profile.profileImageUrl || "");
+  const [bannerImageUrl, setBannerImageUrl] = useState(profile.bannerImageUrl || "");
   const [handleCheck, setHandleCheck] = useState<HandleCheckResult | null>(null);
   const [isCheckingHandle, setIsCheckingHandle] = useState(false);
+  
+  // Default banner URL
+  const DEFAULT_BANNER_URL = "https://markets.vault777.com/vault777markets.png";
 
   // Track if form has changes
   const hasChanges = 
     handle !== (profile.handle || "") ||
     name !== (profile.name || "") ||
-    profileImageUrl !== (profile.profileImageUrl || "");
+    profileImageUrl !== (profile.profileImageUrl || "") ||
+    bannerImageUrl !== (profile.bannerImageUrl || "");
 
   // Debounced handle availability check
   const checkHandleAvailability = useCallback(async (value: string) => {
@@ -123,7 +129,7 @@ export function ProfileSettings({ profile, showReferrals = true, onlyReferrals =
 
   // Save profile mutation
   const saveMutation = useMutation({
-    mutationFn: async (data: { handle?: string | null; name?: string | null; profileImageUrl?: string | null }) => {
+    mutationFn: async (data: { handle?: string | null; name?: string | null; profileImageUrl?: string | null; bannerImageUrl?: string | null }) => {
       const res = await authFetch("/api/me", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -148,7 +154,7 @@ export function ProfileSettings({ profile, showReferrals = true, onlyReferrals =
       return;
     }
 
-    const updateData: { handle?: string | null; name?: string | null; profileImageUrl?: string | null } = {};
+    const updateData: { handle?: string | null; name?: string | null; profileImageUrl?: string | null; bannerImageUrl?: string | null } = {};
     
     if (handle !== (profile.handle || "")) {
       updateData.handle = handle || null;
@@ -159,6 +165,9 @@ export function ProfileSettings({ profile, showReferrals = true, onlyReferrals =
     if (profileImageUrl !== (profile.profileImageUrl || "")) {
       updateData.profileImageUrl = profileImageUrl || null;
     }
+    if (bannerImageUrl !== (profile.bannerImageUrl || "")) {
+      updateData.bannerImageUrl = bannerImageUrl || null;
+    }
 
     if (Object.keys(updateData).length > 0) {
       await saveMutation.mutateAsync(updateData);
@@ -166,7 +175,8 @@ export function ProfileSettings({ profile, showReferrals = true, onlyReferrals =
   };
 
   const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
-  const referralLink = `${baseUrl}/r/${profile.referralCode}`;
+  // Use handle for nicer referral links, fall back to referral code
+  const referralLink = `${baseUrl}/r/${profile.handle || profile.referralCode}`;
 
   const handleCopyReferral = async () => {
     await navigator.clipboard.writeText(referralLink);
@@ -207,6 +217,34 @@ export function ProfileSettings({ profile, showReferrals = true, onlyReferrals =
   };
 
   const shouldShowImage = profileImageUrl && isValidImageUrl(profileImageUrl);
+  const shouldShowBanner = bannerImageUrl && isValidImageUrl(bannerImageUrl);
+  const displayBannerUrl = shouldShowBanner ? bannerImageUrl : DEFAULT_BANNER_URL;
+  
+  // Track if banner has changes (separate from profile changes for referral section)
+  const hasBannerChanges = bannerImageUrl !== (profile.bannerImageUrl || "");
+  
+  // Save banner mutation (for referrals section)
+  const saveBannerMutation = useMutation({
+    mutationFn: async (newBannerUrl: string | null) => {
+      const res = await authFetch("/api/me", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bannerImageUrl: newBannerUrl }),
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || "Failed to save banner");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["profile"] });
+    },
+  });
+  
+  const handleSaveBanner = async () => {
+    await saveBannerMutation.mutateAsync(bannerImageUrl || null);
+  };
 
   // If only showing referrals, render just that section
   if (onlyReferrals) {
@@ -275,7 +313,7 @@ export function ProfileSettings({ profile, showReferrals = true, onlyReferrals =
                 <div className="space-y-1">
                   <span className="text-sm text-muted-foreground">Your referral code</span>
                   <code className="block px-3 py-1.5 bg-card border border-border rounded-md font-mono text-sm font-medium w-fit">
-                    {profile.referralCode}
+                    {profile.handle || profile.referralCode}
                   </code>
                 </div>
                 <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-card border border-border">
@@ -308,6 +346,75 @@ export function ProfileSettings({ profile, showReferrals = true, onlyReferrals =
               </p>
             </div>
           </div>
+        </div>
+
+        {/* Banner Image Section */}
+        <div className="space-y-4 pt-6 border-t border-border">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <ImageIcon className="h-4 w-4 text-muted-foreground" />
+              <Label className="text-sm font-medium">Social Share Banner</Label>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              This image will be shown when your referral link or captain link is shared on social media (Twitter/X, Discord, etc.)
+            </p>
+          </div>
+          
+          {/* Banner Preview */}
+          <div className="relative w-full aspect-[3/1] rounded-lg overflow-hidden border border-border bg-card">
+            <Image
+              src={displayBannerUrl}
+              alt="Referral banner preview"
+              fill
+              className="object-cover"
+              onError={() => setBannerImageUrl("")}
+            />
+            {!shouldShowBanner && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                <span className="text-xs text-white/80 bg-black/50 px-2 py-1 rounded">
+                  Default Banner
+                </span>
+              </div>
+            )}
+          </div>
+          
+          {/* Banner URL Input */}
+          <div className="space-y-2">
+            <Label className="text-sm text-muted-foreground">Custom Banner URL</Label>
+            <div className="flex items-center gap-2">
+              <Input
+                value={bannerImageUrl}
+                onChange={(e) => setBannerImageUrl(e.target.value)}
+                placeholder="https://example.com/your-banner.jpg"
+                className="bg-card border-border"
+              />
+              <Button
+                onClick={handleSaveBanner}
+                disabled={!hasBannerChanges || saveBannerMutation.isPending}
+                className="flex-shrink-0"
+              >
+                {saveBannerMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : saveBannerMutation.isSuccess && !hasBannerChanges ? (
+                  <Check className="h-4 w-4" />
+                ) : (
+                  "Save"
+                )}
+              </Button>
+            </div>
+            {bannerImageUrl && !isValidImageUrl(bannerImageUrl) && (
+              <p className="text-xs text-destructive">Please enter a valid URL</p>
+            )}
+            <p className="text-xs text-muted-foreground">
+              Recommended size: <span className="font-medium">1500×500px</span> (Twitter banner specs). Used for both referral and captain links. Leave empty to use the default Vault Markets banner.
+            </p>
+          </div>
+          
+          {saveBannerMutation.isError && (
+            <p className="text-sm text-destructive">
+              {saveBannerMutation.error.message}
+            </p>
+          )}
         </div>
       </div>
     );

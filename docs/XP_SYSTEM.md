@@ -138,7 +138,7 @@ The XP system includes a **three-layer protection system** to prevent abuse and 
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| `daily_xp_cap` | 50,000 | Maximum XP a user can earn per day from trading |
+| `daily_xp_cap` | 100,000 | Maximum XP a user can earn per day from trading |
 
 - Prevents unlimited XP farming
 - Resets at midnight UTC
@@ -341,7 +341,7 @@ Located at `/admin/xp`, this page allows administrators to:
 {
   "config": {
     "xpPerDollar": 10,
-    "dailyXpCap": 50000,
+    "dailyXpCap": 100000,
     "marketCooldownSeconds": 60,
     "marketVolumeThreshold": 10000,
     "shareBonusPercent": 20
@@ -626,7 +626,7 @@ const levelInfo = getLevelInfo(user.xp);
 | Setting | Key | Default | Range |
 |---------|-----|---------|-------|
 | XP per Dollar | `xp_per_dollar_volume` | 10 | 1-100 |
-| Daily Cap | `daily_xp_cap` | 50,000 | 1K-1M |
+| Daily Cap | `daily_xp_cap` | 100,000 | 1K-1M |
 | Market Cooldown | `market_cooldown_seconds` | 60 (1 min) | 0-3600 |
 | Volume Threshold | `market_volume_threshold` | $10,000 | $10-$100K |
 | Share Bonus | `share_bonus_percent` | 20% | 0-100% |
@@ -642,7 +642,7 @@ const levelInfo = getLevelInfo(user.xp);
 - **Referral**: 10,000 XP (both parties)
 
 ### Protections Applied
-1. Daily cap (50,000 XP)
+1. Daily cap (100,000 XP)
 2. Market cooldown (1 minute per market)
 3. Volume diminishing returns (per $10K tier)
 4. Buy-only (no sell XP)

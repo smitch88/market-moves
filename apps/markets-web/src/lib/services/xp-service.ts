@@ -108,7 +108,7 @@ export function getLevelInfo(xp: number): LevelInfo {
 // Default configuration values
 const DEFAULT_CONFIG: XPProtectionConfig = {
   xpPerDollar: 10,
-  dailyXpCap: 50000, // 50k XP cap (equivalent to $5k volume at 100%)
+  dailyXpCap: 100000, // 100k XP cap (equivalent to $10k volume at 100%)
   marketCooldownSeconds: 60, // 1 minute
   marketVolumeThreshold: 10000, // $10k per tier before diminishing returns (fake money system)
   shareBonusPercent: 20, // 20% of bet amount as XP bonus for sharing

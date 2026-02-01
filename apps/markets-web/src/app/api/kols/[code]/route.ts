@@ -3,8 +3,9 @@ import { prisma } from "@vault/database";
 
 /**
  * GET /api/kols/[code]
- * Get KOL information by their referral code
+ * Get KOL information by their handle or referral code
  * Used for captain selection pages
+ * Supports both /api/kols/username and /api/kols/abc123referralcode
  */
 export async function GET(
   request: NextRequest,
@@ -13,10 +14,10 @@ export async function GET(
   try {
     const { code } = await params;
 
-    // Find user by referral code who is also a KOL
-    const kol = await prisma.user.findFirst({
+    // First try to find by handle (case-insensitive)
+    let kol = await prisma.user.findFirst({
       where: {
-        referralCode: code,
+        handle: { equals: code, mode: "insensitive" },
         isKOL: true,
       },
       select: {
@@ -32,6 +33,28 @@ export async function GET(
         },
       },
     });
+
+    // Fall back to referral code lookup
+    if (!kol) {
+      kol = await prisma.user.findFirst({
+        where: {
+          referralCode: code,
+          isKOL: true,
+        },
+        select: {
+          id: true,
+          name: true,
+          handle: true,
+          profileImageUrl: true,
+          referralCode: true,
+          _count: {
+            select: {
+              followers: true,
+            },
+          },
+        },
+      });
+    }
 
     if (!kol) {
       return NextResponse.json(

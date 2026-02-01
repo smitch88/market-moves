@@ -1,10 +1,12 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Avatar, AvatarImage, AvatarFallback } from "@vault/ui";
 import { cn } from "@vault/ui/lib/utils";
-import { Star, Loader2 } from "lucide-react";
+import { Star, Loader2, ChevronDown } from "lucide-react";
 import Link from "next/link";
+import { motion, AnimatePresence } from "framer-motion";
 
 // ============================================================================
 // TYPES
@@ -36,6 +38,12 @@ interface KOLsResponse {
 interface EventKOLsPanelProps {
   eventSlug: string;
   className?: string;
+  /** Whether to start collapsed (uncontrolled mode) */
+  defaultCollapsed?: boolean;
+  /** Controlled collapsed state */
+  isCollapsed?: boolean;
+  /** Callback when panel is toggled */
+  onToggle?: () => void;
 }
 
 // ============================================================================
@@ -67,7 +75,27 @@ function getAvatarGradient(index: number): string {
 // COMPONENT
 // ============================================================================
 
-export function EventKOLsPanel({ eventSlug, className }: EventKOLsPanelProps) {
+export function EventKOLsPanel({ 
+  eventSlug, 
+  className, 
+  defaultCollapsed = false,
+  isCollapsed: controlledIsCollapsed,
+  onToggle,
+}: EventKOLsPanelProps) {
+  const [internalCollapsed, setInternalCollapsed] = useState(defaultCollapsed);
+
+  // Use controlled state if provided, otherwise use internal state
+  const isControlled = controlledIsCollapsed !== undefined;
+  const isCollapsed = isControlled ? controlledIsCollapsed : internalCollapsed;
+
+  const handleToggle = () => {
+    if (onToggle) {
+      onToggle();
+    } else {
+      setInternalCollapsed(!internalCollapsed);
+    }
+  };
+
   // Poll for KOLs every 30 seconds
   const { data, isLoading } = useQuery<KOLsResponse>({
     queryKey: ["event-kols", eventSlug],
@@ -124,17 +152,42 @@ export function EventKOLsPanel({ eventSlug, className }: EventKOLsPanelProps) {
         className
       )}
     >
-      {/* Header */}
-      <div className="px-4 py-3 border-b border-border/50 flex items-center gap-2">
+      {/* Header - clickable to toggle */}
+      <button
+        onClick={handleToggle}
+        className="w-full px-4 py-3 border-b border-border/50 flex items-center gap-2 hover:bg-muted/30 transition-colors"
+      >
         <Star className="h-4 w-4 text-[#df2421] fill-[#df2421]" />
         <h3 className="font-semibold text-sm">Top Captains</h3>
-        {isLoading && (
-          <Loader2 className="h-3 w-3 animate-spin text-muted-foreground ml-auto" />
+        {kols.length > 0 && (
+          <span className="text-xs text-muted-foreground">
+            ({kols.length})
+          </span>
         )}
-      </div>
+        <div className="ml-auto flex items-center gap-2">
+          {isLoading && (
+            <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+          )}
+          <ChevronDown 
+            className={cn(
+              "h-4 w-4 text-muted-foreground transition-transform duration-200",
+              isCollapsed && "-rotate-90"
+            )} 
+          />
+        </div>
+      </button>
 
-      {/* Content */}
-      <div className="divide-y divide-border/30">
+      {/* Content - collapsible */}
+      <AnimatePresence initial={false}>
+        {!isCollapsed && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2, ease: "easeInOut" }}
+            className="overflow-hidden"
+          >
+            <div className="divide-y divide-border/30">
         {kols.map((kol, index) => {
           const user = kol.user;
           const displayName =
@@ -191,7 +244,10 @@ export function EventKOLsPanel({ eventSlug, className }: EventKOLsPanelProps) {
             </Link>
           );
         })}
-      </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

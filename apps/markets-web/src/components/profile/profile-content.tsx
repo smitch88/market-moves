@@ -4,7 +4,18 @@ import { useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { usePrivy } from "@privy-io/react-auth";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@vault/ui";
+import {
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  TabsContent,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@vault/ui";
+import { ChevronDown } from "lucide-react";
 import { ProfileActivity } from "./profile-activity";
 import { ProfileSettings } from "./profile-settings";
 import { ProfilePositions } from "./profile-positions";
@@ -16,6 +27,15 @@ import { ProfileContentSkeleton } from "./profile-content-skeleton";
 import { MarketRequestModal } from "./market-request-modal";
 import { formatMoney } from "./profile-utils";
 import { useAuthFetch } from "@/lib/auth/auth-fetch";
+
+const PROFILE_TABS = [
+  { value: "positions", label: "Positions" },
+  { value: "activity", label: "Activity" },
+  { value: "bookmarks", label: "Bookmarks" },
+  { value: "referrals", label: "Referrals" },
+  { value: "requests", label: "Requests" },
+  { value: "settings", label: "Settings" },
+] as const;
 
 interface ProfileContentProps {
   userId: string;
@@ -47,6 +67,7 @@ export function ProfileContent({ userId }: ProfileContentProps) {
   const { user } = usePrivy();
   const authFetch = useAuthFetch();
   const [requestModalOpen, setRequestModalOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState(defaultTab);
 
   const { data: profile, isLoading: profileLoading } = useQuery({
     queryKey: ["profile"],
@@ -187,46 +208,38 @@ export function ProfileContent({ userId }: ProfileContentProps) {
       </div>
 
       {/* Tabs */}
-      <div className="bg-background rounded-xl p-6 -mx-2">
-        <Tabs defaultValue={defaultTab} className="w-full">
-          <div className="border-b border-border mb-6">
+      <div className="bg-background rounded-xl p-4 sm:p-6 -mx-2">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          {/* Mobile: Dropdown */}
+          <div className="sm:hidden mb-4">
+            <Select value={activeTab} onValueChange={setActiveTab}>
+              <SelectTrigger className="w-full">
+                <SelectValue>
+                  {PROFILE_TABS.find(t => t.value === activeTab)?.label || "Positions"}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {PROFILE_TABS.map((tab) => (
+                  <SelectItem key={tab.value} value={tab.value}>
+                    {tab.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Desktop: Tab bar */}
+          <div className="hidden sm:block border-b border-border mb-6">
             <TabsList className="h-auto p-0 bg-transparent gap-6">
-              <TabsTrigger
-                value="positions"
-                className="relative pb-3 px-0 bg-transparent rounded-none data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-foreground text-muted-foreground hover:text-foreground transition-colors after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-primary after:scale-x-0 data-[state=active]:after:scale-x-100 after:transition-transform"
-              >
-                Positions
-              </TabsTrigger>
-              <TabsTrigger
-                value="activity"
-                className="relative pb-3 px-0 bg-transparent rounded-none data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-foreground text-muted-foreground hover:text-foreground transition-colors after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-primary after:scale-x-0 data-[state=active]:after:scale-x-100 after:transition-transform"
-              >
-                Activity
-              </TabsTrigger>
-              <TabsTrigger
-                value="bookmarks"
-                className="relative pb-3 px-0 bg-transparent rounded-none data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-foreground text-muted-foreground hover:text-foreground transition-colors after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-primary after:scale-x-0 data-[state=active]:after:scale-x-100 after:transition-transform"
-              >
-                Bookmarks
-              </TabsTrigger>
-              <TabsTrigger
-                value="referrals"
-                className="relative pb-3 px-0 bg-transparent rounded-none data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-foreground text-muted-foreground hover:text-foreground transition-colors after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-primary after:scale-x-0 data-[state=active]:after:scale-x-100 after:transition-transform"
-              >
-                Referrals
-              </TabsTrigger>
-              <TabsTrigger
-                value="requests"
-                className="relative pb-3 px-0 bg-transparent rounded-none data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-foreground text-muted-foreground hover:text-foreground transition-colors after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-primary after:scale-x-0 data-[state=active]:after:scale-x-100 after:transition-transform"
-              >
-                Requests
-              </TabsTrigger>
-              <TabsTrigger
-                value="settings"
-                className="relative pb-3 px-0 bg-transparent rounded-none data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-foreground text-muted-foreground hover:text-foreground transition-colors after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-primary after:scale-x-0 data-[state=active]:after:scale-x-100 after:transition-transform"
-              >
-                Settings
-              </TabsTrigger>
+              {PROFILE_TABS.map((tab) => (
+                <TabsTrigger
+                  key={tab.value}
+                  value={tab.value}
+                  className="relative pb-3 px-0 bg-transparent rounded-none data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-foreground text-muted-foreground hover:text-foreground transition-colors after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-primary after:scale-x-0 data-[state=active]:after:scale-x-100 after:transition-transform"
+                >
+                  {tab.label}
+                </TabsTrigger>
+              ))}
             </TabsList>
           </div>
 

@@ -37,10 +37,20 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Find the referrer
-    const referrer = await prisma.user.findUnique({
-      where: { referralCode },
+    // Find the referrer by handle first (case-insensitive), then by referral code
+    // Users with handles always have referral codes
+    let referrer = await prisma.user.findFirst({
+      where: { 
+        handle: { equals: referralCode, mode: "insensitive" },
+      },
     });
+
+    // Fall back to referral code lookup
+    if (!referrer) {
+      referrer = await prisma.user.findUnique({
+        where: { referralCode },
+      });
+    }
 
     if (!referrer) {
       return NextResponse.json({ error: "Invalid referral code" }, { status: 400 });

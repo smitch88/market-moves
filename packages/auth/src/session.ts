@@ -12,6 +12,7 @@ export interface SessionUser {
   handle: string | null;
   name: string | null;
   profileImageUrl: string | null;
+  bannerImageUrl: string | null;
   role: UserRole;
   balance: number;
   referralCode: string;
@@ -63,6 +64,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
         handle: true,
         name: true,
         profileImageUrl: true,
+        bannerImageUrl: true,
         role: true,
         balance: true,
         referralCode: true,
@@ -91,6 +93,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
             handle: true,
             name: true,
             profileImageUrl: true,
+            bannerImageUrl: true,
             role: true,
             balance: true,
             referralCode: true,
@@ -126,6 +129,8 @@ export async function getSessionUser(): Promise<SessionUser | null> {
           handle: twitterAccount && 'username' in twitterAccount ? twitterAccount.username : null,
           name: twitterAccount && 'name' in twitterAccount ? (twitterAccount.name as string) : null,
           profileImageUrl: twitterAccount && 'profilePictureUrl' in twitterAccount ? (twitterAccount.profilePictureUrl as string) : null,
+          // Note: Privy doesn't provide Twitter banner URL directly, will be null
+          bannerImageUrl: twitterAccount && 'profileBannerUrl' in twitterAccount ? (twitterAccount.profileBannerUrl as string) : null,
         });
         // Return directly since provisionUser already returns the correct type
         return provisioned as SessionUser;
@@ -142,6 +147,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
               handle: true,
               name: true,
               profileImageUrl: true,
+              bannerImageUrl: true,
               role: true,
               balance: true,
               referralCode: true,

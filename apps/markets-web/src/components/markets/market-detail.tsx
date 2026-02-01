@@ -221,10 +221,10 @@ export function MarketDetail({ event }: MarketDetailProps) {
         </Link>
       </motion.div>
 
-      {/* Main grid layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
+      {/* Main layout - using flex for reliable sticky sidebar */}
+      <div className="flex flex-col lg:flex-row gap-4 sm:gap-6">
         {/* Left column: Header + Markets */}
-        <div className="lg:col-span-2 space-y-4 sm:space-y-6">
+        <div className="flex-1 min-w-0 space-y-4 sm:space-y-6">
           {/* Prop Event Header */}
           <PropEventHeader event={event} />
 
@@ -312,8 +312,8 @@ export function MarketDetail({ event }: MarketDetailProps) {
         </div>
 
         {/* Right column: Betting Sidebar + Info Panels (sticky) - hidden on mobile */}
-        <div className="hidden lg:block lg:col-span-1">
-          <div className="lg:sticky lg:top-20 space-y-4">
+        <div className="hidden lg:block w-[340px] flex-shrink-0 self-start sticky top-24">
+          <div className="space-y-4">
             <SportsBettingSidebar
               event={event}
               selectedMarket={selectedMarket}
@@ -321,14 +321,18 @@ export function MarketDetail({ event }: MarketDetailProps) {
               onClearSelection={handleClearSelection}
             />
             
-            {/* Activity Panel */}
+            {/* Activity Panel - collapsible */}
             <EventActivityPanel 
               eventSlug={event.slug} 
               marketId={selectedMarketId || undefined}
+              defaultCollapsed={selectedMarket !== null}
             />
             
-            {/* Top Captains Panel */}
-            <EventKOLsPanel eventSlug={event.slug} />
+            {/* Top Captains Panel - collapsible */}
+            <EventKOLsPanel 
+              eventSlug={event.slug} 
+              defaultCollapsed={selectedMarket !== null}
+            />
           </div>
         </div>
       </div>

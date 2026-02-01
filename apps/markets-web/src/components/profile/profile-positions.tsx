@@ -1,16 +1,28 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import Link from "next/link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, Skeleton } from "@vault/ui";
-import { ArrowUpRight, Target, Gift, Zap } from "lucide-react";
+import {
+  Button,
+  Skeleton,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@vault/ui";
+import { ArrowUpRight, Gift, Zap, PieChart, Share2, Trophy, List, LayoutGrid } from "lucide-react";
 import { cn } from "@vault/ui/lib/utils";
 import { getMarketUrl } from "@/lib/urls";
 import { SellPositionModal } from "./sell-position-modal";
 import { RedeemPositionsModal } from "./redeem-positions-modal";
 import { ShareXPModal } from "./share-xp-modal";
+import { ShareWinModal } from "./share-win-modal";
+import { ShareMarketPnLModal } from "./share-market-pnl-modal";
 import { useAuthFetch } from "@/lib/auth/auth-fetch";
+
+type PositionView = "individual" | "by-market";
 
 interface Position {
   id: string;
@@ -103,6 +115,7 @@ interface PositionRowProps {
 function PositionRow({ position, outcomeIndex, shares, avgCost, onSellComplete, unsharedBet, profile, readOnly = false }: PositionRowProps) {
   const [showSellModal, setShowSellModal] = useState(false);
   const [showShareXPModal, setShowShareXPModal] = useState(false);
+  const [showShareWinModal, setShowShareWinModal] = useState(false);
 
   const { market } = position;
   const outcomes = parseJsonArray(market.outcomes, ["Yes", "No"]);
@@ -139,10 +152,129 @@ function PositionRow({ position, outcomeIndex, shares, avgCost, onSellComplete, 
   return (
     <>
       <div className={cn(
-        "p-4 rounded-lg border border-border/50 bg-card/50 transition-all duration-200 hover:border-border hover:bg-card/80 hover:shadow-lg hover:shadow-black/5 hover:-translate-y-0.5 cursor-pointer group",
+        "p-3 sm:p-4 rounded-lg border border-border/50 bg-card/50 transition-all duration-200 hover:border-border hover:bg-card/80 hover:shadow-lg hover:shadow-black/5 hover:-translate-y-0.5 cursor-pointer group",
         isClaimed && "opacity-60 hover:opacity-70"
       )}>
-        <div className="flex items-center gap-4">
+        {/* Mobile: Condensed stacked layout */}
+        <div className="sm:hidden space-y-2">
+          {/* Title + outcome row */}
+          <div>
+            <Link
+              href={getMarketUrl(eventSlug)}
+              className="font-medium text-sm hover:text-primary group-hover:text-primary transition-colors inline-flex items-center gap-1"
+            >
+              <span className="line-clamp-1">{title}</span>
+              <ArrowUpRight className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
+            </Link>
+            <div className="flex items-center gap-1.5 text-xs mt-0.5">
+              <span style={{ color: outcomeColor }} className="font-medium">
+                {outcomeLabel}
+              </span>
+              <span className="text-muted-foreground">·</span>
+              <span className="text-muted-foreground tabular-nums">{shares.toFixed(2)} @ ${avgCost.toFixed(2)}</span>
+              {isSettled && (
+                <>
+                  <span className="text-muted-foreground">·</span>
+                  {didWin ? (
+                    <span className="text-green-500 font-medium">Won</span>
+                  ) : didLose ? (
+                    <span className="text-muted-foreground">Lost</span>
+                  ) : null}
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Value + Actions row */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="font-bold tabular-nums text-sm">
+                {isSettled ? `$${settledValue.toFixed(2)}` : `$${currentValue.toFixed(2)}`}
+              </div>
+              <div className={cn(
+                "text-xs tabular-nums",
+                isSettled 
+                  ? (realizedPnL >= 0 ? "text-green-500" : "text-red-500")
+                  : (unrealizedPnL >= 0 ? "text-green-500" : "text-red-500")
+              )}>
+                {isSettled ? (
+                  <>{realizedPnL >= 0 ? "+" : ""}{((realizedPnL / costBasis) * 100).toFixed(0)}%</>
+                ) : (
+                  <>{pnlPercent >= 0 ? "+" : ""}{pnlPercent.toFixed(0)}%</>
+                )}
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center gap-1.5">
+              {!readOnly && unsharedBet && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowShareXPModal(true)}
+                  className="h-7 px-2 gap-1 text-[#df2421] border-[#df2421]/30 hover:bg-[#df2421]/10 hover:text-[#df2421]"
+                >
+                  <Zap className="h-3 w-3" />
+                  +MP
+                </Button>
+              )}
+
+              {/* Share Win button - mobile */}
+              {didWin && realizedPnL > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowShareWinModal(true)}
+                  className="h-7 px-2 gap-1 text-green-500 border-green-500/30 hover:bg-green-500/10"
+                >
+                  <Share2 className="h-3 w-3" />
+                </Button>
+              )}
+              
+              {isSettled ? (
+                isClaimed ? (
+                  didWin ? (
+                    <div className="text-[10px] text-green-500 font-medium bg-green-500/10 px-1.5 py-0.5 rounded border border-green-500/20">
+                      ✓ Claimed
+                    </div>
+                  ) : (
+                    <div className="text-[10px] text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded">
+                      Settled
+                    </div>
+                  )
+                ) : canRedeem ? (
+                  readOnly ? (
+                    <div className="text-[10px] text-green-500 font-medium bg-green-500/10 px-1.5 py-0.5 rounded border border-green-500/20">
+                      Winner
+                    </div>
+                  ) : (
+                    <div className="text-[10px] text-amber-500 font-medium bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
+                      Pending
+                    </div>
+                  )
+                ) : didLose ? (
+                  <div className="text-[10px] text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded">
+                    Lost
+                  </div>
+                ) : null
+              ) : (
+                !readOnly && isOpen && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowSellModal(true)}
+                    className="h-7 px-2 text-muted-foreground hover:text-foreground"
+                  >
+                    Sell
+                  </Button>
+                )
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Desktop: Horizontal layout */}
+        <div className="hidden sm:flex items-center gap-4">
           {/* Market info */}
           <div className="flex-1 min-w-0">
             <Link
@@ -228,8 +360,20 @@ function PositionRow({ position, outcomeIndex, shares, avgCost, onSellComplete, 
                 className="gap-1.5 text-[#df2421] border-[#df2421]/30 hover:bg-[#df2421]/10 hover:text-[#df2421]"
               >
                 <Zap className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Boost MP</span>
-                <span className="sm:hidden">+MP</span>
+                Boost MP
+              </Button>
+            )}
+
+            {/* Share Win button - only for won positions */}
+            {didWin && realizedPnL > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowShareWinModal(true)}
+                className="gap-1.5 text-green-500 border-green-500/30 hover:bg-green-500/10 hover:text-green-500"
+              >
+                <Share2 className="h-3.5 w-3.5" />
+                Share Win
               </Button>
             )}
             
@@ -307,6 +451,24 @@ function PositionRow({ position, outcomeIndex, shares, avgCost, onSellComplete, 
           profile={profile}
         />
       )}
+
+      {/* Share Win Modal - for profitable won positions */}
+      {didWin && realizedPnL > 0 && (
+        <ShareWinModal
+          open={showShareWinModal}
+          onOpenChange={setShowShareWinModal}
+          eventTitle={title}
+          eventSlug={eventSlug}
+          marketQuestion={market.question}
+          outcomeLabel={outcomeLabel}
+          wager={costBasis}
+          profit={realizedPnL}
+          payout={settledValue}
+          profitPercent={(realizedPnL / costBasis) * 100}
+          settledDate={market.settledAt ? new Date(market.settledAt) : undefined}
+          profile={profile}
+        />
+      )}
     </>
   );
 }
@@ -328,6 +490,7 @@ export interface ProfilePositionsProps {
 export function ProfilePositions({ userHandle, readOnly = false }: ProfilePositionsProps = {}) {
   const queryClient = useQueryClient();
   const [showRedeemModal, setShowRedeemModal] = useState(false);
+  const [positionView, setPositionView] = useState<PositionView>("individual");
   const authFetch = useAuthFetch();
 
   // For public profiles, fetch from public API
@@ -434,12 +597,178 @@ export function ProfilePositions({ userHandle, readOnly = false }: ProfilePositi
   });
 
   // Create a map of marketId-outcomeIndex to unshared bet for quick lookup
-  const unsharedBetMap = new Map<string, UnsharedBet>();
-  unsharedBets?.forEach((bet) => {
-    const key = `${bet.marketId}-${bet.outcomeIndex}`;
-    unsharedBetMap.set(key, bet);
-  });
+  const unsharedBetMap = useMemo(() => {
+    const map = new Map<string, UnsharedBet>();
+    unsharedBets?.forEach((bet) => {
+      const key = `${bet.marketId}-${bet.outcomeIndex}`;
+      map.set(key, bet);
+    });
+    return map;
+  }, [unsharedBets]);
 
+  // Minimum shares threshold to filter out dust from floating-point precision
+  const MIN_SHARES_THRESHOLD = 0.01;
+
+  // Flatten positions - memoized to ensure consistent hook order
+  const allPositionRows = useMemo(() => {
+    const rows: Array<{
+      position: Position;
+      outcomeIndex: 0 | 1;
+      shares: number;
+      avgCost: number;
+    }> = [];
+
+    positions?.forEach((position) => {
+      if (position.shares0 >= MIN_SHARES_THRESHOLD) {
+        rows.push({
+          position,
+          outcomeIndex: 0,
+          shares: position.shares0,
+          avgCost: position.avgCost0,
+        });
+      }
+      if (position.shares1 >= MIN_SHARES_THRESHOLD) {
+        rows.push({
+          position,
+          outcomeIndex: 1,
+          shares: position.shares1,
+          avgCost: position.avgCost1,
+        });
+      }
+    });
+
+    return rows;
+  }, [positions]);
+
+  // Use all positions (no filtering)
+  const positionRows = allPositionRows;
+
+  // Group positions by market for "By Market" view
+  const marketPositions = useMemo(() => {
+    const marketMap = new Map<string, {
+      marketId: string;
+      eventTitle: string;
+      eventSlug: string;
+      marketQuestion: string;
+      isSettled: boolean;
+      settledAt: string | null;
+      resolvedOutcome: number | null;
+      outcomes: string[];
+      outcomeColors: string[];
+      positions: Array<{
+        outcomeIndex: 0 | 1;
+        shares: number;
+        avgCost: number;
+        currentPrice: number;
+        currentValue: number;
+        costBasis: number;
+        pnl: number;
+        didWin: boolean;
+        didLose: boolean;
+        settledValue: number;
+        realizedPnL: number;
+        feeBps: number;
+      }>;
+      totalCost: number;
+      totalValue: number;
+      totalPnL: number;
+      totalShares: number;
+    }>();
+
+    positionRows.forEach((row) => {
+      const { position, outcomeIndex, shares, avgCost } = row;
+      const { market } = position;
+      
+      const prices = parseNumericArray(market.outcomePrices);
+      const outcomes = parseJsonArray(market.outcomes, ["Yes", "No"]);
+      const colors = parseJsonArray(market.outcomeColors, ["#22c55e", "#ef4444"]);
+      const currentPrice = prices[outcomeIndex];
+      const currentValue = shares * currentPrice;
+      const costBasis = shares * avgCost;
+      const pnl = currentValue - costBasis;
+      
+      const isSettled = market.settledAt !== null;
+      const didWin = isSettled && market.resolvedOutcome === outcomeIndex;
+      const didLose = isSettled && market.resolvedOutcome !== null && market.resolvedOutcome !== outcomeIndex;
+      
+      const fee = (market.feeBps || 100) / 10000;
+      const settledValue = didWin ? Math.floor(shares * (1 - fee)) : 0;
+      const realizedPnL = settledValue - costBasis;
+
+      const eventTitle = market.event?.title || market.question || "Unknown Market";
+      const eventSlug = market.event?.slug || "";
+
+      if (!marketMap.has(market.id)) {
+        marketMap.set(market.id, {
+          marketId: market.id,
+          eventTitle,
+          eventSlug,
+          marketQuestion: market.question || "",
+          isSettled,
+          settledAt: market.settledAt,
+          resolvedOutcome: market.resolvedOutcome,
+          outcomes,
+          outcomeColors: colors,
+          positions: [],
+          totalCost: 0,
+          totalValue: 0,
+          totalPnL: 0,
+          totalShares: 0,
+        });
+      }
+
+      const marketData = marketMap.get(market.id)!;
+      marketData.positions.push({
+        outcomeIndex,
+        shares,
+        avgCost,
+        currentPrice,
+        currentValue,
+        costBasis,
+        pnl,
+        didWin,
+        didLose,
+        settledValue,
+        realizedPnL,
+        feeBps: market.feeBps || 100,
+      });
+
+      if (isSettled) {
+        marketData.totalValue += settledValue;
+        marketData.totalPnL += realizedPnL;
+      } else {
+        marketData.totalValue += currentValue;
+        marketData.totalPnL += pnl;
+      }
+      marketData.totalCost += costBasis;
+      marketData.totalShares += shares;
+    });
+
+    return Array.from(marketMap.values());
+  }, [positionRows]);
+
+  // Calculate totals - memoized for consistent hook order
+  const totals = useMemo(() => {
+    return positionRows.reduce(
+      (acc, row) => {
+        const prices = parseNumericArray(row.position.market.outcomePrices);
+        const currentPrice = prices[row.outcomeIndex];
+        const currentValue = row.shares * currentPrice; // Already in dollars
+        const costBasis = row.shares * row.avgCost;
+        return {
+          totalValue: acc.totalValue + currentValue,
+          totalCost: acc.totalCost + costBasis,
+          totalPnL: acc.totalPnL + (currentValue - costBasis),
+        };
+      },
+      { totalValue: 0, totalCost: 0, totalPnL: 0 }
+    );
+  }, [positionRows]);
+
+  // Get redeemable positions from API summary (only for own profile)
+  const hasRedeemable = !isPublicView && redeemableSummary && redeemableSummary.positionsCount > 0;
+
+  // Early returns AFTER all hooks have been called
   if (isLoading) {
     return (
       <div className="space-y-4">
@@ -467,40 +796,7 @@ export function ProfilePositions({ userHandle, readOnly = false }: ProfilePositi
     );
   }
 
-  // Flatten positions
-  const positionRows: Array<{
-    position: Position;
-    outcomeIndex: 0 | 1;
-    shares: number;
-    avgCost: number;
-  }> = [];
-
-  // Minimum shares threshold to filter out dust from floating-point precision
-  const MIN_SHARES_THRESHOLD = 0.01;
-
-  positions?.forEach((position) => {
-    if (position.shares0 >= MIN_SHARES_THRESHOLD) {
-      positionRows.push({
-        position,
-        outcomeIndex: 0,
-        shares: position.shares0,
-        avgCost: position.avgCost0,
-      });
-    }
-    if (position.shares1 >= MIN_SHARES_THRESHOLD) {
-      positionRows.push({
-        position,
-        outcomeIndex: 1,
-        shares: position.shares1,
-        avgCost: position.avgCost1,
-      });
-    }
-  });
-
-  // Get redeemable positions from API summary (only for own profile)
-  const hasRedeemable = !isPublicView && redeemableSummary && redeemableSummary.positionsCount > 0;
-
-  if (positionRows.length === 0) {
+  if (allPositionRows.length === 0) {
     return (
       <div className="text-center py-16">
         <p className="text-muted-foreground mb-4">No open positions</p>
@@ -513,28 +809,38 @@ export function ProfilePositions({ userHandle, readOnly = false }: ProfilePositi
     );
   }
 
-  // Calculate totals
-  const totals = positionRows.reduce(
-    (acc, row) => {
-      const prices = parseNumericArray(row.position.market.outcomePrices);
-      const currentPrice = prices[row.outcomeIndex];
-      const currentValue = row.shares * currentPrice; // Already in dollars
-      const costBasis = row.shares * row.avgCost;
-      return {
-        totalValue: acc.totalValue + currentValue,
-        totalCost: acc.totalCost + costBasis,
-        totalPnL: acc.totalPnL + (currentValue - costBasis),
-      };
-    },
-    { totalValue: 0, totalCost: 0, totalPnL: 0 }
-  );
-
   return (
     <div>
       {/* Redeemable positions banner - only for own profile */}
       {!isPublicView && hasRedeemable && redeemableSummary && (
-        <div className="mb-6 p-4 rounded-xl bg-gradient-to-r from-green-500/10 to-primary/10 border border-green-500/20">
-          <div className="flex items-center justify-between gap-4">
+        <div className="mb-6 p-3 sm:p-4 rounded-xl bg-gradient-to-r from-green-500/10 to-primary/10 border border-green-500/20">
+          {/* Mobile layout */}
+          <div className="sm:hidden space-y-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-full bg-green-500/20 animate-pulse">
+                <Gift className="h-5 w-5 text-green-500" />
+              </div>
+              <div className="flex-1">
+                <h3 className="font-semibold">Winnings Ready</h3>
+                <p className="text-sm text-muted-foreground">
+                  {redeemableSummary.winnersCount} winning position{redeemableSummary.winnersCount !== 1 ? "s" : ""}
+                </p>
+              </div>
+              <p className="text-lg font-bold text-green-500">
+                +${redeemableSummary.totalRedeemable.toFixed(2)}
+              </p>
+            </div>
+            <Button 
+              onClick={() => setShowRedeemModal(true)}
+              className="w-full bg-green-500 hover:bg-green-600"
+            >
+              <Gift className="h-4 w-4 mr-2" />
+              Redeem All
+            </Button>
+          </div>
+
+          {/* Desktop layout */}
+          <div className="hidden sm:flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-full bg-green-500/20 animate-pulse">
                 <Gift className="h-5 w-5 text-green-500" />
@@ -570,57 +876,345 @@ export function ProfilePositions({ userHandle, readOnly = false }: ProfilePositi
         />
       )}
 
-      {/* Summary bar */}
-      <div className="flex items-center gap-3 sm:gap-6 pb-4 mb-2 text-xs sm:text-sm">
-        <div>
-          <span className="text-muted-foreground">Value</span>
-          <span className="ml-1 sm:ml-2 font-bold tabular-nums">
-            ${totals.totalValue.toFixed(2)}
-          </span>
+      {/* Stats + View toggle bar */}
+      <div className="flex items-center justify-between gap-4 pb-4 mb-2">
+        {/* Left: Stats - Modal on mobile, inline on desktop */}
+        {/* Mobile: Stats button */}
+        <div className="sm:hidden">
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs px-2">
+                <span className="font-bold tabular-nums">${totals.totalValue.toFixed(2)}</span>
+                {totals.totalCost > 0 && (
+                  <span className={cn(
+                    "tabular-nums",
+                    totals.totalPnL >= 0 ? "text-green-500" : "text-red-500"
+                  )}>
+                    {totals.totalPnL >= 0 ? "+" : ""}{((totals.totalPnL / totals.totalCost) * 100).toFixed(0)}%
+                  </span>
+                )}
+                <PieChart className="h-3.5 w-3.5 text-muted-foreground" />
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <PieChart className="w-5 h-5 text-primary" />
+                  Portfolio Summary
+                </DialogTitle>
+              </DialogHeader>
+              
+              <div className="grid grid-cols-1 gap-3 pt-2">
+                <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50 border border-border/50">
+                  <span className="text-muted-foreground">Total Value</span>
+                  <span className="text-xl font-bold tabular-nums">${totals.totalValue.toFixed(2)}</span>
+                </div>
+                <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50 border border-border/50">
+                  <span className="text-muted-foreground">Cost Basis</span>
+                  <span className="text-xl font-bold tabular-nums">${totals.totalCost.toFixed(2)}</span>
+                </div>
+                <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50 border border-border/50">
+                  <span className="text-muted-foreground">Unrealized P&L</span>
+                  <div className="text-right">
+                    <span className={cn(
+                      "text-xl font-bold tabular-nums",
+                      totals.totalPnL >= 0 ? "text-green-500" : "text-red-500"
+                    )}>
+                      {totals.totalPnL >= 0 ? "+" : ""}${totals.totalPnL.toFixed(2)}
+                    </span>
+                    {totals.totalCost > 0 && (
+                      <span className={cn(
+                        "text-sm ml-2 tabular-nums",
+                        totals.totalPnL >= 0 ? "text-green-500" : "text-red-500"
+                      )}>
+                        ({totals.totalPnL >= 0 ? "+" : ""}{((totals.totalPnL / totals.totalCost) * 100).toFixed(1)}%)
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50 border border-border/50">
+                  <span className="text-muted-foreground">Positions</span>
+                  <span className="text-xl font-bold tabular-nums">{positionRows.length}</span>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
-        <div>
-          <span className="text-muted-foreground">Cost</span>
-          <span className="ml-1 sm:ml-2 font-medium tabular-nums">
-            ${totals.totalCost.toFixed(2)}
-          </span>
+
+        {/* Desktop: Inline stats on left */}
+        <div className="hidden sm:flex items-center gap-4 text-sm">
+          <div>
+            <span className="text-muted-foreground">Value</span>
+            <span className="ml-1.5 font-bold tabular-nums">
+              ${totals.totalValue.toFixed(2)}
+            </span>
+          </div>
+          <div>
+            <span className="text-muted-foreground">Cost</span>
+            <span className="ml-1.5 font-medium tabular-nums">
+              ${totals.totalCost.toFixed(2)}
+            </span>
+          </div>
+          <div>
+            <span className="text-muted-foreground">P&L</span>
+            <span className={cn(
+              "ml-1.5 font-bold tabular-nums",
+              totals.totalPnL >= 0 ? "text-green-500" : "text-red-500"
+            )}>
+              {totals.totalPnL >= 0 ? "+" : ""}${totals.totalPnL.toFixed(2)}
+            </span>
+          </div>
+          <div className="text-muted-foreground">
+            {positionRows.length} position{positionRows.length !== 1 ? "s" : ""}
+          </div>
         </div>
-        <div>
-          <span className="text-muted-foreground">P&L</span>
-          <span className={cn(
-            "ml-1 sm:ml-2 font-bold tabular-nums",
-            totals.totalPnL >= 0 ? "text-green-500" : "text-red-500"
-          )}>
-            {totals.totalPnL >= 0 ? "+" : ""}${totals.totalPnL.toFixed(2)}
-          </span>
-        </div>
-        <div className="text-muted-foreground">
-          {positionRows.length} position{positionRows.length !== 1 ? "s" : ""}
+
+        {/* Right: View toggle */}
+        <div className="flex items-center border border-border rounded-md">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setPositionView("individual")}
+            className={cn(
+              "h-8 px-2 rounded-r-none border-r border-border",
+              positionView === "individual" && "bg-muted"
+            )}
+            title="Individual positions"
+          >
+            <List className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setPositionView("by-market")}
+            className={cn(
+              "h-8 px-2 rounded-l-none",
+              positionView === "by-market" && "bg-muted"
+            )}
+            title="Group by market"
+          >
+            <LayoutGrid className="h-4 w-4" />
+          </Button>
         </div>
       </div>
 
       {/* Position list */}
       <div className="space-y-3">
-        {positionRows.map((row) => {
-          const positionKey = `${row.position.market.id}-${row.outcomeIndex}`;
-          const unsharedBet = isPublicView ? undefined : unsharedBetMap.get(positionKey);
-          
-          return (
-            <PositionRow
-              key={`${row.position.id}-${row.outcomeIndex}`}
-              position={row.position}
-              outcomeIndex={row.outcomeIndex}
-              shares={row.shares}
-              avgCost={row.avgCost}
-              onSellComplete={isPublicView ? undefined : () => {
-                queryClient.invalidateQueries({ queryKey: ["positions"] });
-              }}
-              unsharedBet={unsharedBet}
-              profile={isPublicView ? undefined : profile}
+        {positionRows.length === 0 ? (
+          <div className="text-center py-12">
+            <p className="text-muted-foreground">No positions yet</p>
+            {!isPublicView && (
+              <Link href="/">
+                <Button variant="outline" size="sm" className="mt-2">
+                  Browse markets
+                </Button>
+              </Link>
+            )}
+          </div>
+        ) : positionView === "by-market" ? (
+          // By Market View
+          marketPositions.map((market) => (
+            <MarketPositionCard
+              key={market.marketId}
+              market={market}
+              profile={profile}
               readOnly={readOnly || isPublicView}
             />
-          );
-        })}
+          ))
+        ) : (
+          // Individual View
+          positionRows.map((row) => {
+            const positionKey = `${row.position.market.id}-${row.outcomeIndex}`;
+            const unsharedBet = isPublicView ? undefined : unsharedBetMap.get(positionKey);
+            
+            return (
+              <PositionRow
+                key={`${row.position.id}-${row.outcomeIndex}`}
+                position={row.position}
+                outcomeIndex={row.outcomeIndex}
+                shares={row.shares}
+                avgCost={row.avgCost}
+                onSellComplete={isPublicView ? undefined : () => {
+                  queryClient.invalidateQueries({ queryKey: ["positions"] });
+                }}
+                unsharedBet={unsharedBet}
+                profile={isPublicView ? undefined : profile}
+                readOnly={readOnly || isPublicView}
+              />
+            );
+          })
+        )}
       </div>
     </div>
+  );
+}
+
+// Market Position Card for "By Market" view
+interface MarketPositionCardProps {
+  market: {
+    marketId: string;
+    eventTitle: string;
+    eventSlug: string;
+    marketQuestion: string;
+    isSettled: boolean;
+    settledAt: string | null;
+    resolvedOutcome: number | null;
+    outcomes: string[];
+    outcomeColors: string[];
+    positions: Array<{
+      outcomeIndex: 0 | 1;
+      shares: number;
+      avgCost: number;
+      currentPrice: number;
+      currentValue: number;
+      costBasis: number;
+      pnl: number;
+      didWin: boolean;
+      didLose: boolean;
+      settledValue: number;
+      realizedPnL: number;
+      feeBps: number;
+    }>;
+    totalCost: number;
+    totalValue: number;
+    totalPnL: number;
+    totalShares: number;
+  };
+  profile?: {
+    name?: string | null;
+    handle?: string | null;
+    profileImageUrl?: string | null;
+  } | null;
+  readOnly?: boolean;
+}
+
+function MarketPositionCard({ market, profile, readOnly = false }: MarketPositionCardProps) {
+  const [showShareModal, setShowShareModal] = useState(false);
+
+  const isProfitable = market.totalPnL > 0;
+  const pnlPercent = market.totalCost > 0 ? (market.totalPnL / market.totalCost) * 100 : 0;
+  
+  // Check if any position won
+  const hasWinner = market.positions.some(p => p.didWin);
+  const allLost = market.isSettled && market.positions.every(p => p.didLose);
+
+  return (
+    <>
+      <div className={cn(
+        "p-4 rounded-lg border border-border/50 bg-card/50 transition-all duration-200 hover:border-border hover:bg-card/80"
+      )}>
+        {/* Header */}
+        <div className="flex items-start justify-between gap-4 mb-3">
+          <div className="flex-1 min-w-0">
+            <Link
+              href={getMarketUrl(market.eventSlug)}
+              className="font-medium hover:text-primary transition-colors inline-flex items-center gap-1"
+            >
+              <span className="line-clamp-1">{market.eventTitle}</span>
+              <ArrowUpRight className="h-3 w-3 opacity-50 flex-shrink-0" />
+            </Link>
+            {market.marketQuestion && market.marketQuestion !== market.eventTitle && (
+              <p className="text-sm text-muted-foreground line-clamp-1 mt-0.5">{market.marketQuestion}</p>
+            )}
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {market.isSettled && (
+              <span className={cn(
+                "text-xs font-medium px-2 py-0.5 rounded",
+                hasWinner ? "bg-green-500/10 text-green-500 border border-green-500/20" :
+                allLost ? "bg-muted/50 text-muted-foreground" :
+                "bg-muted/50 text-muted-foreground"
+              )}>
+                {hasWinner ? "Won" : allLost ? "Lost" : "Settled"}
+              </span>
+            )}
+            {!readOnly && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowShareModal(true)}
+                className="h-7 px-2 gap-1"
+              >
+                <Share2 className="h-3 w-3" />
+                <span className="hidden sm:inline">Share</span>
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {/* Positions breakdown */}
+        <div className="space-y-2 mb-3">
+          {market.positions.map((pos, idx) => (
+            <div key={idx} className="flex items-center justify-between text-sm">
+              <div className="flex items-center gap-2">
+                <div
+                  className="w-2 h-2 rounded-full flex-shrink-0"
+                  style={{ background: market.outcomeColors[pos.outcomeIndex] || "#666" }}
+                />
+                <span className={cn(
+                  pos.didWin && "text-green-500 font-medium",
+                  pos.didLose && "text-muted-foreground"
+                )}>
+                  {market.outcomes[pos.outcomeIndex] || `Outcome ${pos.outcomeIndex}`}
+                </span>
+                <span className="text-muted-foreground text-xs">
+                  {pos.shares.toFixed(2)} @ ${pos.avgCost.toFixed(2)}
+                </span>
+                {pos.didWin && <Trophy className="h-3 w-3 text-green-500" />}
+              </div>
+              <span className={cn(
+                "font-medium tabular-nums text-sm",
+                market.isSettled
+                  ? (pos.realizedPnL >= 0 ? "text-green-500" : "text-red-500")
+                  : (pos.pnl >= 0 ? "text-green-500" : "text-red-500")
+              )}>
+                {(market.isSettled ? pos.realizedPnL : pos.pnl) >= 0 ? "+" : ""}
+                ${Math.abs(market.isSettled ? pos.realizedPnL : pos.pnl).toFixed(2)}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        {/* Totals */}
+        <div className="flex items-center justify-between pt-3 border-t border-border/50">
+          <div className="flex items-center gap-4 text-xs text-muted-foreground">
+            <span>Cost: <span className="text-foreground tabular-nums">${market.totalCost.toFixed(2)}</span></span>
+            <span>Value: <span className="text-foreground tabular-nums">${market.totalValue.toFixed(2)}</span></span>
+          </div>
+          <div className="text-right">
+            <span className={cn(
+              "font-bold tabular-nums",
+              isProfitable ? "text-green-500" : "text-red-500"
+            )}>
+              {isProfitable ? "+" : ""}${market.totalPnL.toFixed(2)}
+            </span>
+            <span className={cn(
+              "text-xs ml-1 tabular-nums",
+              isProfitable ? "text-green-500/70" : "text-red-500/70"
+            )}>
+              ({isProfitable ? "+" : ""}{pnlPercent.toFixed(0)}%)
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Share Modal */}
+      <ShareMarketPnLModal
+        open={showShareModal}
+        onOpenChange={setShowShareModal}
+        eventTitle={market.eventTitle}
+        eventSlug={market.eventSlug}
+        marketQuestion={market.marketQuestion}
+        isSettled={market.isSettled}
+        outcomes={market.outcomes}
+        outcomeColors={market.outcomeColors}
+        positions={market.positions}
+        totalCost={market.totalCost}
+        totalValue={market.totalValue}
+        totalPnL={market.totalPnL}
+        totalShares={market.totalShares}
+        profile={profile}
+      />
+    </>
   );
 }

@@ -26,6 +26,7 @@ import {
   type MarketCategoryConfig,
 } from "./sport-configs";
 import { useMarketUpdates, type PriceUpdate } from "@/hooks/use-market-updates";
+import { useStickySidebar } from "@/hooks/use-sticky-sidebar";
 import { EventActivityPanel } from "@/components/events/event-activity-panel";
 import { EventKOLsPanel } from "@/components/events/event-kols-panel";
 
@@ -453,6 +454,13 @@ export function SportsEventView({ event, sport }: SportsEventViewProps) {
   const [selectedOutcome, setSelectedOutcome] = useState<number | null>(null);
   const [expandedMarketId, setExpandedMarketId] = useState<string | null>(null);
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
+  
+  // Sidebar accordion state - only one panel open at a time
+  const [activeSidebarPanel, setActiveSidebarPanel] = useState<"betting" | "activity" | "kols">("betting");
+
+  // Sticky sidebar hook (uses JS-based fixed positioning as CSS sticky doesn't work)
+  // topOffset: 16 = just a small gap from top of viewport
+  const { containerRef: sidebarContainerRef, style: sidebarStyle } = useStickySidebar({ topOffset: 16 });
 
   // Fetch live data (polling as fallback)
   const { data } = useQuery({
@@ -535,6 +543,8 @@ export function SportsEventView({ event, sport }: SportsEventViewProps) {
       setExpandedMarketId(marketId);
       // Auto-open sheet on mobile when selecting an outcome
       setMobileSheetOpen(true);
+      // Auto-expand betting panel on desktop
+      setActiveSidebarPanel("betting");
     }
   };
 
@@ -627,10 +637,10 @@ export function SportsEventView({ event, sport }: SportsEventViewProps) {
         </Link>
       </motion.div>
 
-      {/* Main grid layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
+      {/* Main layout - flex for sticky sidebar */}
+      <div className="flex flex-col lg:flex-row gap-4 sm:gap-6">
         {/* Left column: Header + Markets */}
-        <div className="lg:col-span-2 space-y-4 sm:space-y-6">
+        <div className="flex-1 min-w-0 space-y-4 sm:space-y-6">
           {/* Sports Header */}
           <SportsEventHeader 
             event={event}
@@ -709,26 +719,36 @@ export function SportsEventView({ event, sport }: SportsEventViewProps) {
           </motion.div>
         </div>
 
-        {/* Right column: Betting Sidebar + Info Panels (sticky) - hidden on mobile */}
-        <div className="hidden lg:block lg:col-span-1">
-          <div className="lg:sticky lg:top-20 space-y-4">
-            <SportsBettingSidebar
-              event={event}
-              selectedMarket={selectedMarket}
-              selectedOutcome={selectedOutcome}
-              onClearSelection={handleClearSelection}
-            />
-            
-            {/* Activity Panel */}
-            <EventActivityPanel 
-              eventSlug={event.slug} 
-              marketId={selectedMarketId || undefined}
-            />
-            
-            {/* Top KOLs Panel */}
-            <EventKOLsPanel eventSlug={event.slug} />
+        {/* Right column: Betting Sidebar + Info Panels - hidden on mobile */}
+        <aside ref={sidebarContainerRef} className="hidden lg:block w-[340px] flex-shrink-0">
+          <div style={sidebarStyle}>
+            <div className="space-y-2">
+              <SportsBettingSidebar
+                event={event}
+                selectedMarket={selectedMarket}
+                selectedOutcome={selectedOutcome}
+                onClearSelection={handleClearSelection}
+                isCollapsed={activeSidebarPanel !== "betting"}
+                onToggle={() => setActiveSidebarPanel(activeSidebarPanel === "betting" ? "activity" : "betting")}
+              />
+              
+              {/* Activity Panel - collapsible */}
+              <EventActivityPanel 
+                eventSlug={event.slug} 
+                marketId={selectedMarketId || undefined}
+                isCollapsed={activeSidebarPanel !== "activity"}
+                onToggle={() => setActiveSidebarPanel(activeSidebarPanel === "activity" ? "betting" : "activity")}
+              />
+              
+              {/* Top KOLs Panel - collapsible */}
+              <EventKOLsPanel 
+                eventSlug={event.slug} 
+                isCollapsed={activeSidebarPanel !== "kols"}
+                onToggle={() => setActiveSidebarPanel(activeSidebarPanel === "kols" ? "betting" : "kols")}
+              />
+            </div>
           </div>
-        </div>
+        </aside>
       </div>
 
       {/* Mobile betting sheet */}

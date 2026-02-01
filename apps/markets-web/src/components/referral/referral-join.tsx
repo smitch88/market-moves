@@ -7,7 +7,7 @@ import Link from "next/link";
 import { usePrivy } from "@privy-io/react-auth";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button, Avatar, AvatarImage, AvatarFallback, GlassCard } from "@vault/ui";
-import { TrendingUp, Users, Sparkles, ChevronRight, X, HelpCircle } from "lucide-react";
+import { TrendingUp, Users, Sparkles, ChevronRight, X, HelpCircle, CheckCircle, AlertCircle, ArrowRight } from "lucide-react";
 
 interface ReferralJoinProps {
   referrer: {
@@ -19,53 +19,198 @@ interface ReferralJoinProps {
   referralCode: string;
 }
 
+type ClaimStatus = "idle" | "claiming" | "success" | "already_referred" | "self_referral" | "error";
+
 export function ReferralJoin({ referrer, referralCode }: ReferralJoinProps) {
   const router = useRouter();
   const { login, authenticated, ready } = usePrivy();
   const [showCampaign, setShowCampaign] = useState(false);
+  const [claimStatus, setClaimStatus] = useState<ClaimStatus>("idle");
+  const [hasAttemptedClaim, setHasAttemptedClaim] = useState(false);
 
   const referrerName = referrer.name || referrer.handle || "A friend";
 
-  // Store referral code in localStorage for attribution
+  // Store referral code in localStorage for attribution (only for non-authenticated users)
   useEffect(() => {
-    localStorage.setItem("referral_code", referralCode);
-  }, [referralCode]);
+    if (!authenticated) {
+      localStorage.setItem("referral_code", referralCode);
+    }
+  }, [referralCode, authenticated]);
 
-  // Show campaign modal after a brief delay
+  // Show campaign modal after a brief delay (only for non-authenticated users)
   useEffect(() => {
-    const timer = setTimeout(() => setShowCampaign(true), 1500);
-    return () => clearTimeout(timer);
-  }, []);
+    if (!authenticated) {
+      const timer = setTimeout(() => setShowCampaign(true), 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [authenticated]);
 
-  // Process referral and redirect after authentication
+  // Auto-claim referral when user is authenticated (only once)
   useEffect(() => {
-    if (authenticated && ready) {
-      // Claim the referral
-      fetch("/api/referral/claim", {
+    if (authenticated && ready && !hasAttemptedClaim) {
+      setHasAttemptedClaim(true);
+      claimReferral();
+    }
+  }, [authenticated, ready, hasAttemptedClaim]);
+
+  const claimReferral = async () => {
+    setClaimStatus("claiming");
+    try {
+      const response = await fetch("/api/referral/claim", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ referralCode }),
-      })
-        .then(() => {
-          // Clear stored code and redirect
-          localStorage.removeItem("referral_code");
-          router.push("/");
-        })
-        .catch(() => {
-          // Still redirect even if claim fails
-          router.push("/");
-        });
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok && data.success) {
+        localStorage.removeItem("referral_code");
+        setClaimStatus("success");
+      } else if (data.message === "Already referred by someone") {
+        setClaimStatus("already_referred");
+      } else if (data.error === "Cannot refer yourself") {
+        setClaimStatus("self_referral");
+      } else {
+        setClaimStatus("error");
+      }
+    } catch {
+      setClaimStatus("error");
     }
-  }, [authenticated, ready, router, referralCode]);
+  };
 
   const handleLogin = () => {
     login();
   };
 
+  // Show different UI based on claim status for authenticated users
+  const renderAuthenticatedContent = () => {
+    if (claimStatus === "claiming") {
+      return (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="space-y-4"
+        >
+          <GlassCard className="p-6 text-center">
+            <div className="animate-spin h-8 w-8 border-2 border-primary border-t-transparent rounded-full mx-auto mb-4" />
+            <p className="text-lg font-medium">Claiming referral bonus...</p>
+          </GlassCard>
+        </motion.div>
+      );
+    }
+
+    if (claimStatus === "success") {
+      return (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="space-y-4"
+        >
+          <GlassCard className="p-6 text-center">
+            <div className="h-16 w-16 rounded-full bg-green-500/20 flex items-center justify-center mx-auto mb-4">
+              <CheckCircle className="h-8 w-8 text-green-500" />
+            </div>
+            <h3 className="text-xl font-bold text-green-500 mb-2">Referral Claimed!</h3>
+            <p className="text-muted-foreground mb-4">
+              You and {referrerName} both earned 10,000 MP!
+            </p>
+            <Link href="/">
+              <Button className="w-full">
+                Start Trading
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+            </Link>
+          </GlassCard>
+        </motion.div>
+      );
+    }
+
+    if (claimStatus === "already_referred") {
+      return (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="space-y-4"
+        >
+          <GlassCard className="p-6 text-center">
+            <div className="h-16 w-16 rounded-full bg-amber-500/20 flex items-center justify-center mx-auto mb-4">
+              <AlertCircle className="h-8 w-8 text-amber-500" />
+            </div>
+            <h3 className="text-xl font-bold mb-2">Already Referred</h3>
+            <p className="text-muted-foreground mb-4">
+              You&apos;ve already been referred by another user. Thanks for checking out {referrerName}&apos;s link though!
+            </p>
+            <Link href="/">
+              <Button className="w-full">
+                View Markets
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+            </Link>
+          </GlassCard>
+        </motion.div>
+      );
+    }
+
+    if (claimStatus === "self_referral") {
+      return (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="space-y-4"
+        >
+          <GlassCard className="p-6 text-center">
+            <div className="h-16 w-16 rounded-full bg-amber-500/20 flex items-center justify-center mx-auto mb-4">
+              <AlertCircle className="h-8 w-8 text-amber-500" />
+            </div>
+            <h3 className="text-xl font-bold mb-2">This is Your Link!</h3>
+            <p className="text-muted-foreground mb-4">
+              You can&apos;t use your own referral link. Share it with friends to earn bonus MP!
+            </p>
+            <Link href="/">
+              <Button className="w-full">
+                View Markets
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+            </Link>
+          </GlassCard>
+        </motion.div>
+      );
+    }
+
+    if (claimStatus === "error") {
+      return (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="space-y-4"
+        >
+          <GlassCard className="p-6 text-center">
+            <div className="h-16 w-16 rounded-full bg-red-500/20 flex items-center justify-center mx-auto mb-4">
+              <AlertCircle className="h-8 w-8 text-red-500" />
+            </div>
+            <h3 className="text-xl font-bold mb-2">Something Went Wrong</h3>
+            <p className="text-muted-foreground mb-4">
+              We couldn&apos;t process the referral. You can still explore the platform!
+            </p>
+            <Link href="/">
+              <Button className="w-full">
+                View Markets
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+            </Link>
+          </GlassCard>
+        </motion.div>
+      );
+    }
+
+    return null;
+  };
+
   return (
     <div className="min-h-screen grid-bg flex flex-col">
-      {/* Campaign Modal */}
-      <CampaignModal open={showCampaign} onClose={() => setShowCampaign(false)} />
+      {/* Campaign Modal - only for non-authenticated users */}
+      {!authenticated && <CampaignModal open={showCampaign} onClose={() => setShowCampaign(false)} />}
 
       {/* Main Content */}
       <div className="flex-1 flex items-center justify-center p-6">
@@ -83,14 +228,16 @@ export function ReferralJoin({ referrer, referralCode }: ReferralJoinProps) {
               transition={{ delay: 0.1, duration: 0.4 }}
               className="flex justify-center"
             >
-              <Image
-                src="/logo.svg"
-                alt="Vault Markets"
-                width={80}
-                height={56}
-                className="h-14 w-auto"
-                priority
-              />
+              <Link href="/">
+                <Image
+                  src="/logo.svg"
+                  alt="Vault Markets"
+                  width={80}
+                  height={56}
+                  className="h-14 w-auto"
+                  priority
+                />
+              </Link>
             </motion.div>
             
             <motion.div
@@ -137,59 +284,68 @@ export function ReferralJoin({ referrer, referralCode }: ReferralJoinProps) {
             </GlassCard>
           </motion.div>
 
-          {/* Features */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.4 }}
-            className="space-y-3"
-          >
-            <FeatureItem
-              icon={TrendingUp}
-              title="Trade Predictions"
-              description="Bet on real-world outcomes across sports, crypto, politics & more"
-              delay={0.5}
-            />
-            <FeatureItem
-              icon={Users}
-              title="Compete & Win"
-              description="Start with $10,000 virtual credits and climb the leaderboard"
-              delay={0.55}
-            />
-            <FeatureItem
-              icon={Sparkles}
-              title="Referral Bonus"
-              description="Both you and your referrer earn 10,000 MP"
-              delay={0.6}
-            />
-          </motion.div>
+          {/* Different content for authenticated vs non-authenticated users */}
+          {authenticated ? (
+            // Authenticated: Show claim status
+            renderAuthenticatedContent()
+          ) : (
+            // Not authenticated: Show features and login CTA
+            <>
+              {/* Features */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.4 }}
+                className="space-y-3"
+              >
+                <FeatureItem
+                  icon={TrendingUp}
+                  title="Trade Predictions"
+                  description="Bet on real-world outcomes across sports, crypto, politics & more"
+                  delay={0.5}
+                />
+                <FeatureItem
+                  icon={Users}
+                  title="Compete & Win"
+                  description="Start with $10,000 virtual credits and climb the leaderboard"
+                  delay={0.55}
+                />
+                <FeatureItem
+                  icon={Sparkles}
+                  title="Referral Bonus"
+                  description="Both you and your referrer earn 10,000 MP"
+                  delay={0.6}
+                />
+              </motion.div>
 
-          {/* CTA */}
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.7 }}
-            className="space-y-4"
-          >
-            <Button
-              onClick={handleLogin}
-              size="lg"
-              className="w-full h-14 text-lg font-semibold"
-              disabled={!ready}
-            >
-              {!ready ? (
-                "Loading..."
-              ) : (
-                <>
-                  Join with X (Twitter)
-                  <ChevronRight className="ml-2 h-5 w-5" />
-                </>
-              )}
-            </Button>
-            <p className="text-center text-xs text-muted-foreground">
-              By joining, you agree to our Terms of Service and Privacy Policy
-            </p>
-          </motion.div>
+              {/* CTA */}
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.7 }}
+                className="space-y-4"
+              >
+                <Button
+                  onClick={handleLogin}
+                  size="lg"
+                  className="w-full h-14 text-lg font-semibold"
+                  disabled={!ready}
+                >
+                  {!ready ? (
+                    "Loading..."
+                  ) : (
+                    <>
+                      Join with X (Twitter)
+                      <ChevronRight className="ml-2 h-5 w-5" />
+                    </>
+                  )}
+                </Button>
+                <p className="text-center text-xs text-muted-foreground">
+                  By joining, you agree to our Terms of Service and Privacy Policy
+                </p>
+              </motion.div>
+            </>
+          )}
         </motion.div>
       </div>
 

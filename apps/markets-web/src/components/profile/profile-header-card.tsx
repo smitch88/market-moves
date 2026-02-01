@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Image from "next/image";
 import { format } from "date-fns";
-import { User, ExternalLink, Lightbulb, Flame, Crown, Info, Star, Copy, Check, Link2 } from "lucide-react";
+import { User, ExternalLink, Lightbulb, Flame, Crown, Info, Star, Copy, Check, Link2, BarChart3 } from "lucide-react";
 import {
   Button,
   Dialog,
@@ -67,8 +67,9 @@ export function ProfileHeaderCard({
 }: ProfileHeaderCardProps) {
   const [captainLinkCopied, setCaptainLinkCopied] = useState(false);
 
-  const captainLink = typeof window !== "undefined" && referralCode
-    ? `${window.location.origin}/c/${referralCode}`
+  // Use handle for nicer captain links, fall back to referral code
+  const captainLink = typeof window !== "undefined" && (handle || referralCode)
+    ? `${window.location.origin}/c/${handle || referralCode}`
     : "";
 
   const handleCopyCaptainLink = async () => {
@@ -256,25 +257,74 @@ export function ProfileHeaderCard({
         </div>
       )}
 
-      {/* Stats row - pushed to bottom */}
+      {/* Stats - Modal on mobile, inline on desktop */}
       <div className={cn(
-        "flex items-center justify-center gap-4 sm:gap-6 pt-3 mt-3 border-t border-border",
+        "pt-3 mt-3 border-t border-border",
         !streak && !(isKOL && (referralCode || onRequestMarket)) && "mt-3"
       )}>
-        {stats.map((stat, index) => (
-          <div key={stat.label} className="flex items-center gap-4 sm:gap-6 flex-shrink-0">
-            {index > 0 && <div className="h-8 sm:h-10 w-px bg-border" />}
-            <div className="min-w-0 text-center">
-              <div className="text-lg sm:text-2xl font-bold tabular-nums">{stat.value}</div>
-              <div className="text-xs sm:text-sm text-muted-foreground mt-0.5">
-                {stat.label}
-                {stat.sublabel && <span className="ml-1">{stat.sublabel}</span>}
+        {/* Mobile: Stats button that opens modal */}
+        <div className="sm:hidden">
+          <StatsModal stats={stats} displayName={displayName} />
+        </div>
+
+        {/* Desktop: Inline stats */}
+        <div className="hidden sm:flex items-center justify-center gap-6">
+          {stats.map((stat, index) => (
+            <div key={stat.label} className="flex items-center gap-6 flex-shrink-0">
+              {index > 0 && <div className="h-10 w-px bg-border" />}
+              <div className="min-w-0 text-center">
+                <div className="text-2xl font-bold tabular-nums">{stat.value}</div>
+                <div className="text-sm text-muted-foreground mt-0.5">
+                  {stat.label}
+                  {stat.sublabel && <span className="ml-1">{stat.sublabel}</span>}
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * Stats modal for mobile view
+ */
+function StatsModal({ stats, displayName }: { stats: ProfileStat[]; displayName: string }) {
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button variant="outline" className="w-full gap-2">
+          <BarChart3 className="h-4 w-4" />
+          View Stats
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <BarChart3 className="w-5 h-5 text-primary" />
+            {displayName}&apos;s Stats
+          </DialogTitle>
+        </DialogHeader>
+        
+        <div className="grid grid-cols-1 gap-4 pt-2">
+          {stats.map((stat) => (
+            <div
+              key={stat.label}
+              className="flex items-center justify-between p-4 rounded-lg bg-muted/50 border border-border/50"
+            >
+              <span className="text-muted-foreground">{stat.label}</span>
+              <div className="text-right">
+                <span className="text-xl font-bold tabular-nums">{stat.value}</span>
+                {stat.sublabel && (
+                  <span className="text-sm text-muted-foreground ml-2">{stat.sublabel}</span>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 

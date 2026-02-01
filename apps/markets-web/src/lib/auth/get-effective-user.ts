@@ -14,6 +14,7 @@ export interface EffectiveUser {
   handle: string | null;
   name: string | null;
   profileImageUrl: string | null;
+  bannerImageUrl: string | null;
   role: string;
   balance: number;
   balanceLocked: boolean;

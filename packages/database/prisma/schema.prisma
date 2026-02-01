@@ -26,6 +26,7 @@ model User {
   handle          String?  @unique // Custom username
   name            String? // Display name
   profileImageUrl String?
+  bannerImageUrl  String? // Twitter banner image URL
   role            UserRole @default(USER)
 
   // Financial tracking

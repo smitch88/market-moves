@@ -11,6 +11,7 @@ export interface ProvisionUserInput {
   handle?: string | null;
   name?: string | null;
   profileImageUrl?: string | null;
+  bannerImageUrl?: string | null;
   referralCode?: string | null; // Code of the referrer
 }
 
@@ -22,6 +23,7 @@ export type ProvisionedUser = {
   handle: string | null;
   name: string | null;
   profileImageUrl: string | null;
+  bannerImageUrl: string | null;
   role: "USER" | "ADMIN";
   balance: number;
   referralCode: string;
@@ -40,6 +42,7 @@ export async function provisionUser(input: ProvisionUserInput): Promise<Provisio
     handle,
     name,
     profileImageUrl,
+    bannerImageUrl,
     referralCode,
   } = input;
 
@@ -58,6 +61,7 @@ export async function provisionUser(input: ProvisionUserInput): Promise<Provisio
         handle,
         name,
         profileImageUrl,
+        bannerImageUrl,
         role: isAdmin ? UserRole.ADMIN : UserRole.USER,
         balance: INITIAL_BALANCE,
       },
@@ -69,6 +73,7 @@ export async function provisionUser(input: ProvisionUserInput): Promise<Provisio
         handle: true,
         name: true,
         profileImageUrl: true,
+        bannerImageUrl: true,
         role: true,
         balance: true,
         referralCode: true,

@@ -275,7 +275,7 @@ export default function AdminXPPage() {
               </div>
             )}
             <p className="text-xs text-muted-foreground mt-2">
-              Equivalent to ${((localConfig?.dailyXpCap ?? 50000) / (localConfig?.xpPerDollar ?? 10)).toLocaleString()} daily volume
+              Equivalent to ${((localConfig?.dailyXpCap ?? 100000) / (localConfig?.xpPerDollar ?? 10)).toLocaleString()} daily volume
             </p>
           </CardContent>
         </Card>
@@ -452,7 +452,7 @@ export default function AdminXPPage() {
                 Daily MP Cap
               </h4>
               <p className="text-sm text-muted-foreground mt-1">
-                Users can only earn up to {(localConfig?.dailyXpCap ?? 50000).toLocaleString()} MP per day,
+                Users can only earn up to {(localConfig?.dailyXpCap ?? 100000).toLocaleString()} MP per day,
                 preventing unlimited farming.
               </p>
             </div>

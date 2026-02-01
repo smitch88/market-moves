@@ -50,6 +50,9 @@ export function OutcomeButton({
   onClick,
   fullWidth = false,
 }: OutcomeButtonProps) {
+  // Only truncate if label is longer than ~12 characters
+  const shouldTruncate = label.length > 12;
+  
   return (
     <motion.button
       onClick={(e) => {
@@ -59,15 +62,15 @@ export function OutcomeButton({
       className={cn(
         "px-2 sm:px-3 py-2 sm:py-2.5 rounded-lg font-medium text-xs sm:text-sm transition-all",
         "flex items-center justify-between gap-1 sm:gap-2",
-        fullWidth ? "flex-1 sm:flex-none sm:w-[120px]" : "w-[90px] sm:w-[120px]",
+        fullWidth ? "flex-1 sm:flex-none sm:w-[120px]" : "min-w-[90px] sm:min-w-[120px]",
         isSelected
           ? "bg-primary text-primary-foreground ring-2 ring-primary ring-offset-2 ring-offset-background"
-          : "bg-muted/50 text-foreground hover:bg-muted border border-border/50 hover:border-border"
+          : "bg-muted/30 text-foreground hover:bg-muted/60 border border-border hover:border-primary/50"
       )}
       whileHover={{ scale: 1.01 }}
       whileTap={{ scale: 0.99 }}
     >
-      <span className="font-medium truncate text-left flex-1">{label}</span>
+      <span className={cn("font-medium text-left", shouldTruncate ? "truncate flex-1" : "whitespace-nowrap")}>{label}</span>
       <span className="font-bold tabular-nums flex-shrink-0">{price}%</span>
     </motion.button>
   );

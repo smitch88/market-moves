@@ -61,6 +61,12 @@ const updateProfileSchema = z.object({
     .optional()
     .nullable()
     .or(z.literal("")),
+  bannerImageUrl: z
+    .string()
+    .url("Must be a valid URL")
+    .optional()
+    .nullable()
+    .or(z.literal("")),
 });
 
 export async function GET() {
@@ -102,7 +108,7 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    const { handle, name, profileImageUrl } = validation.data;
+    const { handle, name, profileImageUrl, bannerImageUrl } = validation.data;
 
     // Check if handle is being updated and if it's unique
     if (handle !== undefined && handle !== null && handle !== user.handle) {
@@ -129,6 +135,7 @@ export async function PATCH(request: NextRequest) {
       handle?: string | null;
       name?: string | null;
       profileImageUrl?: string | null;
+      bannerImageUrl?: string | null;
     } = {};
 
     if (handle !== undefined) {
@@ -140,6 +147,9 @@ export async function PATCH(request: NextRequest) {
     if (profileImageUrl !== undefined) {
       updateData.profileImageUrl = profileImageUrl || null;
     }
+    if (bannerImageUrl !== undefined) {
+      updateData.bannerImageUrl = bannerImageUrl || null;
+    }
 
     // Update user
     const updatedUser = await prisma.user.update({
@@ -150,6 +160,7 @@ export async function PATCH(request: NextRequest) {
         handle: true,
         name: true,
         profileImageUrl: true,
+        bannerImageUrl: true,
         email: true,
         createdAt: true,
         xp: true,

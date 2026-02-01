@@ -98,8 +98,9 @@ export function ProfileCard() {
     user?.twitter?.username || user?.email?.address?.split("@")[0] || "User";
   const avatarUrl = profile?.profileImageUrl || user?.twitter?.profilePictureUrl;
 
-  const referralLink = profile?.referralCode 
-    ? `${typeof window !== "undefined" ? window.location.origin : ""}/r/${profile.referralCode}`
+  // Use handle for nicer referral links, fall back to referral code
+  const referralLink = (profile?.handle || profile?.referralCode)
+    ? `${typeof window !== "undefined" ? window.location.origin : ""}/r/${profile?.handle || profile?.referralCode}`
     : "";
 
   const handleCopyReferral = async () => {
@@ -337,7 +338,7 @@ export function ProfileCard() {
           >
             <span className="text-sm text-muted-foreground">Your Code</span>
             <code className="px-3 py-1 rounded-md bg-background font-mono text-sm font-semibold">
-              {profile?.referralCode || "..."}
+              {profile?.handle || profile?.referralCode || "..."}
             </code>
           </motion.div>
 

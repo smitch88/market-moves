@@ -1,11 +1,13 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import { Avatar, AvatarImage, AvatarFallback, Badge } from "@vault/ui";
 import { cn } from "@vault/ui/lib/utils";
-import { Activity, Star, Loader2, TrendingUp } from "lucide-react";
+import { Activity, Star, Loader2, TrendingUp, ChevronDown } from "lucide-react";
 import Link from "next/link";
+import { motion, AnimatePresence } from "framer-motion";
 
 // ============================================================================
 // TYPES
@@ -38,6 +40,12 @@ interface EventActivityPanelProps {
   eventSlug: string;
   marketId?: string;
   className?: string;
+  /** Whether to start collapsed (uncontrolled mode) */
+  defaultCollapsed?: boolean;
+  /** Controlled collapsed state */
+  isCollapsed?: boolean;
+  /** Callback when panel is toggled */
+  onToggle?: () => void;
 }
 
 // ============================================================================
@@ -70,7 +78,24 @@ export function EventActivityPanel({
   eventSlug,
   marketId,
   className,
+  defaultCollapsed = false,
+  isCollapsed: controlledIsCollapsed,
+  onToggle,
 }: EventActivityPanelProps) {
+  const [internalCollapsed, setInternalCollapsed] = useState(defaultCollapsed);
+
+  // Use controlled state if provided, otherwise use internal state
+  const isControlled = controlledIsCollapsed !== undefined;
+  const isCollapsed = isControlled ? controlledIsCollapsed : internalCollapsed;
+
+  const handleToggle = () => {
+    if (onToggle) {
+      onToggle();
+    } else {
+      setInternalCollapsed(!internalCollapsed);
+    }
+  };
+
   // Poll for activity every 10 seconds
   const { data, isLoading, error } = useQuery<ActivityResponse>({
     queryKey: ["event-activity", eventSlug, marketId],
@@ -96,19 +121,44 @@ export function EventActivityPanel({
         className
       )}
     >
-      {/* Header */}
-      <div className="px-4 py-3 border-b border-border/50 flex items-center gap-2">
+      {/* Header - clickable to toggle */}
+      <button
+        onClick={handleToggle}
+        className="w-full px-4 py-3 border-b border-border/50 flex items-center gap-2 hover:bg-muted/30 transition-colors"
+      >
         <Activity className="h-4 w-4 text-primary" />
         <h3 className="font-semibold text-sm">
           Activity
         </h3>
-        {isLoading && (
-          <Loader2 className="h-3 w-3 animate-spin text-muted-foreground ml-auto" />
+        {bets.length > 0 && (
+          <span className="text-xs text-muted-foreground">
+            ({bets.length})
+          </span>
         )}
-      </div>
+        <div className="ml-auto flex items-center gap-2">
+          {isLoading && (
+            <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+          )}
+          <ChevronDown 
+            className={cn(
+              "h-4 w-4 text-muted-foreground transition-transform duration-200",
+              isCollapsed && "-rotate-90"
+            )} 
+          />
+        </div>
+      </button>
 
-      {/* Content */}
-      <div className="max-h-[400px] overflow-y-auto">
+      {/* Content - collapsible */}
+      <AnimatePresence initial={false}>
+        {!isCollapsed && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2, ease: "easeInOut" }}
+            className="overflow-hidden"
+          >
+            <div className="max-h-[300px] overflow-y-auto">
         {error ? (
           <div className="p-4 text-center text-sm text-muted-foreground">
             Failed to load activity
@@ -208,7 +258,10 @@ export function EventActivityPanel({
             })}
           </div>
         )}
-      </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

@@ -469,7 +469,7 @@ After successful bet:
 ```
 
 **XP Reasons Shown:**
-- "Daily XP cap reached (50,000 XP)"
+- "Daily XP cap reached (100,000 XP)"
 - "Market cooldown active"
 - "Diminishing returns: 60% (tier 2)"
 - "Volume cap reached for this market"
