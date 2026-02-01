@@ -591,8 +591,7 @@ export async function calculateAndAwardKOLMarketVolumeXP(
             delta: xpToAward,
             xpBefore,
             xpAfter,
-            // Using string literal as XPReason.KOL_MARKET_VOLUME needs prisma generate
-            reason: "KOL_MARKET_VOLUME" as XPReason,
+            reason: XPReason.KOL_MARKET_VOLUME,
             correlationId: `kol-market-volume-${startOfDay.toISOString().split("T")[0]}`,
           },
         });
