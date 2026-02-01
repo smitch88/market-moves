@@ -435,7 +435,7 @@ export function QuickBetModal({
 
         setTimeout(() => {
           const tweetText = encodeURIComponent(
-            `🎯 I just bet $${confirmedBetAmount.toLocaleString()} on "${outcomeLabel}" for "${eventTitle}" on @UseVault777!\n\nMake your prediction 👇\n${window.location.origin}/m/${event?.slug || eventId}`
+            `🎯 I just bet $${confirmedBetAmount.toLocaleString()} on "${outcomeLabel}" for "${eventTitle}" on @UseVault777!\n\nMake your prediction 👇\n${window.location.origin}/markets/${event?.slug || eventId}`
           );
           window.open(`https://x.com/intent/tweet?text=${tweetText}`, "_blank");
         }, 500);
@@ -452,7 +452,7 @@ export function QuickBetModal({
 
   const handleCopyBetLink = async () => {
     try {
-      await navigator.clipboard.writeText(`${window.location.origin}/m/${event?.slug || eventId}`);
+      await navigator.clipboard.writeText(`${window.location.origin}/markets/${event?.slug || eventId}`);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
       toast.success("Link copied!");
