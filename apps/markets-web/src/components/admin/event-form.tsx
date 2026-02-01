@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
@@ -18,13 +18,32 @@ import {
   GlassCardHeader,
   Badge,
   Switch,
+  Avatar,
+  AvatarImage,
+  AvatarFallback,
 } from "@vault/ui";
-import { Loader2, X } from "lucide-react";
+import { Loader2, X, Users } from "lucide-react";
 import type { Event, Tag, MarketCategory } from "@vault/database";
 import { ImageUpload } from "./image-upload";
 
+// KOL type for selector
+interface KOL {
+  id: string;
+  name: string | null;
+  handle: string | null;
+  profileImageUrl: string | null;
+}
+
+// KOL Creator info on event
+interface KOLCreator {
+  id: string;
+  name: string | null;
+  handle: string | null;
+  profileImageUrl: string | null;
+}
+
 interface EventFormProps {
-  event?: Event & { tags: Tag[] };
+  event?: Event & { tags: Tag[]; createdByKol?: KOLCreator | null };
 }
 
 const categories: { value: MarketCategory; label: string }[] = [
@@ -64,6 +83,7 @@ export function EventForm({ event }: EventFormProps) {
     endTime: event?.endTime ? formatDateForInput(event.endTime) : "",
     active: event?.active ?? true,
     closed: event?.closed ?? false,
+    createdByKolId: event?.createdByKolId || "",
   });
 
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>(
@@ -81,6 +101,18 @@ export function EventForm({ event }: EventFormProps) {
   });
 
   const availableTags: Tag[] = tagsData || [];
+
+  // Fetch available KOLs/Captains
+  const { data: kolsData } = useQuery({
+    queryKey: ["kols"],
+    queryFn: async () => {
+      const res = await fetch("/api/kols");
+      if (!res.ok) throw new Error("Failed to fetch KOLs");
+      return res.json();
+    },
+  });
+
+  const availableKols: KOL[] = kolsData?.kols || [];
 
   const updateMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
@@ -100,6 +132,7 @@ export function EventForm({ event }: EventFormProps) {
           active: data.active,
           closed: data.closed,
           tagIds: selectedTagIds,
+          createdByKolId: data.createdByKolId || null,
         }),
       });
 
@@ -296,6 +329,89 @@ export function EventForm({ event }: EventFormProps) {
               </p>
             )}
           </div>
+        </GlassCardContent>
+      </GlassCard>
+
+      {/* Captain Attribution */}
+      <GlassCard>
+        <GlassCardHeader>
+          <div className="flex items-center gap-2">
+            <Users className="h-5 w-5 text-primary" />
+            <h2 className="text-lg font-semibold">Captain Attribution</h2>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Attribute this event to a Captain. Their avatar will appear as a badge on the event card.
+          </p>
+        </GlassCardHeader>
+        <GlassCardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label>Select Captain</Label>
+            <Select
+              value={formData.createdByKolId}
+              onValueChange={(value) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  createdByKolId: value === "none" ? "" : value,
+                }))
+              }
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="No captain selected" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">
+                  <span className="text-muted-foreground">No captain</span>
+                </SelectItem>
+                {availableKols.map((kol) => (
+                  <SelectItem key={kol.id} value={kol.id}>
+                    <div className="flex items-center gap-2">
+                      <Avatar className="h-6 w-6">
+                        <AvatarImage src={kol.profileImageUrl || undefined} />
+                        <AvatarFallback className="text-xs">
+                          {(kol.name || kol.handle || "K")[0].toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span>{kol.name || kol.handle || "Unknown"}</span>
+                      {kol.handle && (
+                        <span className="text-muted-foreground text-xs">
+                          @{kol.handle}
+                        </span>
+                      )}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Preview - only shown when captain is selected */}
+          {formData.createdByKolId && (() => {
+            const selectedKol = availableKols.find(k => k.id === formData.createdByKolId);
+            if (!selectedKol) return null;
+            return (
+              <div className="p-3 rounded-lg bg-muted/50 border border-border">
+                <p className="text-sm text-muted-foreground mb-2">Preview (shown under event description):</p>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-muted-foreground">Made by</span>
+                  <Avatar className="h-4 w-4">
+                    <AvatarImage src={selectedKol.profileImageUrl || undefined} />
+                    <AvatarFallback className="bg-primary/20 text-primary text-[10px]">
+                      {(selectedKol.name || selectedKol.handle || "K")[0].toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span className="text-xs text-muted-foreground font-medium">
+                    @{selectedKol.handle}
+                  </span>
+                </div>
+              </div>
+            );
+          })()}
+
+          {availableKols.length === 0 && (
+            <p className="text-sm text-muted-foreground">
+              No Captains available. Designate users as Captains in the Users section.
+            </p>
+          )}
         </GlassCardContent>
       </GlassCard>
 

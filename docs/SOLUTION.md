@@ -138,6 +138,10 @@ model Event {
   featured    Boolean        @default(false)
   isPublished Boolean        @default(false)
   
+  // KOL attribution - which captain created this event
+  createdByKolId String?
+  createdByKol   User?   @relation("KOLCreatedEvents")
+  
   markets   Market[]
   tags      Tag[]
   bookmarks Bookmark[]
@@ -167,6 +171,10 @@ model Market {
   outcomes        String  @default("[\"Yes\", \"No\"]")
   outcomePrices   String  @default("[\"0.50\", \"0.50\"]")
   resolvedOutcome Int?
+  
+  // KOL attribution - which captain created this market
+  createdByKolId String?
+  createdByKol   User?  @relation("KOLCreatedMarkets")
   
   // CPMM
   pool0        Decimal @default(0.00) @db.Decimal(19, 2)

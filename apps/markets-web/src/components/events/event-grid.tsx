@@ -56,6 +56,15 @@ export async function EventGrid({
       _count: {
         select: { markets: true },
       },
+      // Include KOL creator info
+      createdByKol: {
+        select: {
+          id: true,
+          name: true,
+          handle: true,
+          profileImageUrl: true,
+        },
+      },
       markets: {
         where: {
           isPublished: true, // Only show published markets
@@ -105,7 +114,7 @@ export async function EventGrid({
 
     // Remove the markets array from the result, keep only aggregations
     // Serialize dates for client component
-    const { markets, ...eventData } = event;
+    const { markets, createdByKol, ...eventData } = event;
 
     return {
       ...eventData,
@@ -113,6 +122,8 @@ export async function EventGrid({
       endTime: event.endTime?.toISOString() ?? null,
       createdAt: event.createdAt?.toISOString() ?? null,
       updatedAt: event.updatedAt?.toISOString() ?? null,
+      // Include KOL creator if present
+      createdByKol: createdByKol || null,
       _aggregations: {
         totalVolume,
         totalBets,
@@ -167,6 +178,11 @@ function getViewFilter(view: string, bookmarkedEventIds?: string[]): Prisma.Even
       return {
         createdAt: { gte: weekAgo },
       };
+    case "kol-created":
+      // Events created by KOLs/Captains
+      return {
+        createdByKolId: { not: null },
+      };
     case "bookmarks":
       // Filter by bookmarked event IDs
       return {
@@ -183,6 +199,9 @@ function getViewOrderBy(view: string): Prisma.EventOrderByWithRelationInput {
     case "ending":
       return { endTime: "asc" };
     case "new":
+      return { createdAt: "desc" };
+    case "kol-created":
+      // Most recently created KOL events first
       return { createdAt: "desc" };
     case "trending":
     default:

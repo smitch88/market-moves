@@ -28,6 +28,14 @@ export default async function AdminEventEditPage({ params }: PageProps) {
     where: { id },
     include: {
       tags: true,
+      createdByKol: {
+        select: {
+          id: true,
+          name: true,
+          handle: true,
+          profileImageUrl: true,
+        },
+      },
     },
   });
 

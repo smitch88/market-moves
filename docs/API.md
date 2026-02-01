@@ -22,6 +22,7 @@ Fetch published events with optional filtering.
 |-------|------|-------------|
 | category | string | Filter by category |
 | featured | boolean | Featured events only |
+| view | string | Filter view: "trending", "ending", "new", "kol-created", "bookmarks" |
 | limit | number | Max results (default: 50) |
 
 **Response:**
@@ -34,11 +35,19 @@ Fetch published events with optional filtering.
       "title": "Super Bowl LIX",
       "category": "NFL",
       "isPublished": true,
+      "createdByKol": {
+        "id": "...",
+        "name": "Captain Name",
+        "handle": "captain_handle",
+        "profileImageUrl": "https://..."
+      },
       "markets": [...]
     }
   ]
 }
 ```
+
+The `createdByKol` field is present when the event was created by a KOL/Captain. The "kol-created" view filter returns only events that have a `createdByKol` attribution.
 
 ---
 

@@ -14,12 +14,13 @@ const updateEventSchema = z.object({
   active: z.boolean().optional(),
   closed: z.boolean().optional(),
   tagIds: z.array(z.string()).optional(),
+  createdByKolId: z.string().nullable().optional(), // KOL/Captain attribution
 });
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
-) {
+): Promise<NextResponse> {
   try {
     await requireAdmin();
     const { id } = await params;
@@ -28,6 +29,14 @@ export async function GET(
       where: { id },
       include: {
         tags: true,
+        createdByKol: {
+          select: {
+            id: true,
+            name: true,
+            handle: true,
+            profileImageUrl: true,
+          },
+        },
         markets: {
           include: {
             bets: {
@@ -80,7 +89,7 @@ export async function GET(
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
-) {
+): Promise<NextResponse> {
   try {
     const admin = await requireAdmin();
     const { id } = await params;
@@ -101,6 +110,7 @@ export async function PATCH(
           ...(data.active !== undefined && { active: data.active }),
           ...(data.closed !== undefined && { closed: data.closed }),
           ...(data.tagIds && { tags: { set: data.tagIds.map((tagId) => ({ id: tagId })) } }),
+          ...(data.createdByKolId !== undefined && { createdByKolId: data.createdByKolId || null }),
         },
       });
 
@@ -116,7 +126,18 @@ export async function PATCH(
 
       return tx.event.findUnique({
         where: { id },
-        include: { markets: true, tags: true },
+        include: { 
+          markets: true, 
+          tags: true,
+          createdByKol: {
+            select: {
+              id: true,
+              name: true,
+              handle: true,
+              profileImageUrl: true,
+            },
+          },
+        },
       });
     });
 

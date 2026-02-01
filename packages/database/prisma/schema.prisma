@@ -83,6 +83,8 @@ model User {
   streakBadges           StreakBadge[]
   kolBetNotifications    KOLBetNotification[]
   dailyKOLSnapshots      DailyKOLSnapshot[]
+  kolCreatedEvents       Event[]           @relation("KOLCreatedEvents")
+  kolCreatedMarkets      Market[]          @relation("KOLCreatedMarkets")
 
   @@index([email])
   @@index([twitterSubject])
@@ -350,6 +352,10 @@ model Event {
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
 
+  // KOL attribution - which captain/KOL created or is associated with this event
+  createdByKolId String?
+  createdByKol   User?   @relation("KOLCreatedEvents", fields: [createdByKolId], references: [id], onDelete: SetNull)
+
   // Relations
   markets             Market[]
   tags                Tag[]                @relation("EventToTag")
@@ -363,6 +369,7 @@ model Event {
   @@index([startTime])
   @@index([featured])
   @@index([isPublished])
+  @@index([createdByKolId])
 }
 
 /// Markets are individual prediction questions within an event
@@ -407,6 +414,10 @@ model Market {
   resolutionSourceId String?
   resolutionSource   ResolutionSource? @relation(fields: [resolutionSourceId], references: [id], onDelete: SetNull)
 
+  // KOL attribution - which captain/KOL created or is associated with this market
+  createdByKolId String?
+  createdByKol   User?  @relation("KOLCreatedMarkets", fields: [createdByKolId], references: [id], onDelete: SetNull)
+
   // Relations
   bets                 Bet[]
   event                Event                 @relation(fields: [eventId], references: [id], onDelete: Cascade)
@@ -426,6 +437,7 @@ model Market {
   @@index([pricingModel])
   @@index([isPublished])
   @@index([resolutionSourceId])
+  @@index([createdByKolId])
 }
 
 /// Price snapshots for historical price tracking

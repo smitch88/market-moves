@@ -34,6 +34,7 @@ import {
   ChevronDown,
   Filter,
   Bookmark,
+  Star,
 } from "lucide-react";
 import { usePrivy } from "@privy-io/react-auth";
 
@@ -41,6 +42,7 @@ const viewFilters = [
   { label: "Trending", value: "trending", icon: Flame },
   { label: "Ending Soon", value: "ending", icon: Clock },
   { label: "New", value: "new", icon: Sparkles },
+  { label: "Captain Created", value: "kol-created", icon: Star },
   { label: "Bookmarks", value: "bookmarks", icon: Bookmark, requiresAuth: true },
 ];
 

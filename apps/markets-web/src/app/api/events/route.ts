@@ -23,7 +23,7 @@ import { prisma } from "@vault/database";
  * - end_date_min: ISO date string
  * - end_date_max: ISO date string
  */
-export async function GET(request: NextRequest) {
+export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
     const { searchParams } = new URL(request.url);
     
@@ -94,6 +94,15 @@ export async function GET(request: NextRequest) {
               id: true,
               slug: true,
               label: true,
+            },
+          },
+          // Include KOL creator info
+          createdByKol: {
+            select: {
+              id: true,
+              name: true,
+              handle: true,
+              profileImageUrl: true,
             },
           },
           markets: {
@@ -211,6 +220,8 @@ export async function GET(request: NextRequest) {
         // Aggregated stats
         volume: eventVolume,
         liquidity: eventLiquidity,
+        // KOL creator info
+        createdByKol: event.createdByKol || null,
         // Nested data
         tags: event.tags,
         markets,

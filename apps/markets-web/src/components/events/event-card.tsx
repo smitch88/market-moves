@@ -7,6 +7,15 @@ import { Clock, TrendingUp, BarChart3 } from "lucide-react";
 import { motion } from "framer-motion";
 import type { Event, MarketCategory, EventType } from "@vault/database";
 import { cn } from "@vault/ui/lib/utils";
+import {
+  Avatar,
+  AvatarImage,
+  AvatarFallback,
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@vault/ui";
 import { getMarketUrl } from "@/lib/urls";
 import { QuickBetButton } from "./quick-bet-button";
 import { BookmarkButton } from "./bookmark-button";
@@ -19,6 +28,14 @@ type SerializedEvent = Omit<Event, 'createdAt' | 'updatedAt' | 'startTime' | 'en
   endTime: Date | string | null;
 };
 
+// KOL creator info
+interface KOLCreator {
+  id: string;
+  name: string | null;
+  handle: string | null;
+  profileImageUrl: string | null;
+}
+
 interface EventCardProps {
   event: SerializedEvent & {
     _count: { markets: number };
@@ -28,6 +45,7 @@ interface EventCardProps {
       totalVerifications?: number;
       earliestClose?: string | null;
     };
+    createdByKol?: KOLCreator | null;
   };
   index?: number;
 }
@@ -94,6 +112,7 @@ export function EventCard({ event, index = 0 }: EventCardProps) {
                   {event.category}
                 </span>
               </div>
+
             </div>
           )}
 
@@ -101,7 +120,7 @@ export function EventCard({ event, index = 0 }: EventCardProps) {
           <div className="p-5 flex-1 flex flex-col">
             {/* Category and date when no banner */}
             {!event.bannerUrl && (
-              <div className="mb-3 flex items-center gap-2">
+              <div className="mb-3 flex items-center gap-2 flex-wrap">
                 {endTime && (
                   <div
                     className={cn(
@@ -121,23 +140,52 @@ export function EventCard({ event, index = 0 }: EventCardProps) {
               </div>
             )}
 
-            {/* Title */}
-            <h3
-              className={cn(
-                "font-bold text-lg leading-tight mb-3 text-foreground group-hover:text-primary transition-colors line-clamp-2 min-h-[3.5rem]",
-                event.bannerUrl && "mt-1"
-              )}
-            >
-              {event.title}
-            </h3>
+            {/* Title + Description container - grows to fill space */}
+            <div className="flex-1">
+              <h3
+                className={cn(
+                  "font-bold text-lg leading-tight mb-2 text-foreground group-hover:text-primary transition-colors line-clamp-2",
+                  event.bannerUrl && "mt-1"
+                )}
+              >
+                {event.title}
+              </h3>
 
-            {/* Description - always render container for consistent height */}
-            <div className="text-sm text-muted-foreground line-clamp-2 mb-4 flex-1 min-h-[2.5rem]">
-              {event.description || " "}
+              {/* Description */}
+              <div className="text-sm text-muted-foreground line-clamp-2">
+                {event.description || " "}
+              </div>
             </div>
 
+            {/* Made by badge - only shown when KOL is assigned */}
+            {event.createdByKol && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="flex items-center gap-1.5 mt-3 cursor-pointer w-fit">
+                      <span className="text-xs text-muted-foreground">Made by</span>
+                      <Avatar className="h-4 w-4">
+                        <AvatarImage src={event.createdByKol.profileImageUrl || undefined} />
+                        <AvatarFallback className="bg-primary/20 text-primary text-[10px]">
+                          {(event.createdByKol.name || event.createdByKol.handle || "K")[0].toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="text-xs text-muted-foreground font-medium">
+                        @{event.createdByKol.handle}
+                      </span>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">
+                    <p className="text-xs font-semibold">
+                      {event.createdByKol.name || `@${event.createdByKol.handle}`}
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+
             {/* Stats */}
-            <div className="mt-auto pt-4 border-t border-border/50">
+            <div className="pt-4 border-t border-border/50 mt-3">
               <div className="flex items-center justify-between text-xs gap-2">
                 <div className="flex items-center gap-2 xs:gap-3 min-w-0 flex-wrap">
                   <div className="flex items-center gap-1 xs:gap-1.5 text-muted-foreground">

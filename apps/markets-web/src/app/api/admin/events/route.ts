@@ -14,6 +14,7 @@ const createEventSchema = z.object({
   startTime: z.string().nullable().optional(),
   endTime: z.string().nullable().optional(),
   tagIds: z.array(z.string()).optional(),
+  createdByKolId: z.string().nullable().optional(), // KOL/Captain attribution
   // New tags to create and associate with the event
   newTags: z.array(z.object({
     label: z.string().min(1),
@@ -34,7 +35,7 @@ const createEventSchema = z.object({
   })).optional().default([]),
 });
 
-export async function GET(request: NextRequest) {
+export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
     await requireAdmin();
     
@@ -48,6 +49,14 @@ export async function GET(request: NextRequest) {
       },
       include: {
         tags: true,
+        createdByKol: {
+          select: {
+            id: true,
+            name: true,
+            handle: true,
+            profileImageUrl: true,
+          },
+        },
         markets: {
           select: {
             id: true,
@@ -77,7 +86,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-export async function POST(request: NextRequest) {
+export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     const admin = await requireAdmin();
     const body = await request.json();
@@ -131,6 +140,7 @@ export async function POST(request: NextRequest) {
           logoUrl: data.logoUrl || null,
           startTime: data.startTime ? new Date(data.startTime) : null,
           endTime: data.endTime ? new Date(data.endTime) : null,
+          createdByKolId: data.createdByKolId || null,
           ...(allTagIds.length > 0 && {
             tags: { connect: allTagIds.map((id) => ({ id })) },
           }),
@@ -180,6 +190,14 @@ export async function POST(request: NextRequest) {
         include: { 
           markets: true,
           tags: true,
+          createdByKol: {
+            select: {
+              id: true,
+              name: true,
+              handle: true,
+              profileImageUrl: true,
+            },
+          },
         },
       });
     });
