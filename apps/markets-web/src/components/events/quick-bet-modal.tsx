@@ -880,10 +880,31 @@ export function QuickBetModal({
                 </div>
               )}
 
-              {/* Close button */}
-              <Button onClick={() => handleOpenChange(false)} variant="ghost" className="w-full text-muted-foreground">
-                Continue Browsing
-              </Button>
+              {/* Action buttons */}
+              <div className="flex gap-2">
+                <Button 
+                  onClick={() => {
+                    // Reset to initial state for another bet
+                    setStep(getInitialStep());
+                    setSelectedMarket(initialMarket);
+                    setSelectedOutcome(initialOutcome);
+                    setBetId(null);
+                    setConfirmedBetAmount(0);
+                    setConfirmedOutcome(null);
+                    setCopied(false);
+                    setXpClaimed(false);
+                    setClaimedXPAmount(0);
+                    setTweetUrl("");
+                    setShowManualEntry(false);
+                  }} 
+                  className="flex-1"
+                >
+                  Bet Again
+                </Button>
+                <Button onClick={() => handleOpenChange(false)} variant="ghost" className="flex-1 text-muted-foreground">
+                  Done
+                </Button>
+              </div>
             </div>
           ) : null}
         </div>

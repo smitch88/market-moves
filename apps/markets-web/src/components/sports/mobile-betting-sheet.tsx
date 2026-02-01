@@ -255,7 +255,6 @@ export function MobileBettingSheet({
         `Sold ${sharesNum.toFixed(2)} shares for $${proceedsNum.toFixed(2)}`
       );
       setAmount("");
-      setTradeMode("buy");
       onOpenChange(false);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["profile"] }),

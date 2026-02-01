@@ -239,7 +239,6 @@ export function SportsBettingSidebar({
       
       toast.success(`Sold ${sharesNum.toFixed(2)} shares for $${proceedsNum.toFixed(2)}`);
       setAmount("");
-      setTradeMode("buy");
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["profile"] }),
         queryClient.invalidateQueries({ queryKey: ["position", selectedMarket?.id] }),
