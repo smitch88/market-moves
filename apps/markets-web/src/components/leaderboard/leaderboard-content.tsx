@@ -9,6 +9,10 @@ import {
   AvatarFallback,
   Badge,
   Button,
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
 } from "@vault/ui";
 import {
   Search,
@@ -22,9 +26,11 @@ import {
   Loader2,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   User,
   Star,
   Users,
+  Check,
 } from "lucide-react";
 import { cn } from "@vault/ui/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
@@ -409,68 +415,160 @@ export function LeaderboardContent() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, delay: 0.1 }}
       >
-        {/* Period Tabs */}
-        <div className="flex items-center bg-muted/30 backdrop-blur-sm rounded-xl p-1.5 border border-border/30">
-          {periodTabs.map((tab) => {
-            const Icon = tab.icon;
-            const isActive = period === tab.value;
-            return (
-              <button
-                key={tab.value}
-                onClick={() => handlePeriodChange(tab.value)}
-                className={cn(
-                  "relative flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all",
-                  isActive
-                    ? "text-foreground"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
+        {/* Mobile: Dropdowns */}
+        <div className="flex sm:hidden gap-2 w-full">
+          {/* Period Dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                className="flex-1 justify-between bg-muted/30 border-border/30"
               >
-                {isActive && (
-                  <motion.div
-                    layoutId="activePeriod"
-                    className="absolute inset-0 bg-background rounded-lg shadow-sm border border-border/50"
-                    transition={{ type: "spring", bounce: 0.2, duration: 0.4 }}
-                  />
-                )}
-                <span className="relative flex items-center gap-2">
-                  <Icon className="h-4 w-4" />
-                  <span className="hidden sm:inline">{tab.label}</span>
+                <span className="flex items-center gap-2">
+                  {(() => {
+                    const activeTab = periodTabs.find((t) => t.value === period);
+                    const Icon = activeTab?.icon || Trophy;
+                    return (
+                      <>
+                        <Icon className="h-4 w-4" />
+                        {activeTab?.label}
+                      </>
+                    );
+                  })()}
                 </span>
-              </button>
-            );
-          })}
+                <ChevronDown className="h-4 w-4 opacity-50" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-[160px]">
+              {periodTabs.map((tab) => {
+                const Icon = tab.icon;
+                const isActive = period === tab.value;
+                return (
+                  <DropdownMenuItem
+                    key={tab.value}
+                    onClick={() => handlePeriodChange(tab.value)}
+                    className="flex items-center justify-between"
+                  >
+                    <span className="flex items-center gap-2">
+                      <Icon className="h-4 w-4" />
+                      {tab.label}
+                    </span>
+                    {isActive && <Check className="h-4 w-4" />}
+                  </DropdownMenuItem>
+                );
+              })}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* Metric Dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                className="flex-1 justify-between bg-muted/30 border-border/30"
+              >
+                <span className="flex items-center gap-2">
+                  {(() => {
+                    const activeTab = metricTabs.find((t) => t.value === metric);
+                    const Icon = activeTab?.icon || Sparkles;
+                    return (
+                      <>
+                        <Icon className="h-4 w-4" />
+                        {activeTab?.label}
+                      </>
+                    );
+                  })()}
+                </span>
+                <ChevronDown className="h-4 w-4 opacity-50" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-[160px]">
+              {metricTabs.map((tab) => {
+                const Icon = tab.icon;
+                const isActive = metric === tab.value;
+                return (
+                  <DropdownMenuItem
+                    key={tab.value}
+                    onClick={() => handleMetricChange(tab.value)}
+                    className="flex items-center justify-between"
+                  >
+                    <span className="flex items-center gap-2">
+                      <Icon className="h-4 w-4" />
+                      {tab.label}
+                    </span>
+                    {isActive && <Check className="h-4 w-4" />}
+                  </DropdownMenuItem>
+                );
+              })}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
 
-        {/* Metric Tabs */}
-        <div className="flex items-center bg-muted/30 backdrop-blur-sm rounded-xl p-1.5 border border-border/30">
-          {metricTabs.map((tab) => {
-            const Icon = tab.icon;
-            const isActive = metric === tab.value;
-            return (
-              <button
-                key={tab.value}
-                onClick={() => handleMetricChange(tab.value)}
-                className={cn(
-                  "relative flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all",
-                  isActive
-                    ? "text-foreground"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                {isActive && (
-                  <motion.div
-                    layoutId="activeMetric"
-                    className="absolute inset-0 bg-background rounded-lg shadow-sm border border-border/50"
-                    transition={{ type: "spring", bounce: 0.2, duration: 0.4 }}
-                  />
-                )}
-                <span className="relative flex items-center gap-2">
-                  <Icon className="h-4 w-4" />
-                  {tab.label}
-                </span>
-              </button>
-            );
-          })}
+        {/* Desktop: Tab buttons */}
+        <div className="hidden sm:flex sm:flex-row gap-4">
+          {/* Period Tabs */}
+          <div className="flex items-center bg-muted/30 backdrop-blur-sm rounded-xl p-1.5 border border-border/30">
+            {periodTabs.map((tab) => {
+              const Icon = tab.icon;
+              const isActive = period === tab.value;
+              return (
+                <button
+                  key={tab.value}
+                  onClick={() => handlePeriodChange(tab.value)}
+                  className={cn(
+                    "relative flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all",
+                    isActive
+                      ? "text-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  {isActive && (
+                    <motion.div
+                      layoutId="activePeriod"
+                      className="absolute inset-0 bg-background rounded-lg shadow-sm border border-border/50"
+                      transition={{ type: "spring", bounce: 0.2, duration: 0.4 }}
+                    />
+                  )}
+                  <span className="relative flex items-center gap-2">
+                    <Icon className="h-4 w-4" />
+                    {tab.label}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Metric Tabs */}
+          <div className="flex items-center bg-muted/30 backdrop-blur-sm rounded-xl p-1.5 border border-border/30">
+            {metricTabs.map((tab) => {
+              const Icon = tab.icon;
+              const isActive = metric === tab.value;
+              return (
+                <button
+                  key={tab.value}
+                  onClick={() => handleMetricChange(tab.value)}
+                  className={cn(
+                    "relative flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all",
+                    isActive
+                      ? "text-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  {isActive && (
+                    <motion.div
+                      layoutId="activeMetric"
+                      className="absolute inset-0 bg-background rounded-lg shadow-sm border border-border/50"
+                      transition={{ type: "spring", bounce: 0.2, duration: 0.4 }}
+                    />
+                  )}
+                  <span className="relative flex items-center gap-2">
+                    <Icon className="h-4 w-4" />
+                    {tab.label}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       </motion.div>
 
