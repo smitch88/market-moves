@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   runDailyKOLCompetition,
+  calculateAndAwardKOLMarketVolumeXP,
   type CompetitionResult,
+  type DailyKOLMarketVolumeResults,
 } from "@/lib/services/kol-competition-service";
 
 /**
@@ -37,60 +39,109 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    console.log("[Cron] Starting daily KOL competition...");
+    console.log("[Cron] Starting daily KOL tasks...");
     const startTime = Date.now();
 
     // Run the competition for yesterday (the day that just ended)
-    const result: CompetitionResult = await runDailyKOLCompetition();
+    console.log("[Cron] Running daily KOL competition...");
+    const competitionResult: CompetitionResult = await runDailyKOLCompetition();
+
+    // Run captain market volume XP distribution
+    console.log("[Cron] Running captain market volume XP distribution...");
+    const volumeResult: DailyKOLMarketVolumeResults = await calculateAndAwardKOLMarketVolumeXP();
 
     const duration = Date.now() - startTime;
 
-    console.log("[Cron] Daily KOL competition completed", {
-      date: result.date.toISOString(),
-      winner: result.winner?.kolUserId || "none",
-      totalXpDistributed: result.totalXpDistributed,
-      followersRewarded: result.followersRewarded,
-      participantCount: result.allParticipants.length,
+    console.log("[Cron] Daily KOL tasks completed", {
+      date: competitionResult.date.toISOString(),
+      competition: {
+        winner: competitionResult.winner?.kolUserId || "none",
+        totalXpDistributed: competitionResult.totalXpDistributed,
+        followersRewarded: competitionResult.followersRewarded,
+        participantCount: competitionResult.allParticipants.length,
+      },
+      marketVolume: {
+        captainsRewarded: volumeResult.results.filter(r => r.xpAwarded > 0).length,
+        totalXpDistributed: volumeResult.totalXpDistributed,
+      },
       durationMs: duration,
     });
 
+    const totalXpDistributed = competitionResult.totalXpDistributed + volumeResult.totalXpDistributed;
+
     return NextResponse.json({
       success: true,
-      message: result.winner
-        ? `Competition complete! Winner: ${result.winner.name || result.winner.handle || result.winner.kolUserId}`
+      message: competitionResult.winner
+        ? `Competition complete! Winner: ${competitionResult.winner.name || competitionResult.winner.handle || competitionResult.winner.kolUserId}`
         : "Competition complete. No winner (no KOL had follower activity).",
       summary: {
-        date: result.date.toISOString().split("T")[0],
-        winner: result.winner
-          ? {
-              id: result.winner.kolUserId,
-              name: result.winner.name || result.winner.handle,
-              followerVolume: result.winner.followerVolume,
-              followerPnL: result.winner.followerPnL,
-              xpAwarded: result.winner.xpAwarded,
-            }
-          : null,
-        totalParticipants: result.allParticipants.length,
-        followersRewarded: result.followersRewarded,
-        totalXpDistributed: result.totalXpDistributed,
+        date: competitionResult.date.toISOString().split("T")[0],
+        competition: {
+          winner: competitionResult.winner
+            ? {
+                id: competitionResult.winner.kolUserId,
+                name: competitionResult.winner.name || competitionResult.winner.handle,
+                followerVolume: competitionResult.winner.followerVolume,
+                followerPnL: competitionResult.winner.followerPnL,
+                xpAwarded: competitionResult.winner.xpAwarded,
+              }
+            : null,
+          totalParticipants: competitionResult.allParticipants.length,
+          followersRewarded: competitionResult.followersRewarded,
+          xpDistributed: competitionResult.totalXpDistributed,
+        },
+        marketVolume: {
+          captainsRewarded: volumeResult.results.filter(r => r.xpAwarded > 0).length,
+          topCaptains: volumeResult.results
+            .filter(r => r.xpAwarded > 0)
+            .sort((a, b) => b.xpAwarded - a.xpAwarded)
+            .slice(0, 5)
+            .map(r => ({
+              id: r.kolUserId,
+              name: r.name || r.handle,
+              volume: r.dailyVolume,
+              xpAwarded: r.xpAwarded,
+            })),
+          xpDistributed: volumeResult.totalXpDistributed,
+        },
+        totalXpDistributed,
         durationMs: duration,
       },
     });
   } catch (error) {
-    // Handle "already run" error gracefully
+    // Handle "already run" error gracefully - still try to run market volume XP
     if (error instanceof Error && error.message.includes("already run")) {
       console.log("[Cron] Competition already run for this date:", error.message);
-      return NextResponse.json({
-        success: true,
-        message: error.message,
-        skipped: true,
-      });
+      
+      // Still try to run market volume XP distribution
+      try {
+        console.log("[Cron] Running captain market volume XP distribution...");
+        const volumeResult = await calculateAndAwardKOLMarketVolumeXP();
+        
+        return NextResponse.json({
+          success: true,
+          message: error.message,
+          competitionSkipped: true,
+          marketVolume: {
+            captainsRewarded: volumeResult.results.filter(r => r.xpAwarded > 0).length,
+            xpDistributed: volumeResult.totalXpDistributed,
+          },
+        });
+      } catch (volumeError) {
+        console.error("[Cron] Market volume XP distribution failed:", volumeError);
+        return NextResponse.json({
+          success: true,
+          message: error.message,
+          competitionSkipped: true,
+          marketVolumeError: volumeError instanceof Error ? volumeError.message : "Unknown error",
+        });
+      }
     }
 
-    console.error("[Cron] Daily KOL competition failed:", error);
+    console.error("[Cron] Daily KOL tasks failed:", error);
     return NextResponse.json(
       {
-        error: "Failed to run competition",
+        error: "Failed to run daily KOL tasks",
         message: error instanceof Error ? error.message : "Unknown error",
       },
       { status: 500 }

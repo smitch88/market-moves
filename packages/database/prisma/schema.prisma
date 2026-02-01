@@ -787,6 +787,7 @@ enum XPReason {
   KOL_DAILY_WIN // XP bonus for winning KOL daily competition
   KOL_FOLLOWER_BONUS // XP bonus for followers of winning KOL
   STREAK_BONUS // XP bonus from streak multiplier
+  KOL_MARKET_VOLUME // XP earned by KOL from volume on their attributed markets
 }
 
 enum MarketRequestStatus {

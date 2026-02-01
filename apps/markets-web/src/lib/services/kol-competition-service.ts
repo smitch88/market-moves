@@ -17,6 +17,10 @@ import { prisma, XPReason, BetStatus, Prisma } from "@vault/database";
 const DAILY_KOL_WINNER_XP = 50000; // 50k XP to winning KOL
 const FOLLOWER_XP_SHARE_PERCENT = 10; // Followers get 10% of what KOL gets (5k each)
 
+// XP rate for captain market volume (1/10th of normal rate)
+// Normal rate is 10 XP per $1, so captains get 1 XP per $1 of volume on their markets
+const KOL_MARKET_VOLUME_XP_PER_DOLLAR = 1;
+
 // ============================================================================
 // TYPES
 // ============================================================================
@@ -41,6 +45,20 @@ export interface CompetitionResult {
   } | null;
   allParticipants: KOLDailyPerformance[];
   followersRewarded: number;
+  totalXpDistributed: number;
+}
+
+export interface KOLMarketVolumeResult {
+  kolUserId: string;
+  handle: string | null;
+  name: string | null;
+  dailyVolume: number;
+  xpAwarded: number;
+}
+
+export interface DailyKOLMarketVolumeResults {
+  date: Date;
+  results: KOLMarketVolumeResult[];
   totalXpDistributed: number;
 }
 
@@ -397,5 +415,206 @@ export async function getKOLCompetitionStats(kolUserId: string): Promise<{
     totalXpEarned,
     bestDayVolume,
     bestDayPnL,
+  };
+}
+
+// ============================================================================
+// CAPTAIN MARKET VOLUME XP
+// ============================================================================
+
+/**
+ * Calculate and award XP to captains based on volume from their attributed events/markets
+ * Captains get 1 XP per $1 of volume (1/10th of normal trader rate)
+ * This runs daily as part of the cron job
+ */
+export async function calculateAndAwardKOLMarketVolumeXP(
+  forDate?: Date
+): Promise<DailyKOLMarketVolumeResults> {
+  // Default to yesterday if no date specified
+  const targetDate = forDate || getStartOfYesterday();
+  const startOfDay = new Date(Date.UTC(
+    targetDate.getUTCFullYear(),
+    targetDate.getUTCMonth(),
+    targetDate.getUTCDate()
+  ));
+  const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
+
+  // Find all events that have a captain assigned
+  const eventsWithCaptains = await prisma.event.findMany({
+    where: {
+      createdByKolId: { not: null },
+    },
+    select: {
+      id: true,
+      createdByKolId: true,
+      createdByKol: {
+        select: {
+          id: true,
+          handle: true,
+          name: true,
+          xp: true,
+        },
+      },
+      markets: {
+        select: {
+          id: true,
+        },
+      },
+    },
+  });
+
+  // Group events by KOL
+  const kolEventsMap = new Map<string, {
+    kol: { id: string; handle: string | null; name: string | null; xp: number };
+    marketIds: string[];
+  }>();
+
+  for (const event of eventsWithCaptains) {
+    if (!event.createdByKolId || !event.createdByKol) continue;
+
+    const existing = kolEventsMap.get(event.createdByKolId);
+    const marketIds = event.markets.map(m => m.id);
+
+    if (existing) {
+      existing.marketIds.push(...marketIds);
+    } else {
+      kolEventsMap.set(event.createdByKolId, {
+        kol: event.createdByKol,
+        marketIds,
+      });
+    }
+  }
+
+  // Also check for markets directly attributed to KOLs (not through events)
+  const allMarketsWithCaptains = await prisma.market.findMany({
+    where: {
+      createdByKolId: { not: null },
+    },
+    select: {
+      id: true,
+      createdByKolId: true,
+      eventId: true,
+    },
+  });
+  
+  // Filter to only standalone markets (not part of an event)
+  const marketsWithCaptains = allMarketsWithCaptains.filter(m => !m.eventId);
+
+  // Get unique KOL IDs from standalone markets
+  const standaloneKolIds = [...new Set(marketsWithCaptains.map(m => m.createdByKolId).filter(Boolean))] as string[];
+  
+  // Fetch KOL data for these
+  const standaloneKols = standaloneKolIds.length > 0 
+    ? await prisma.user.findMany({
+        where: { id: { in: standaloneKolIds } },
+        select: { id: true, handle: true, name: true, xp: true },
+      })
+    : [];
+  
+  const standaloneKolMap = new Map(standaloneKols.map(k => [k.id, k]));
+
+  for (const market of marketsWithCaptains) {
+    if (!market.createdByKolId) continue;
+    
+    const kol = standaloneKolMap.get(market.createdByKolId);
+    if (!kol) continue;
+
+    const existing = kolEventsMap.get(market.createdByKolId);
+    if (existing) {
+      existing.marketIds.push(market.id);
+    } else {
+      kolEventsMap.set(market.createdByKolId, {
+        kol,
+        marketIds: [market.id],
+      });
+    }
+  }
+
+  const results: KOLMarketVolumeResult[] = [];
+  let totalXpDistributed = 0;
+
+  // Calculate volume and award XP for each KOL
+  for (const [kolId, data] of kolEventsMap) {
+    if (data.marketIds.length === 0) continue;
+
+    // Get volume from bets on these markets for the target day
+    const volumeAgg = await prisma.bet.aggregate({
+      where: {
+        marketId: { in: data.marketIds },
+        status: BetStatus.CONFIRMED,
+        createdAt: {
+          gte: startOfDay,
+          lt: endOfDay,
+        },
+        tradeType: "BUY", // Only count buys, not sells (to avoid double counting)
+      },
+      _sum: { amount: true },
+    });
+
+    const dailyVolume = Number(volumeAgg._sum.amount ?? 0);
+    
+    if (dailyVolume <= 0) {
+      results.push({
+        kolUserId: kolId,
+        handle: data.kol.handle,
+        name: data.kol.name,
+        dailyVolume: 0,
+        xpAwarded: 0,
+      });
+      continue;
+    }
+
+    // Calculate XP to award (1 XP per $1)
+    const xpToAward = Math.floor(dailyVolume * KOL_MARKET_VOLUME_XP_PER_DOLLAR);
+
+    if (xpToAward > 0) {
+      // Award XP in a transaction
+      await prisma.$transaction(async (tx) => {
+        const kolUser = await tx.user.findUnique({
+          where: { id: kolId },
+          select: { xp: true },
+        });
+
+        if (!kolUser) return;
+
+        const xpBefore = kolUser.xp;
+        const xpAfter = xpBefore + xpToAward;
+
+        await tx.user.update({
+          where: { id: kolId },
+          data: { xp: xpAfter },
+        });
+
+        await tx.xPLedger.create({
+          data: {
+            userId: kolId,
+            delta: xpToAward,
+            xpBefore,
+            xpAfter,
+            // Using string literal as XPReason.KOL_MARKET_VOLUME needs prisma generate
+            reason: "KOL_MARKET_VOLUME" as XPReason,
+            correlationId: `kol-market-volume-${startOfDay.toISOString().split("T")[0]}`,
+          },
+        });
+      });
+
+      totalXpDistributed += xpToAward;
+    }
+
+    results.push({
+      kolUserId: kolId,
+      handle: data.kol.handle,
+      name: data.kol.name,
+      dailyVolume,
+      xpAwarded: xpToAward,
+    });
+  }
+
+  console.log(`[KOL Market Volume] Awarded ${totalXpDistributed} XP to ${results.filter(r => r.xpAwarded > 0).length} captains for date ${startOfDay.toISOString().split("T")[0]}`);
+
+  return {
+    date: startOfDay,
+    results,
+    totalXpDistributed,
   };
 }
