@@ -22,12 +22,68 @@ import { ThemedToaster } from "@/components/providers/themed-toaster";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Vault Markets | Prediction Markets",
-  description: "The future of decentralized prediction markets. Place bets on real-world outcomes.",
+  title: {
+    default: "Vault777 Markets - Prediction Markets Platform",
+    template: "%s | Vault777 Markets",
+  },
+  description:
+    "Trade on real-world outcomes with Vault777 Markets. Bet on sports, politics, crypto, entertainment, and more. Every prediction tracked, every outcome verifiable.",
+  keywords: [
+    "prediction markets",
+    "betting",
+    "sports betting",
+    "crypto predictions",
+    "political betting",
+    "entertainment markets",
+    "forecast markets",
+    "event contracts",
+    "Vault777",
+  ],
+  authors: [{ name: "Vault777" }],
+  creator: "Vault777",
+  publisher: "Vault777",
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_APP_URL || "https://markets.vault777.com"
+  ),
   openGraph: {
-    title: "Vault Markets | Prediction Markets",
-    description: "The future of decentralized prediction markets.",
     type: "website",
+    locale: "en_US",
+    siteName: "Vault777 Markets",
+    title: "Vault777 Markets - Prediction Markets Platform",
+    description:
+      "Trade on real-world outcomes with Vault777 Markets. Bet on sports, politics, crypto, entertainment, and more. Every prediction tracked, every outcome verifiable.",
+    images: [
+      {
+        url: "/vault777markets.png",
+        width: 1200,
+        height: 630,
+        alt: "Vault777 Markets - Prediction Markets Platform",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Vault777 Markets - Prediction Markets Platform",
+    description:
+      "Trade on real-world outcomes with Vault777 Markets. Bet on sports, politics, crypto, entertainment, and more.",
+    images: ["/vault777markets.png"],
+    creator: "@vault777",
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-video-preview": -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
+  },
+  icons: {
+    icon: "/logo.svg",
+    shortcut: "/logo.svg",
+    apple: "/logo.svg",
   },
 };
 

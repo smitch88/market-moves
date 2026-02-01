@@ -96,7 +96,6 @@ export default async function AdminEventsPage({ searchParams }: PageProps) {
       isPublished: true,
       startTime: true,
       createdAt: true,
-      tags: true,
       markets: {
         select: {
           id: true,
@@ -300,14 +299,6 @@ export default async function AdminEventsPage({ searchParams }: PageProps) {
                 </div>
                 <div className="flex items-center gap-2 mb-3">
                   <Badge variant="secondary" className="text-xs">{event.category}</Badge>
-                  {event.tags.slice(0, 2).map((tag) => (
-                    <Badge key={tag.id} variant="outline" className="text-xs">
-                      {tag.label}
-                    </Badge>
-                  ))}
-                  {event.tags.length > 2 && (
-                    <Badge variant="outline" className="text-xs">+{event.tags.length - 2}</Badge>
-                  )}
                 </div>
                 <div className="grid grid-cols-4 gap-2 pt-3 border-t border-border/50 text-center">
                   <div>
@@ -349,9 +340,6 @@ export default async function AdminEventsPage({ searchParams }: PageProps) {
                   </th>
                   <th className="text-left p-4 font-medium text-muted-foreground">
                     Category
-                  </th>
-                  <th className="text-left p-4 font-medium text-muted-foreground">
-                    Tags
                   </th>
                   <th className="text-left p-4 font-medium text-muted-foreground">
                     <Link href={buildSortUrl("markets")} className="flex items-center hover:text-foreground">
@@ -404,24 +392,6 @@ export default async function AdminEventsPage({ searchParams }: PageProps) {
                     </td>
                     <td className="p-4">
                       <Badge variant="secondary">{event.category}</Badge>
-                    </td>
-                    <td className="p-4">
-                      <div className="flex flex-wrap gap-1">
-                        {event.tags.slice(0, 3).map((tag) => (
-                          <Badge
-                            key={tag.id}
-                            variant="outline"
-                            className="text-xs"
-                          >
-                            {tag.label}
-                          </Badge>
-                        ))}
-                        {event.tags.length > 3 && (
-                          <Badge variant="outline" className="text-xs">
-                            +{event.tags.length - 3}
-                          </Badge>
-                        )}
-                      </div>
                     </td>
                     <td className="p-4">{event._count.markets}</td>
                     <td className="p-4 text-right font-mono text-sm">
@@ -482,7 +452,7 @@ export default async function AdminEventsPage({ searchParams }: PageProps) {
                 {eventsWithStats.length === 0 && (
                   <tr>
                     <td
-                      colSpan={10}
+                      colSpan={9}
                       className="p-8 text-center text-muted-foreground"
                     >
                       No events found. Try adjusting your filters.

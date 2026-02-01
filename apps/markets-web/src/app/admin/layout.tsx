@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getSessionUser } from "@vault/auth";
 import { prisma } from "@vault/database";
@@ -5,6 +6,14 @@ import { AdminSidebar } from "@/components/admin/admin-sidebar";
 
 // Force dynamic rendering for all admin routes (auth + db access)
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  title: "Admin Dashboard",
+  robots: {
+    index: false,
+    follow: false,
+  },
+};
 
 export default async function AdminLayout({
   children,
