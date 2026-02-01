@@ -78,33 +78,41 @@ export function Header() {
   const xp = xpData?.xp ?? 0;
   const balance = profile?.balance ?? 0;
 
-  // Get resetOptimisticOffsets from animation context
-  const { resetOptimisticOffsets } = useXPAnimation();
+  // Get reset functions from animation context
+  const { resetBalanceOffset, resetXPOffset } = useXPAnimation();
   
-  // Track when data was last updated to reset optimistic offsets
-  const prevXpUpdatedAtRef = useRef<number | undefined>(undefined);
+  // Track previous values to reset optimistic offsets when actual data changes
+  const prevXpRef = useRef<number | undefined>(undefined);
+  const prevBalanceRef = useRef<number | undefined>(undefined);
+  const initializedRef = useRef(false);
   
-  // Reset optimistic offsets when actual data is refetched
-  // Add a small delay to ensure animations have started
+  // Reset balance offset when actual balance changes from server
   useEffect(() => {
-    // Skip the initial render
-    if (prevXpUpdatedAtRef.current === undefined) {
-      prevXpUpdatedAtRef.current = xpUpdatedAt;
+    // Skip initialization
+    if (!initializedRef.current) {
+      if (balance !== undefined) {
+        prevBalanceRef.current = balance;
+      }
+      if (xp !== undefined) {
+        prevXpRef.current = xp;
+        initializedRef.current = true;
+      }
       return;
     }
     
-    // If XP data was updated (refetched), reset optimistic offsets after a delay
-    // This ensures the count-up animation has time to start before reset
-    if (xpUpdatedAt && xpUpdatedAt !== prevXpUpdatedAtRef.current) {
-      const timer = setTimeout(() => {
-        resetOptimisticOffsets();
-      }, 300); // Small delay to let animation start
-      
-      prevXpUpdatedAtRef.current = xpUpdatedAt;
-      
-      return () => clearTimeout(timer);
+    // If balance changed, reset balance offset immediately
+    // The AnimatedNumber will handle the animation from old to new value
+    if (balance !== prevBalanceRef.current) {
+      resetBalanceOffset();
+      prevBalanceRef.current = balance;
     }
-  }, [xpUpdatedAt, resetOptimisticOffsets]);
+    
+    // If XP changed, reset XP offset immediately
+    if (xp !== prevXpRef.current) {
+      resetXPOffset();
+      prevXpRef.current = xp;
+    }
+  }, [balance, xp, resetBalanceOffset, resetXPOffset]);
   // Show loading state while Privy is initializing or data is loading
   const isLoadingUserData = !canFetchAuthData || profileLoading || xpLoading;
 

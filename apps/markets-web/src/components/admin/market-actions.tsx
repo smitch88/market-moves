@@ -39,6 +39,8 @@ export function MarketActions({ market, outcomes }: MarketActionsProps) {
     mutationFn: async () => {
       const res = await fetch(`/api/admin/markets/${market.id}/publish`, {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isPublished: true }),
       });
       if (!res.ok) throw new Error("Failed to publish market");
       return res.json();

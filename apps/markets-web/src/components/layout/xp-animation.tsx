@@ -30,6 +30,8 @@ interface XPAnimationContextType {
   clearActiveBalance: () => void;
   // Reset optimistic offsets (call when data is refetched)
   resetOptimisticOffsets: () => void;
+  resetBalanceOffset: () => void;
+  resetXPOffset: () => void;
 }
 
 const XPAnimationContext = createContext<XPAnimationContextType | null>(null);
@@ -80,6 +82,16 @@ export function XPAnimationProvider({ children }: XPAnimationProviderProps) {
   const resetOptimisticOffsets = useCallback(() => {
     setOptimisticXPOffset(0);
     setOptimisticBalanceOffset(0);
+  }, []);
+
+  // Reset only balance offset (call when balance data is refetched)
+  const resetBalanceOffset = useCallback(() => {
+    setOptimisticBalanceOffset(0);
+  }, []);
+
+  // Reset only XP offset (call when XP data is refetched)
+  const resetXPOffset = useCallback(() => {
+    setOptimisticXPOffset(0);
   }, []);
 
   // Flush the queue - trigger all pending animations
@@ -142,6 +154,8 @@ export function XPAnimationProvider({ children }: XPAnimationProviderProps) {
         clearActiveXP,
         clearActiveBalance,
         resetOptimisticOffsets,
+        resetBalanceOffset,
+        resetXPOffset,
       }}
     >
       {children}
@@ -221,7 +235,7 @@ interface AnimatedXPDisplayProps {
 }
 
 export function AnimatedXPDisplay({ xp, isLoading }: AnimatedXPDisplayProps) {
-  const { activeXPChange, clearActiveXP, optimisticXPOffset } = useXPAnimation();
+  const { activeXPChange, clearActiveXP } = useXPAnimation();
   const [showChange, setShowChange] = useState(false);
   const [displayedChange, setDisplayedChange] = useState<number | null>(null);
 
@@ -238,8 +252,9 @@ export function AnimatedXPDisplay({ xp, isLoading }: AnimatedXPDisplayProps) {
     );
   }
 
-  // Use optimistic offset for immediate count-up before data refreshes
-  const displayedXP = xp + optimisticXPOffset;
+  // Use server XP directly - AnimatedNumber handles the animation
+  // from old to new value when server confirms the change
+  const displayedXP = xp;
 
   return (
     <div className="relative">
@@ -298,7 +313,7 @@ interface AnimatedBalanceDisplayProps {
 }
 
 export function AnimatedBalanceDisplay({ balance, isLoading }: AnimatedBalanceDisplayProps) {
-  const { activeBalanceChange, clearActiveBalance, optimisticBalanceOffset } = useXPAnimation();
+  const { activeBalanceChange, clearActiveBalance } = useXPAnimation();
   const [showChange, setShowChange] = useState(false);
   const [displayedChange, setDisplayedChange] = useState<number | null>(null);
 
@@ -315,8 +330,9 @@ export function AnimatedBalanceDisplay({ balance, isLoading }: AnimatedBalanceDi
     );
   }
 
-  // Use optimistic offset for immediate count-up before data refreshes
-  const displayedBalance = balance + optimisticBalanceOffset;
+  // Use server balance directly - AnimatedNumber handles the animation
+  // from old to new value when server confirms the change
+  const displayedBalance = balance;
 
   return (
     <div className="relative">

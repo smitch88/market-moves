@@ -39,23 +39,41 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       return NextResponse.json({ error: "Market not found" }, { status: 404 });
     }
 
-    // Cannot publish a market if its parent event is unpublished
-    if (isPublished && !market.event.isPublished) {
-      return NextResponse.json(
-        { 
-          error: "Cannot publish market when parent event is unpublished",
-          eventId: market.event.id,
-          eventTitle: market.event.title,
-        },
-        { status: 400 }
-      );
-    }
-
-    // Update the market
+    // Update the market (and event if needed)
     const result = await prisma.$transaction(async (tx) => {
+      // If publishing market and parent event is unpublished, publish the event too
+      let eventPublished = false;
+      if (isPublished && !market.event.isPublished) {
+        await tx.event.update({
+          where: { id: market.event.id },
+          data: { isPublished: true },
+        });
+        eventPublished = true;
+
+        // Log event publish action
+        await tx.adminActionLog.create({
+          data: {
+            adminUserId: admin.id,
+            action: "EVENT_UPDATE",
+            targetType: "Event",
+            targetId: market.event.id,
+            metadata: {
+              action: "publish",
+              title: market.event.title,
+              reason: "Auto-published with market",
+            },
+          },
+        });
+      }
+
       const updatedMarket = await tx.market.update({
         where: { id },
-        data: { isPublished },
+        data: {
+          isPublished,
+          // When publishing, set status to OPEN so users can bet
+          // When unpublishing, revert to DRAFT
+          status: isPublished ? "OPEN" : "DRAFT",
+        },
       });
 
       // Log admin action
@@ -72,14 +90,17 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
         },
       });
 
-      return updatedMarket;
+      return { updatedMarket, eventPublished };
     });
 
     return NextResponse.json({
       success: true,
-      market: result,
+      market: result.updatedMarket,
+      eventPublished: result.eventPublished,
       message: isPublished
-        ? `Market is now published`
+        ? result.eventPublished
+          ? `Market and parent event are now published`
+          : `Market is now published`
         : `Market is now unpublished`,
     });
   } catch (error) {
