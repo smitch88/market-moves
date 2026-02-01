@@ -11,6 +11,36 @@ interface FAQItem {
 
 const faqCategories: { title: string; items: FAQItem[] }[] = [
   {
+    title: "Prizes",
+    items: [
+      {
+        question: "What prizes can I win?",
+        answer: [
+          "$50,000 in stablecoins split across 100 winners based on leaderboard performance.",
+          "The top PnL trader wins an exclusive prize package: 2x Super Bowl 2026 tickets plus travel and spending money!",
+        ],
+      },
+      {
+        question: "How are prize winners determined?",
+        answer: [
+          "Winners are determined by your position on the leaderboard at the end of the competition period. The leaderboard ranks traders by their total profit and loss (PnL).",
+          "Make smart predictions, grow your virtual balance, and climb the ranks to secure your share of the prize pool!",
+        ],
+      },
+      {
+        question: "When will prizes be distributed?",
+        answer: "Prize distribution details and timelines will be announced as the competition progresses. Stay tuned to our official X account @UseVault777 for updates.",
+      },
+      {
+        question: "Are there any restrictions on prize eligibility?",
+        answer: [
+          "Vault Markets reserves the right to withhold or refuse prize distribution to any account found to be engaging in nefarious activities, spam behavior, abuse of the platform, or exploitation of system vulnerabilities.",
+          "This includes but is not limited to: creating multiple accounts, using bots or automated systems, colluding with other users, or any other behavior that violates the spirit of fair competition. All decisions regarding eligibility are final.",
+        ],
+      },
+    ],
+  },
+  {
     title: "Getting Started",
     items: [
       {

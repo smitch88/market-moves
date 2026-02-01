@@ -8,7 +8,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@vault/ui";
 import { useAuthFetch } from "@/lib/auth/auth-fetch";
-import { X, HelpCircle } from "lucide-react";
+import { X, HelpCircle, Trophy, Ticket } from "lucide-react";
 
 // Custom event name for opening the welcome modal
 export const OPEN_WELCOME_MODAL_EVENT = "open-welcome-modal";
@@ -116,12 +116,34 @@ export function WelcomeModal() {
                   Welcome to Predictions by Vault777
                 </h1>
 
-                <p className="text-sm text-muted-foreground leading-relaxed mb-4 max-w-lg mx-auto">
+                <p className="text-sm text-muted-foreground leading-relaxed mb-4 max-w-xl mx-auto">
                   Think you can predict the future? Everyone starts with{" "}
                   <span className="text-foreground font-medium">$10,000</span> in virtual
                   credits. Make predictions on real-world events and compete to
                   see who has the best calls. Top predictors climb the leaderboard.
                 </p>
+
+                {/* Prize highlights */}
+                <div className="flex flex-col sm:flex-row gap-3 mb-5 max-w-xl mx-auto">
+                  <div className="flex-1 p-3 rounded-xl bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20">
+                    <div className="flex items-center justify-center gap-2 mb-1.5">
+                      <Trophy className="h-4 w-4 text-primary" />
+                      <span className="text-sm font-semibold text-primary">$50,000</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      in stablecoins split across 100 winners
+                    </p>
+                  </div>
+                  <div className="flex-1 p-3 rounded-xl bg-gradient-to-br from-amber-500/10 to-amber-500/5 border border-amber-500/20">
+                    <div className="flex items-center justify-center gap-2 mb-1.5">
+                      <Ticket className="h-4 w-4 text-amber-500" />
+                      <span className="text-sm font-semibold text-amber-500">Top Trader</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      wins 2x Super Bowl 2026 tickets + travel
+                    </p>
+                  </div>
+                </div>
 
                 <Link
                   href="/faq"
