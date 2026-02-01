@@ -2,12 +2,21 @@
 
 import { useState, useEffect } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { usePrivy } from "@privy-io/react-auth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@vault/ui";
 import { useAuthFetch } from "@/lib/auth/auth-fetch";
-import { X } from "lucide-react";
+import { X, HelpCircle } from "lucide-react";
+
+// Custom event name for opening the welcome modal
+export const OPEN_WELCOME_MODAL_EVENT = "open-welcome-modal";
+
+// Helper function to open the welcome modal from anywhere
+export function openWelcomeModal() {
+  window.dispatchEvent(new CustomEvent(OPEN_WELCOME_MODAL_EVENT));
+}
 
 export function WelcomeModal() {
   const { authenticated, ready } = usePrivy();
@@ -40,6 +49,13 @@ export function WelcomeModal() {
     },
   });
 
+  // Listen for custom event to open modal
+  useEffect(() => {
+    const handleOpenModal = () => setOpen(true);
+    window.addEventListener(OPEN_WELCOME_MODAL_EVENT, handleOpenModal);
+    return () => window.removeEventListener(OPEN_WELCOME_MODAL_EVENT, handleOpenModal);
+  }, []);
+
   // Show modal when profile loads and user hasn't seen it
   useEffect(() => {
     if (profile && !profile.hasSeenWelcomeModal && !isLoading) {
@@ -50,73 +66,95 @@ export function WelcomeModal() {
 
   const handleClose = () => {
     setOpen(false);
-    markSeenMutation.mutate();
+    // Only mark as seen if user hasn't seen it before
+    if (profile && !profile.hasSeenWelcomeModal) {
+      markSeenMutation.mutate();
+    }
   };
-
-  if (!authenticated || !ready || !profile) {
-    return null;
-  }
 
   return (
     <AnimatePresence>
-      {open && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
-          onClick={handleClose}
-        >
+        {open && (
           <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 10 }}
-            transition={{ duration: 0.15 }}
-            onClick={(e) => e.stopPropagation()}
-            className="relative w-full max-w-2xl bg-card border border-border rounded-2xl shadow-xl"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-end md:items-center justify-center md:p-4 bg-black/50"
+            onClick={handleClose}
           >
-            <button
-              onClick={handleClose}
-              className="absolute top-4 right-4 z-10 h-8 w-8 rounded-full bg-black/50 flex items-center justify-center text-white/70 hover:text-white transition-colors"
+            {/* Mobile: Full screen | Desktop: Centered card */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 20 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              onClick={(e) => e.stopPropagation()}
+              className="relative w-full h-full md:h-auto md:max-w-3xl bg-card md:border md:border-border md:rounded-2xl shadow-xl flex flex-col"
             >
-              <X className="h-4 w-4" />
-            </button>
+              {/* Close button - visible on both mobile and desktop */}
+              <button
+                onClick={handleClose}
+                className="absolute top-4 right-4 z-10 h-8 w-8 rounded-full bg-black/50 flex items-center justify-center text-white/70 hover:text-white transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
 
-            {/* Hero image */}
-            <div className="relative h-48 border-b border-border overflow-hidden rounded-t-2xl">
-              <Image
-                src="/hero.jpg"
-                alt="Super Bowl LIX"
-                fill
-                className="object-cover"
-                priority
-              />
-            </div>
+              {/* Hero image - taller on mobile */}
+              <div className="relative h-48 sm:h-56 md:h-56 flex-shrink-0 overflow-hidden md:rounded-t-2xl">
+                <Image
+                  src="/vault777markets.png"
+                  alt="Vault777 Markets - Predictions Are Coming"
+                  fill
+                  className="object-cover"
+                  priority
+                />
+              </div>
 
-            <div className="px-8 py-8 text-center">
+              {/* Scrollable content area */}
+              <div className="flex-1 overflow-y-auto px-6 py-6 md:px-8 md:py-8 text-center">
+                <h1 className="text-xl md:text-2xl font-semibold mb-3">
+                  Welcome to Predictions by Vault777
+                </h1>
 
-              <h1 className="text-xl font-semibold mb-3">
-                Welcome to Predictions by Vault777
-              </h1>
+                <p className="text-sm text-muted-foreground leading-relaxed mb-4 max-w-lg mx-auto">
+                  Think you can predict the future? Everyone starts with{" "}
+                  <span className="text-foreground font-medium">$10,000</span> in virtual
+                  credits. Make predictions on real-world events and compete to
+                  see who has the best calls. Top predictors climb the leaderboard.
+                </p>
 
-              <p className="text-sm text-muted-foreground leading-relaxed mb-6 max-w-lg mx-auto">
-                Think you can predict the future? Everyone starts with{" "}
-                <span className="text-foreground">$10,000</span> in virtual
-                credits. Make predictions on real-world events and compete to
-                see who has the best calls. Top predictors climb the leaderboard.
-              </p>
+                <Link
+                  href="/faq"
+                  onClick={handleClose}
+                  className="inline-flex items-center justify-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <HelpCircle className="h-4 w-4" />
+                  Learn more in our FAQ
+                </Link>
 
-              <Button onClick={handleClose} className="px-8">
-                Start Predicting
-              </Button>
+                {/* Desktop-only button */}
+                <div className="hidden md:block mt-6">
+                  <Button onClick={handleClose} className="px-8">
+                    Start Predicting
+                  </Button>
+                  <p className="text-[11px] text-muted-foreground mt-4">
+                    All credits are virtual and for entertainment only
+                  </p>
+                </div>
+              </div>
 
-              <p className="text-[11px] text-muted-foreground mt-4">
-                All credits are virtual and for entertainment only
-              </p>
-            </div>
+              {/* Mobile: Fixed bottom CTA */}
+              <div className="md:hidden flex-shrink-0 p-4 border-t border-border bg-card/95 backdrop-blur-sm safe-area-bottom">
+                <Button onClick={handleClose} className="w-full h-12 text-base font-semibold">
+                  Start Predicting
+                </Button>
+                <p className="text-[10px] text-muted-foreground text-center mt-2">
+                  All credits are virtual and for entertainment only
+                </p>
+              </div>
+            </motion.div>
           </motion.div>
-        </motion.div>
-      )}
+        )}
     </AnimatePresence>
   );
 }

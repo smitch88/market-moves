@@ -3,10 +3,11 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
+import Link from "next/link";
 import { usePrivy } from "@privy-io/react-auth";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button, Avatar, AvatarImage, AvatarFallback, GlassCard } from "@vault/ui";
-import { TrendingUp, Users, Sparkles, ChevronRight, X } from "lucide-react";
+import { TrendingUp, Users, Sparkles, ChevronRight, X, HelpCircle } from "lucide-react";
 
 interface ReferralJoinProps {
   referrer: {
@@ -261,22 +262,15 @@ function CampaignModal({ open, onClose }: { open: boolean; onClose: () => void }
               <X className="h-4 w-4" />
             </button>
 
-            {/* Banner placeholder - replace URL later */}
-            <div className="relative h-48 bg-gradient-to-br from-primary/20 via-primary/10 to-transparent">
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="text-center">
-                  <Sparkles className="h-12 w-12 text-primary mx-auto mb-3" />
-                  <p className="text-2xl font-bold">Welcome to Vault</p>
-                </div>
-              </div>
-              {/* Uncomment when banner URL is available:
+            {/* Hero Banner */}
+            <div className="relative h-48 overflow-hidden">
               <Image
-                src="/campaign-banner.png"
-                alt="Campaign"
+                src="/vault777markets.png"
+                alt="Vault777 Markets - Predictions Are Coming"
                 fill
                 className="object-cover"
+                priority
               />
-              */}
             </div>
 
             {/* Content */}
@@ -306,6 +300,15 @@ function CampaignModal({ open, onClose }: { open: boolean; onClose: () => void }
               <Button onClick={onClose} className="w-full">
                 Let's Go!
               </Button>
+
+              <Link
+                href="/faq"
+                onClick={onClose}
+                className="flex items-center justify-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <HelpCircle className="h-4 w-4" />
+                Learn more in our FAQ
+              </Link>
             </div>
           </motion.div>
         </motion.div>

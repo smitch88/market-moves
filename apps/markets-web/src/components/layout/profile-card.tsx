@@ -21,8 +21,9 @@ import {
   Input,
   toast,
 } from "@vault/ui";
-import { User, LogOut, ChevronDown, Bug, Gift, Check, Copy, Users, Shield, Sun, Moon, HelpCircle } from "lucide-react";
+import { User, LogOut, ChevronDown, Bug, Gift, Check, Copy, Users, Shield, Sun, Moon, HelpCircle, Info } from "lucide-react";
 import { useAuthFetch } from "@/lib/auth/auth-fetch";
+import { openWelcomeModal } from "@/components/welcome/welcome-modal";
 import { AnimatedXPRing, useXPAnimation } from "./xp-animation";
 
 // Custom X (Twitter) logo icon
@@ -217,6 +218,10 @@ export function ProfileCard() {
             <Moon className="mr-2 h-4 w-4" />
           )}
           {theme === "dark" ? "Light Mode" : "Dark Mode"}
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={openWelcomeModal} className="cursor-pointer">
+          <Info className="mr-2 h-4 w-4" />
+          What's this?
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         {isImpersonating ? (
