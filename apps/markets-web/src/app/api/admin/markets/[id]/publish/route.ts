@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@vault/database";
+import { prisma, Prisma } from "@vault/database";
 import { requireAdmin } from "@vault/auth";
+import { ConstantProductAMM } from "@/lib/services/pricing-engine";
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -66,14 +67,36 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
         });
       }
 
+      // Build update data
+      const updateData: Prisma.MarketUpdateInput = {
+        isPublished,
+        // When publishing, set status to OPEN so users can bet
+        // When unpublishing, revert to DRAFT
+        status: isPublished ? "OPEN" : "DRAFT",
+      };
+
+      // When publishing, ensure k-invariant is set for AMM
+      if (isPublished && !market.k) {
+        const reserve0 = market.reserve0;
+        const reserve1 = market.reserve1;
+        const k = ConstantProductAMM.calculateInitialK(reserve0, reserve1);
+        
+        // Calculate initial prices using CPMM formula
+        const cpmm = new ConstantProductAMM();
+        const prices = cpmm.calculatePrice(reserve0, reserve1);
+        
+        updateData.k = k;
+        updateData.outcomePrices = JSON.stringify([
+          prices.price0.toFixed(4),
+          prices.price1.toFixed(4),
+        ]);
+        updateData.publishedAt = new Date();
+        updateData.opensAt = new Date();
+      }
+
       const updatedMarket = await tx.market.update({
         where: { id },
-        data: {
-          isPublished,
-          // When publishing, set status to OPEN so users can bet
-          // When unpublishing, revert to DRAFT
-          status: isPublished ? "OPEN" : "DRAFT",
-        },
+        data: updateData,
       });
 
       // Log admin action
