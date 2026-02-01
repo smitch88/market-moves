@@ -310,7 +310,7 @@ export function SportsBettingSidebar({
 
         setTimeout(() => {
           const tweetText = encodeURIComponent(
-            `🎯 I just bet $${confirmedBetAmount.toLocaleString()} on "${outcomeLabel}" for "${event.title}" on @VaultMarkets!\n\nMake your prediction 👇\n${window.location.href}`
+            `🎯 I just bet $${confirmedBetAmount.toLocaleString()} on "${outcomeLabel}" for "${event.title}" on @UseVault777!\n\nMake your prediction 👇\n${window.location.href}`
           );
           window.open(`https://x.com/intent/tweet?text=${tweetText}`, "_blank");
         }, 500);

@@ -169,7 +169,7 @@ export function ShareXPModal({ open, onOpenChange, bet, profile }: ShareXPModalP
 
         setTimeout(() => {
           const tweetText = encodeURIComponent(
-            `🎯 I bet $${bet.amount.toLocaleString()} on "${outcomeLabel}" for "${bet.market.event.title}" on @VaultMarkets!\n\nMake your prediction 👇\n${window.location.origin}/markets/${bet.market.event.slug}`
+            `🎯 I bet $${bet.amount.toLocaleString()} on "${outcomeLabel}" for "${bet.market.event.title}" on @UseVault777!\n\nMake your prediction 👇\n${window.location.origin}/markets/${bet.market.event.slug}`
           );
           window.open(`https://x.com/intent/tweet?text=${tweetText}`, "_blank");
         }, 500);
