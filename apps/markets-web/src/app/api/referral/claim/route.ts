@@ -6,6 +6,10 @@ import { calculateLevel } from "@/lib/services/xp-service";
 // XP bonus for referrals - equivalent to a $1,000 bet at 10 XP per dollar
 const REFERRAL_XP_BONUS = 10000;
 
+// Referral claim window - users can only claim referrals within 7 days of account creation
+// This prevents gaming by having existing users claim referrals retroactively
+const REFERRAL_CLAIM_WINDOW_DAYS = 7;
+
 export async function POST(request: NextRequest) {
   try {
     const user = await getEffectiveUser();
@@ -34,6 +38,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ 
         success: false, 
         message: "Already referred by someone" 
+      });
+    }
+
+    // Check if user's account is too old to claim a referral
+    // This prevents existing users from gaming the system retroactively
+    const accountAgeMs = Date.now() - new Date(dbUser.createdAt).getTime();
+    const claimWindowMs = REFERRAL_CLAIM_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+    if (accountAgeMs > claimWindowMs) {
+      console.warn(`Referral claim rejected: Account too old. User ${dbUser.id} created ${Math.floor(accountAgeMs / (24 * 60 * 60 * 1000))} days ago`);
+      return NextResponse.json({ 
+        success: false, 
+        message: "Referral window expired" 
       });
     }
 

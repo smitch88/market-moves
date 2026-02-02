@@ -19,7 +19,7 @@ interface ReferralJoinProps {
   referralCode: string;
 }
 
-type ClaimStatus = "idle" | "claiming" | "success" | "already_referred" | "self_referral" | "error";
+type ClaimStatus = "idle" | "claiming" | "success" | "already_referred" | "self_referral" | "window_expired" | "error";
 
 export function ReferralJoin({ referrer, referralCode }: ReferralJoinProps) {
   const router = useRouter();
@@ -31,9 +31,13 @@ export function ReferralJoin({ referrer, referralCode }: ReferralJoinProps) {
   const referrerName = referrer.name || referrer.handle || "A friend";
 
   // Store referral code in localStorage for attribution (only for non-authenticated users)
+  // IMPORTANT: First-click attribution - only set if no code exists to prevent gaming
   useEffect(() => {
     if (!authenticated) {
-      localStorage.setItem("referral_code", referralCode);
+      const existingCode = localStorage.getItem("referral_code");
+      if (!existingCode) {
+        localStorage.setItem("referral_code", referralCode);
+      }
     }
   }, [referralCode, authenticated]);
 
@@ -68,8 +72,16 @@ export function ReferralJoin({ referrer, referralCode }: ReferralJoinProps) {
         localStorage.removeItem("referral_code");
         setClaimStatus("success");
       } else if (data.message === "Already referred by someone") {
+        // Clear localStorage since they can't claim any referral
+        localStorage.removeItem("referral_code");
         setClaimStatus("already_referred");
+      } else if (data.message === "Referral window expired") {
+        // Clear localStorage since they can no longer claim referrals
+        localStorage.removeItem("referral_code");
+        setClaimStatus("window_expired");
       } else if (data.error === "Cannot refer yourself") {
+        // Clear localStorage since they can't use their own code
+        localStorage.removeItem("referral_code");
         setClaimStatus("self_referral");
       } else {
         setClaimStatus("error");
@@ -166,6 +178,32 @@ export function ReferralJoin({ referrer, referralCode }: ReferralJoinProps) {
             <h3 className="text-xl font-bold mb-2">This is Your Link!</h3>
             <p className="text-muted-foreground mb-4">
               You can&apos;t use your own referral link. Share it with friends to earn bonus MP!
+            </p>
+            <Link href="/">
+              <Button className="w-full">
+                View Markets
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+            </Link>
+          </GlassCard>
+        </motion.div>
+      );
+    }
+
+    if (claimStatus === "window_expired") {
+      return (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="space-y-4"
+        >
+          <GlassCard className="p-6 text-center">
+            <div className="h-16 w-16 rounded-full bg-amber-500/20 flex items-center justify-center mx-auto mb-4">
+              <AlertCircle className="h-8 w-8 text-amber-500" />
+            </div>
+            <h3 className="text-xl font-bold mb-2">Referral Window Expired</h3>
+            <p className="text-muted-foreground mb-4">
+              Referral bonuses can only be claimed within 7 days of creating your account. Thanks for checking out {referrerName}&apos;s link though!
             </p>
             <Link href="/">
               <Button className="w-full">

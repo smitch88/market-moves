@@ -1,6 +1,7 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { prisma } from "@vault/database";
 import { ReferralJoin } from "@/components/referral/referral-join";
+import { getEffectiveUser } from "@/lib/auth/get-effective-user";
 import type { Metadata } from "next";
 
 interface PageProps {
@@ -42,6 +43,15 @@ async function findReferrer(code: string) {
   return referrer;
 }
 
+// Check if user is already referred
+async function isUserAlreadyReferred(userId: string): Promise<boolean> {
+  const referral = await prisma.referral.findUnique({
+    where: { referredUserId: userId },
+    select: { id: true },
+  });
+  return !!referral;
+}
+
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { code } = await params;
   const referrer = await findReferrer(code);
@@ -76,6 +86,28 @@ export default async function ReferralPage({ params }: PageProps) {
 
   if (!referrer || !referrer.referralCode) {
     notFound();
+  }
+
+  // Check if authenticated user is already referred - redirect them to home
+  // This prevents users from browsing other people's referral pages after being referred
+  try {
+    const currentUser = await getEffectiveUser();
+    if (currentUser) {
+      // Check if trying to view own referral page
+      if (currentUser.id === referrer.id) {
+        // Redirect to their profile where they can share their own link
+        redirect("/profile");
+      }
+      
+      // Check if user is already referred
+      const alreadyReferred = await isUserAlreadyReferred(currentUser.id);
+      if (alreadyReferred) {
+        // User is already referred, redirect to home
+        redirect("/");
+      }
+    }
+  } catch {
+    // User not authenticated, continue to show referral page
   }
 
   return <ReferralJoin referrer={referrer} referralCode={referrer.referralCode} />;
