@@ -578,7 +578,7 @@ export function MobileBettingSheet({
                               onClick={() =>
                                 setAmount(
                                   String(
-                                    ((userShares * pct) / 100).toFixed(2)
+                                    (Math.floor(userShares * pct) / 100).toFixed(2)
                                   )
                                 )
                               }
