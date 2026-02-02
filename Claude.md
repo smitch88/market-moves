@@ -1,5 +1,19 @@
 # Claude AI Instructions
 
+## OpenAI API Development
+
+Always use the OpenAI developer documentation MCP server if you need to work with the OpenAI API, ChatGPT Apps SDK, Codex, or related docs without me having to explicitly ask.
+
+### GPT-5.2 Best Practices
+
+When working with OpenAI models in this project:
+
+- **Default model**: Use `gpt-5.2` for complex reasoning and agentic tasks
+- **Reasoning effort**: Defaults to `none`; increase to `medium` or `high` for complex problems
+- **Verbosity**: Use `low` for concise outputs, `medium` (default) for balanced, `high` for thorough explanations
+- **Smaller tasks**: Use `gpt-5-mini` for cost-optimized reasoning, `gpt-5-nano` for high-throughput simple tasks
+- **Parameter compatibility**: `temperature`, `top_p`, `logprobs` only work when `reasoning.effort` is `none`
+
 ## Documentation Maintenance
 
 **IMPORTANT**: When making changes to the Vault Markets application, you MUST update the relevant documentation in this `/docs` folder.

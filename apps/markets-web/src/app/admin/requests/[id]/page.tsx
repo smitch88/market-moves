@@ -9,6 +9,12 @@ import Link from "next/link";
 import {
   Badge,
   Button,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
   GlassCard,
   GlassCardContent,
   GlassCardHeader,
@@ -41,6 +47,8 @@ import {
   Wand2,
   RotateCcw,
   Brain,
+  FileText,
+  Paperclip,
   Tag as TagIcon,
 } from "lucide-react";
 import type { Tag, MarketCategory, EventType } from "@vault/database";
@@ -66,6 +74,20 @@ interface MarketRequest {
     name: string | null;
     handle: string | null;
   } | null;
+}
+
+interface AiAttachment {
+  name: string;
+  type: string;
+  size: number;
+  content: string;
+}
+
+interface AiGenerateInput {
+  referenceUrls?: string;
+  pastedText?: string;
+  attachments?: AiAttachment[];
+  examples?: unknown;
 }
 
 interface MarketForm {
@@ -140,8 +162,8 @@ function createEmptyMarket(): MarketForm {
     opensAt: "",
     closesAt: "",
     feeBps: "100",
-    seed0: "1000",
-    seed1: "1000",
+    seed0: "100000",
+    seed1: "100000",
   };
 }
 
@@ -176,6 +198,15 @@ export default function AdminRequestReviewPage({
   const [newTagInput, setNewTagInput] = useState("");
   const [markets, setMarkets] = useState<MarketForm[]>([createEmptyMarket()]);
   const [includeMarkets, setIncludeMarkets] = useState(true);
+  const [aiModalOpen, setAiModalOpen] = useState(false);
+  const [aiReferenceUrls, setAiReferenceUrls] = useState("");
+  const [aiPastedText, setAiPastedText] = useState("");
+  const [aiAttachments, setAiAttachments] = useState<File[]>([]);
+  const [aiSummary, setAiSummary] = useState("");
+  const [aiSources, setAiSources] = useState<string[]>([]);
+  const [aiIsStreaming, setAiIsStreaming] = useState(false);
+  const [aiStreamStatus, setAiStreamStatus] = useState("");
+  const [aiStreamText, setAiStreamText] = useState("");
 
   // Fetch the request
   const { data: request, isLoading: requestLoading } = useQuery<MarketRequest>({
@@ -338,9 +369,83 @@ export default function AdminRequestReviewPage({
     },
   });
 
+  const applyAiGenerated = (generated: any) => {
+    if (!generated) {
+      toast.error("AI did not return valid data");
+      return;
+    }
+
+    const { event, markets: generatedMarkets, reasoning, summary, sources } = generated;
+
+    const formatDateForInput = (isoDate: string | null) => {
+      if (!isoDate) return "";
+      try {
+        const date = new Date(isoDate);
+        return date.toISOString().slice(0, 16);
+      } catch {
+        return "";
+      }
+    };
+
+    setEventForm({
+      title: event?.title || request?.title || "",
+      slug: event?.slug || "",
+      description: event?.description || "",
+      category: (event?.category || "OTHER") as MarketCategory,
+      eventType: (event?.eventType || "PROP") as EventType,
+      bannerUrl: event?.bannerUrl || "",
+      logoUrl: event?.logoUrl || "",
+      startTime: formatDateForInput(event?.startTime || null),
+      endTime: formatDateForInput(event?.endTime || null),
+    });
+
+    setAiSummary(typeof summary === "string" ? summary : "");
+    setAiSources(Array.isArray(sources) ? sources.filter((s) => typeof s === "string") : []);
+
+    if (Array.isArray(event?.tags) && event.tags.length > 0) {
+      applyAiTags(event.tags);
+    }
+
+    if (generatedMarkets && generatedMarkets.length > 0) {
+      setMarkets(
+        generatedMarkets.map((m: {
+          question: string;
+          outcome0Label: string;
+          outcome1Label: string;
+          detailsMarkdown?: string;
+          resolutionSourceUrl?: string;
+          opensAt?: string;
+          closesAt?: string;
+          feeBps?: number;
+          seed0?: number;
+          seed1?: number;
+        }) => ({
+          id: crypto.randomUUID(),
+          question: m.question || "",
+          outcome0Label: m.outcome0Label || "Yes",
+          outcome1Label: m.outcome1Label || "No",
+          detailsMarkdown: m.detailsMarkdown || "",
+          resolutionSourceUrl: m.resolutionSourceUrl || "",
+          opensAt: formatDateForInput(m.opensAt || null),
+          closesAt: formatDateForInput(m.closesAt || null),
+          feeBps: String(m.feeBps || 100),
+          seed0: String(m.seed0 || 100000),
+          seed1: String(m.seed1 || 100000),
+        }))
+      );
+    }
+
+    toast.success(
+      <div className="space-y-1">
+        <p className="font-medium">AI generated event & markets!</p>
+        {reasoning && <p className="text-xs text-muted-foreground">{reasoning}</p>}
+      </div>
+    );
+  };
+
   // AI Generation mutation
   const aiGenerateMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (input?: AiGenerateInput) => {
       if (!request) throw new Error("No request data");
       
       const res = await fetch("/api/admin/ai/generate-market", {
@@ -350,6 +455,10 @@ export default function AdminRequestReviewPage({
           title: request.title,
           description: request.description,
           sourceUrl: request.sourceUrl,
+          referenceUrls: input?.referenceUrls || null,
+          pastedText: input?.pastedText || null,
+          attachments: input?.attachments || null,
+          examples: input?.examples || null,
         }),
       });
 
@@ -361,80 +470,100 @@ export default function AdminRequestReviewPage({
       return res.json();
     },
     onSuccess: (data) => {
-      if (!data.generated) {
-        toast.error("AI did not return valid data");
-        return;
-      }
-
-      const { event, markets: generatedMarkets, reasoning } = data.generated;
-
-      // Helper to format ISO date to datetime-local format
-      const formatDateForInput = (isoDate: string | null) => {
-        if (!isoDate) return "";
-        try {
-          const date = new Date(isoDate);
-          return date.toISOString().slice(0, 16); // Format: YYYY-MM-DDTHH:mm
-        } catch {
-          return "";
-        }
-      };
-
-      // Update event form
-      setEventForm({
-        title: event.title || request?.title || "",
-        slug: event.slug || "",
-        description: event.description || "",
-        category: (event.category || "OTHER") as MarketCategory,
-        eventType: (event.eventType || "PROP") as EventType,
-        bannerUrl: event.bannerUrl || "",
-        logoUrl: event.logoUrl || "",
-        startTime: formatDateForInput(event.startTime),
-        endTime: formatDateForInput(event.endTime),
-      });
-
-      // Update markets
-      if (generatedMarkets && generatedMarkets.length > 0) {
-        setMarkets(
-          generatedMarkets.map((m: {
-            question: string;
-            outcome0Label: string;
-            outcome1Label: string;
-            detailsMarkdown?: string;
-            resolutionSourceUrl?: string;
-            opensAt?: string;
-            closesAt?: string;
-            feeBps?: number;
-            seed0?: number;
-            seed1?: number;
-          }) => ({
-            id: crypto.randomUUID(),
-            question: m.question || "",
-            outcome0Label: m.outcome0Label || "Yes",
-            outcome1Label: m.outcome1Label || "No",
-            detailsMarkdown: m.detailsMarkdown || "",
-            resolutionSourceUrl: m.resolutionSourceUrl || "",
-            opensAt: formatDateForInput(m.opensAt || null),
-            closesAt: formatDateForInput(m.closesAt || null),
-            feeBps: String(m.feeBps || 100),
-            seed0: String(m.seed0 || 1000),
-            seed1: String(m.seed1 || 1000),
-          }))
-        );
-      }
-
-      toast.success(
-        <div className="space-y-1">
-          <p className="font-medium">AI generated event & markets!</p>
-          {reasoning && (
-            <p className="text-xs text-muted-foreground">{reasoning}</p>
-          )}
-        </div>
-      );
+      applyAiGenerated(data.generated);
     },
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : "AI generation failed");
     },
   });
+
+  const handleAiGenerate = async () => {
+    try {
+      if (!request) {
+        toast.error("No request data");
+        return;
+      }
+
+      setAiIsStreaming(true);
+      setAiStreamStatus("starting");
+      setAiStreamText("");
+      const attachments = await Promise.all(aiAttachments.map(readAttachment));
+      const res = await fetch("/api/admin/ai/generate-market", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: request.title,
+          description: request.description,
+          sourceUrl: request.sourceUrl,
+          referenceUrls: aiReferenceUrls.trim() || null,
+          pastedText: aiPastedText.trim() || null,
+          attachments,
+          stream: true,
+        }),
+      });
+
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || error.message || "Failed to generate with AI");
+      }
+
+      setAiModalOpen(false);
+
+      const reader = res.body?.getReader();
+      if (!reader) {
+        throw new Error("No streaming response");
+      }
+
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      const handleEvent = (chunk: string) => {
+        const lines = chunk.split("\n");
+        let event = "message";
+        const dataLines: string[] = [];
+
+        for (const line of lines) {
+          if (line.startsWith("event:")) {
+            event = line.replace("event:", "").trim();
+          } else if (line.startsWith("data:")) {
+            dataLines.push(line.replace("data:", "").trim());
+          }
+        }
+
+        const dataStr = dataLines.join("\n");
+        const payload = dataStr ? JSON.parse(dataStr) : null;
+
+        if (event === "status") {
+          setAiStreamStatus(String(payload || ""));
+        } else if (event === "token") {
+          const token = typeof payload === "string" ? payload : "";
+          setAiStreamText((prev) => (prev + token).slice(-2000));
+        } else if (event === "result" && payload) {
+          applyAiGenerated(payload);
+        } else if (event === "error") {
+          toast.error(typeof payload === "string" ? payload : "AI generation failed");
+        }
+      };
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        let boundaryIndex = buffer.indexOf("\n\n");
+        while (boundaryIndex !== -1) {
+          const chunk = buffer.slice(0, boundaryIndex);
+          buffer = buffer.slice(boundaryIndex + 2);
+          if (chunk.trim()) handleEvent(chunk);
+          boundaryIndex = buffer.indexOf("\n\n");
+        }
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "AI generation failed");
+    } finally {
+      setAiIsStreaming(false);
+      setAiStreamStatus("");
+    }
+  };
 
   // Reset form to initial state from request
   const handleReset = () => {
@@ -516,15 +645,18 @@ export default function AdminRequestReviewPage({
     );
   };
 
+  const toSlug = (value: string) =>
+    value
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "");
+
   const addNewTag = () => {
     const trimmed = newTagInput.trim();
     if (!trimmed) return;
 
     // Generate slug
-    const slug = trimmed
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-|-$/g, "");
+    const slug = toSlug(trimmed);
 
     // Check if this tag already exists in the list of new tags
     if (newTags.some((t) => t.slug === slug)) {
@@ -550,6 +682,77 @@ export default function AdminRequestReviewPage({
 
   const removeNewTag = (slug: string) => {
     setNewTags((prev) => prev.filter((t) => t.slug !== slug));
+  };
+
+  const readAttachment = (file: File): Promise<AiAttachment> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      const isPdf =
+        file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+
+      reader.onerror = () => reject(new Error(`Failed to read ${file.name}`));
+      reader.onload = () => {
+        resolve({
+          name: file.name,
+          type: file.type || (isPdf ? "application/pdf" : "text/plain"),
+          size: file.size,
+          content: typeof reader.result === "string" ? reader.result : "",
+        });
+      };
+
+      if (isPdf) {
+        reader.readAsDataURL(file);
+      } else {
+        reader.readAsText(file);
+      }
+    });
+
+  const handleAiFilesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    setAiAttachments(files);
+  };
+
+  const removeAiAttachment = (index: number) => {
+    setAiAttachments((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const applyAiTags = (tags: string[]) => {
+    if (!tags || tags.length === 0) return;
+
+    // Deduplicate incoming tags by lowercase key
+    const uniqueTags = Array.from(
+      new Map(tags.map((tag) => [tag.trim().toLowerCase(), tag.trim()])).values()
+    ).filter(Boolean);
+
+    const nextSelectedIds: string[] = [];
+    const nextNewTags: { label: string; slug: string }[] = [];
+    const seenSlugs = new Set<string>();
+
+    uniqueTags.forEach((tagLabel) => {
+      const trimmed = tagLabel.trim();
+      if (!trimmed) return;
+      const slug = toSlug(trimmed);
+
+      // Skip if we've already processed this slug
+      if (seenSlugs.has(slug)) return;
+      seenSlugs.add(slug);
+
+      // Check if it matches an existing tag in the system
+      const existing = availableTags.find(
+        (t) => t.slug === slug || t.label.toLowerCase() === trimmed.toLowerCase()
+      );
+      if (existing) {
+        nextSelectedIds.push(existing.id);
+        return;
+      }
+
+      // Otherwise, it's a new tag to create
+      nextNewTags.push({ label: trimmed, slug });
+    });
+
+    // Replace (not append) the tag state with AI-generated tags
+    setSelectedTagIds(nextSelectedIds);
+    setNewTags(nextNewTags);
   };
 
   const handleNewTagKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -779,7 +982,7 @@ export default function AdminRequestReviewPage({
                     variant="outline"
                     size="sm"
                     onClick={handleReset}
-                    disabled={aiGenerateMutation.isPending}
+                    disabled={aiGenerateMutation.isPending || aiIsStreaming}
                   >
                     <RotateCcw className="h-4 w-4 mr-1" />
                     Reset
@@ -788,11 +991,11 @@ export default function AdminRequestReviewPage({
                     type="button"
                     variant="default"
                     size="sm"
-                    onClick={() => aiGenerateMutation.mutate()}
-                    disabled={aiGenerateMutation.isPending}
+                    onClick={() => setAiModalOpen(true)}
+                    disabled={aiGenerateMutation.isPending || aiIsStreaming}
                     className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
                   >
-                    {aiGenerateMutation.isPending ? (
+                    {aiGenerateMutation.isPending || aiIsStreaming ? (
                       <>
                         <Loader2 className="h-4 w-4 mr-1 animate-spin" />
                         Generating...
@@ -806,9 +1009,111 @@ export default function AdminRequestReviewPage({
                   </Button>
                 </div>
               </GlassCardHeader>
-              
+              <Dialog open={aiModalOpen} onOpenChange={setAiModalOpen}>
+                <DialogContent className="sm:max-w-lg">
+                  <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2">
+                      <Wand2 className="h-5 w-5 text-emerald-500" />
+                      AI Generation Context
+                    </DialogTitle>
+                    <DialogDescription>
+                      Add optional references and notes to improve AI output.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="aiReferenceUrls">Reference URLs</Label>
+                      <Textarea
+                        id="aiReferenceUrls"
+                        value={aiReferenceUrls}
+                        onChange={(e) => setAiReferenceUrls(e.target.value)}
+                        placeholder="Paste one or more URLs (one per line)"
+                        rows={3}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="aiPastedText">Paste notes or data</Label>
+                      <Textarea
+                        id="aiPastedText"
+                        value={aiPastedText}
+                        onChange={(e) => setAiPastedText(e.target.value)}
+                        placeholder="Paste any relevant text or JSON examples"
+                        rows={6}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="aiAttachments" className="flex items-center gap-2">
+                        <Paperclip className="h-4 w-4" />
+                        Attach PDF/TXT/MD
+                      </Label>
+                      <Input
+                        id="aiAttachments"
+                        type="file"
+                        multiple
+                        accept=".pdf,.txt,.md,text/plain,text/markdown,application/pdf"
+                        onChange={handleAiFilesChange}
+                      />
+                      {aiAttachments.length > 0 && (
+                        <div className="space-y-2">
+                          {aiAttachments.map((file, index) => (
+                            <div
+                              key={`${file.name}-${index}`}
+                              className="flex items-center justify-between rounded-md border border-border px-3 py-2 text-xs"
+                            >
+                              <div className="flex items-center gap-2">
+                                <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+                                <span className="text-muted-foreground">{file.name}</span>
+                              </div>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => removeAiAttachment(index)}
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <p className="text-[10px] text-muted-foreground">
+                        PDFs are sent as base64 content; text/markdown is sent as plain text.
+                      </p>
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setAiModalOpen(false)}
+                      disabled={aiGenerateMutation.isPending || aiIsStreaming}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={handleAiGenerate}
+                      disabled={aiGenerateMutation.isPending || aiIsStreaming}
+                      className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
+                    >
+                      {aiGenerateMutation.isPending || aiIsStreaming ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                          Generating...
+                        </>
+                      ) : (
+                        <>
+                          <Wand2 className="h-4 w-4 mr-1" />
+                          Generate with AI
+                        </>
+                      )}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+
               {/* AI Generation Info Banner */}
-              {aiGenerateMutation.isPending && (
+              {(aiGenerateMutation.isPending || aiIsStreaming) && (
                 <div className="mx-6 mb-4 p-3 rounded-lg bg-green-500/10 border border-green-500/20">
                   <div className="flex items-center gap-2 text-green-400">
                     <Brain className="h-4 w-4 animate-pulse" />
@@ -817,12 +1122,63 @@ export default function AdminRequestReviewPage({
                     </span>
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Using GPT-4o to gather latest information and context from existing markets.
+                    {aiStreamStatus
+                      ? `Status: ${aiStreamStatus}`
+                      : "Gathering latest information and context from existing markets."}
                   </p>
+                  {aiStreamText && (
+                    <p className="text-xs text-muted-foreground mt-2 whitespace-pre-wrap">
+                      {aiStreamText}
+                    </p>
+                  )}
                 </div>
               )}
               
               <GlassCardContent className="space-y-4">
+                {(aiSummary || aiSources.length > 0) && (
+                  <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div>
+                        <p className="text-sm font-medium">AI Summary</p>
+                        <p className="text-xs text-muted-foreground">
+                          End-user friendly resolution summary
+                        </p>
+                      </div>
+                      {aiSummary && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            setEventForm((prev) => ({
+                              ...prev,
+                              description: aiSummary,
+                            }))
+                          }
+                        >
+                          Use as description
+                        </Button>
+                      )}
+                    </div>
+                    {aiSummary ? (
+                      <Textarea value={aiSummary} readOnly rows={4} />
+                    ) : (
+                      <p className="text-xs text-muted-foreground">No summary provided.</p>
+                    )}
+                    {aiSources.length > 0 && (
+                      <div className="pt-2">
+                        <p className="text-xs font-medium text-muted-foreground mb-1">Sources</p>
+                        <div className="flex flex-wrap gap-2">
+                          {aiSources.map((source, index) => (
+                            <Badge key={`${source}-${index}`} variant="secondary">
+                              {source}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="title">Event Title *</Label>
@@ -1000,9 +1356,9 @@ export default function AdminRequestReviewPage({
                   <div className="space-y-2">
                     <Label className="text-xs text-muted-foreground">New Tags (will be created)</Label>
                     <div className="flex flex-wrap gap-2">
-                      {newTags.map((tag) => (
+                    {newTags.map((tag, index) => (
                         <Badge
-                          key={tag.slug}
+                        key={`${tag.slug}-${index}`}
                           variant="default"
                           className="cursor-pointer bg-green-500/20 text-green-400 border-green-500/30 hover:bg-green-500/30"
                           onClick={() => removeNewTag(tag.slug)}

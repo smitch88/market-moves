@@ -47,6 +47,14 @@ Fetch published events with optional filtering.
 }
 ```
 
+**Streaming (SSE) Response:**
+When `stream: true`, the endpoint returns `text/event-stream` with events:
+- `status`: string status message
+- `token`: incremental text from the model
+- `result`: final parsed JSON object (same shape as non-stream response `generated`)
+- `error`: error message string
+- `done`: boolean
+
 The `createdByKol` field is present when the event was created by a KOL/Captain. The "kol-created" view filter returns only events that have a `createdByKol` attribution.
 
 ---
@@ -569,6 +577,70 @@ All admin endpoints require `role: "ADMIN"`.
 | GET | `/api/admin/requests` | List requests |
 | GET | `/api/admin/requests/[id]` | Get request |
 | PATCH | `/api/admin/requests/[id]` | Update request status |
+
+### AI Generation
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/admin/ai/generate-market` | Generate event + markets from request |
+
+**Request Body:**
+```json
+{
+  "title": "string",
+  "description": "string or null",
+  "sourceUrl": "string or null",
+  "referenceUrls": "string or null",
+  "pastedText": "string or null",
+  "attachments": [
+    {
+      "name": "string",
+      "type": "string",
+      "size": 123,
+      "content": "string"
+    }
+  ],
+  "stream": true
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "generated": {
+    "event": {
+      "title": "string",
+      "slug": "string",
+      "description": "string",
+      "category": "NFL|NBA|NHL|MLB|SOCCER|UFC|TENNIS|GOLF|ESPORTS|POLITICS|CRYPTO|FINANCE|ENTERTAINMENT|OTHER",
+      "eventType": "MATCHUP|PROP|TOURNAMENT|FUTURES",
+      "startTime": "ISO date string or null",
+      "endTime": "ISO date string or null",
+      "bannerUrl": null,
+      "logoUrl": null,
+      "tags": ["string"]
+    },
+    "markets": [
+      {
+        "question": "string",
+        "outcome0Label": "string",
+        "outcome1Label": "string",
+        "detailsMarkdown": "string",
+        "resolutionSourceUrl": "string or null",
+        "opensAt": "ISO date string",
+        "closesAt": "ISO date string",
+        "feeBps": 100,
+        "seed0": 100000,
+        "seed1": 100000
+      }
+    ],
+    "summary": "End-user friendly resolution summary",
+    "sources": ["string"],
+    "reasoning": "string"
+  }
+}
+```
 
 ### Resolution Sources
 
