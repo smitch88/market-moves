@@ -35,6 +35,8 @@ export type {
   XPLedger,
   XPConfig,
   PnLLedger,
+  DailySpin,
+  FeatureFlag,
 } from "./generated/client";
 
 export {
@@ -51,6 +53,7 @@ export {
   PricingModel,
   XPReason,
   PnLReason,
+  FeatureFlagStatus,
 } from "./generated/client";
 
 // Export Prisma namespace for advanced types

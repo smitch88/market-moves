@@ -9,7 +9,8 @@ import { Button, Badge } from "@vault/ui";
 import { ProfileCard } from "./profile-card";
 import { SearchBar } from "./search-bar";
 import { SearchModal } from "./search-modal";
-import { Search, Bug } from "lucide-react";
+import { Search, Bug, Gift } from "lucide-react";
+import { DailySpinWheel } from "@/components/daily-spin";
 import { useAuthFetch } from "@/lib/auth/auth-fetch";
 import { useState, Suspense, useEffect, useRef } from "react";
 import { AnimatedXPDisplay, AnimatedBalanceDisplay, useXPAnimation } from "./xp-animation";
@@ -27,6 +28,7 @@ export function Header() {
   const pathname = usePathname();
   const { login, authenticated, ready } = usePrivy();
   const [searchModalOpen, setSearchModalOpen] = useState(false);
+  const [dailySpinOpen, setDailySpinOpen] = useState(false);
   const authFetch = useAuthFetch();
 
   // Only fetch impersonation state in dev mode
@@ -47,7 +49,7 @@ export function Header() {
   const canFetchAuthData = (ready && authenticated) || isImpersonating;
 
   // Fetch user profile for PnL
-  const { data: profile, isLoading: profileLoading } = useQuery({
+  const { data: profile, isLoading: profileLoading, refetch: refetchProfile } = useQuery({
     queryKey: ["profile"],
     queryFn: async () => {
       const res = await authFetch("/api/me");
@@ -77,6 +79,29 @@ export function Header() {
 
   const xp = xpData?.xp ?? 0;
   const balance = profile?.balance ?? 0;
+
+  // Fetch daily spin status
+  const { data: spinStatus, refetch: refetchSpinStatus } = useQuery({
+    queryKey: ["daily-spin-status"],
+    queryFn: async () => {
+      const res = await authFetch("/api/me/daily-spin");
+      if (!res.ok) return { canSpin: false };
+      return res.json();
+    },
+    enabled: canFetchAuthData,
+    staleTime: 30000,
+    refetchInterval: 60000, // Check every minute
+  });
+
+  const canSpin = spinStatus?.canSpin ?? false;
+  const dailySpinEnabled = !spinStatus?.featureDisabled;
+
+  // Refetch spin status and profile when modal closes
+  const handleSpinModalClose = () => {
+    setDailySpinOpen(false);
+    refetchSpinStatus();
+    refetchProfile(); // Triggers balance animation via useEffect
+  };
 
   // Get reset functions from animation context
   const { resetBalanceOffset, resetXPOffset, markXPServerUpdated, markBalanceServerUpdated } = useXPAnimation();
@@ -119,6 +144,7 @@ export function Header() {
   const isLoadingUserData = !canFetchAuthData || profileLoading || xpLoading;
 
   return (
+    <>
     <motion.header
       initial={{ y: -10, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
@@ -197,6 +223,21 @@ export function Header() {
             <Search className="h-4 w-4 xs:h-5 xs:w-5 text-muted-foreground" />
           </motion.button>
 
+          {/* Mobile daily spin button */}
+          {hasSession && dailySpinEnabled && (
+            <motion.button
+              className="sm:hidden p-1 rounded-md hover:bg-muted/50 transition-colors relative"
+              onClick={() => setDailySpinOpen(true)}
+              aria-label="Daily Spin"
+              whileTap={{ scale: 0.9 }}
+            >
+              <Gift className="h-4 w-4 text-white" />
+              {canSpin && (
+                <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-primary" />
+              )}
+            </motion.button>
+          )}
+
           {/* XP and Balance stats - shown when logged in */}
           {hasSession && (
             <div className="hidden sm:flex items-center gap-3 lg:gap-5 mr-1 lg:mr-2">
@@ -208,6 +249,20 @@ export function Header() {
                 <span className="text-[10px] lg:text-[11px] text-muted-foreground font-medium tracking-wide">Balance</span>
                 <AnimatedBalanceDisplay balance={balance} isLoading={isLoadingUserData} />
               </div>
+              {dailySpinEnabled && (
+                <motion.button
+                  onClick={() => setDailySpinOpen(true)}
+                  className="p-1 rounded-md hover:bg-muted/50 transition-colors relative"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  aria-label="Daily Spin"
+                >
+                  <Gift className="h-4 w-4 text-white" />
+                  {canSpin && (
+                    <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-primary" />
+                  )}
+                </motion.button>
+              )}
             </div>
           )}
 
@@ -246,6 +301,15 @@ export function Header() {
       {/* Search Modal for Mobile */}
       <SearchModal open={searchModalOpen} onOpenChange={setSearchModalOpen} />
     </motion.header>
+
+    {/* Daily Spin Modal - outside header for proper z-index */}
+    {hasSession && (
+      <DailySpinWheel 
+        isOpen={dailySpinOpen} 
+        onClose={handleSpinModalClose}
+      />
+    )}
+    </>
   );
 }
 
