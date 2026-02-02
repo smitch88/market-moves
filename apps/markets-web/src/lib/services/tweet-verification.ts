@@ -59,7 +59,23 @@ export function buildTweetIntentUrl(params: RequiredTweetParams): string {
 // ============================================================================
 
 /**
+ * Extract the market path from a URL (e.g., "/markets/super-bowl-2027" from full URL)
+ */
+function extractMarketPath(url: string): string {
+  try {
+    // Try parsing as full URL first
+    const parsed = new URL(url);
+    return parsed.pathname; // e.g., "/markets/super-bowl-2027"
+  } catch {
+    // If not a valid URL, assume it's already a path or slug
+    return url.startsWith("/") ? url : `/${url}`;
+  }
+}
+
+/**
  * Verify that tweet content matches expected requirements
+ * - Checks for content match (case-insensitive)
+ * - Checks for link match using just the path/slug, ignoring base URL
  */
 export function verifyTweetContent(
   tweetText: string,
@@ -69,14 +85,16 @@ export function verifyTweetContent(
   const normalizedTweet = tweetText.toLowerCase().replace(/\s+/g, " ").trim();
   const normalizedExpected = expectedContent.toLowerCase().replace(/\s+/g, " ").trim();
 
-  
-  
-
   // Check for content match (case-insensitive, whitespace-normalized)
   const hasContent = normalizedTweet.includes(normalizedExpected);
 
-  // Check for link match (must contain the market URL)
-  const hasLink = tweetText.toLowerCase().includes(expectedLink.toLowerCase());
+  // Extract just the market path from the expected link (ignore base URL)
+  // e.g., "https://vault.markets/markets/super-bowl" -> "/markets/super-bowl"
+  const marketPath = extractMarketPath(expectedLink).toLowerCase();
+  
+  // Check if tweet contains the market path (works with any base URL)
+  // This matches: vault.markets/markets/slug, localhost:3000/markets/slug, etc.
+  const hasLink = tweetText.toLowerCase().includes(marketPath);
 
   // Must have either content OR link for now (can be stricter later)
   const matches = hasContent || hasLink;
