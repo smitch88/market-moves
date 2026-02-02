@@ -4,7 +4,7 @@ import { useState, useMemo, useCallback } from "react";
 import Link from "next/link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
-import { ArrowLeft, TrendingUp, Users, Wifi, WifiOff } from "lucide-react";
+import { ArrowLeft, TrendingUp, Users, Wifi, WifiOff, Activity } from "lucide-react";
 import type { Market, Event } from "@vault/database";
 import {
   PropEventHeader,
@@ -16,6 +16,7 @@ import {
 import { useMarketUpdates, type PriceUpdate } from "@/hooks/use-market-updates";
 import { EventActivityPanel } from "@/components/events/event-activity-panel";
 import { EventKOLsPanel } from "@/components/events/event-kols-panel";
+import { MobileActivitySheet } from "@/components/events/mobile-activity-sheet";
 
 // Extended market type with display fields
 type MarketWithDisplay = Market & {
@@ -79,6 +80,7 @@ export function MarketDetail({ event }: MarketDetailProps) {
   const [selectedOutcome, setSelectedOutcome] = useState<number | null>(null);
   const [expandedMarketId, setExpandedMarketId] = useState<string | null>(null);
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
+  const [mobileActivityOpen, setMobileActivityOpen] = useState(false);
 
   // Fetch live data (polling as fallback)
   const { data } = useQuery({
@@ -207,18 +209,28 @@ export function MarketDetail({ event }: MarketDetailProps) {
 
   return (
     <div className="max-w-7xl mx-auto pb-52 lg:pb-0">
-      {/* Back navigation */}
+      {/* Back navigation + Mobile Activity button */}
       <motion.div
         initial={{ opacity: 0, x: -10 }}
         animate={{ opacity: 1, x: 0 }}
+        className="flex items-center justify-between mb-4 sm:mb-6"
       >
         <Link
           href="/"
-          className="inline-flex items-center gap-1.5 sm:gap-2 text-sm sm:text-base text-muted-foreground hover:text-foreground mb-4 sm:mb-6 transition-colors group"
+          className="inline-flex items-center gap-1.5 sm:gap-2 text-sm sm:text-base text-muted-foreground hover:text-foreground transition-colors group"
         >
           <ArrowLeft className="h-3.5 w-3.5 sm:h-4 sm:w-4 group-hover:-translate-x-1 transition-transform" />
           <span>Back</span>
         </Link>
+        
+        {/* Mobile Activity button - only on mobile */}
+        <button
+          onClick={() => setMobileActivityOpen(true)}
+          className="lg:hidden inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground bg-card hover:bg-muted/50 border border-border/50 rounded-lg transition-colors"
+        >
+          <Activity className="h-4 w-4" />
+          <span>Activity</span>
+        </button>
       </motion.div>
 
       {/* Main layout - using flex for reliable sticky sidebar */}
@@ -374,6 +386,13 @@ export function MarketDetail({ event }: MarketDetailProps) {
           </motion.button>
         )}
       </div>
+
+      {/* Mobile activity sheet */}
+      <MobileActivitySheet
+        eventSlug={event.slug}
+        isOpen={mobileActivityOpen}
+        onClose={() => setMobileActivityOpen(false)}
+      />
     </div>
   );
 }

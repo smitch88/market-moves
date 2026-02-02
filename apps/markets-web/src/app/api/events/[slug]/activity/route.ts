@@ -8,6 +8,7 @@ import { prisma, BetStatus, Prisma } from "@vault/database";
  * Query params:
  * - marketId: Optional filter to specific market
  * - limit: Number of bets to return (default: 15, max: 50)
+ * - cursor: Cursor for pagination (bet ID to start after)
  */
 export async function GET(
   request: NextRequest,
@@ -19,6 +20,7 @@ export async function GET(
     
     const marketId = searchParams.get("marketId");
     const limitParam = searchParams.get("limit");
+    const cursor = searchParams.get("cursor");
     const limit = Math.min(50, Math.max(1, parseInt(limitParam || "15", 10)));
 
     // Find event by slug or id
@@ -71,11 +73,20 @@ export async function GET(
         },
       },
       orderBy: { createdAt: "desc" },
-      take: limit,
+      take: limit + 1, // Fetch one extra to check if there's more
+      ...(cursor && {
+        cursor: { id: cursor },
+        skip: 1, // Skip the cursor itself
+      }),
     });
+    
+    // Check if there's more data
+    const hasMore = bets.length > limit;
+    const betsToReturn = hasMore ? bets.slice(0, -1) : bets;
+    const nextCursor = hasMore ? betsToReturn[betsToReturn.length - 1]?.id : null;
 
     // Transform to response format
-    const activity = bets.map((bet) => {
+    const activity = betsToReturn.map((bet) => {
       const outcomes = JSON.parse(bet.market.outcomes) as string[];
       const outcomeLabel = outcomes[bet.outcomeIndex] || `Outcome ${bet.outcomeIndex}`;
 
@@ -100,7 +111,11 @@ export async function GET(
     });
 
     return NextResponse.json(
-      { bets: activity },
+      { 
+        bets: activity,
+        nextCursor,
+        hasMore,
+      },
       {
         headers: {
           // Short cache for real-time feel

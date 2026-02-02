@@ -1,9 +1,10 @@
 "use client";
 
 import Image from "next/image";
+import { useState, useEffect, useRef } from "react";
 import { format } from "date-fns";
 import { motion } from "framer-motion";
-import { Calendar, TrendingUp, Zap, Tag } from "lucide-react";
+import { Calendar, TrendingUp, Zap, Clock, ChevronDown } from "lucide-react";
 import type { Event, Market } from "@vault/database";
 import { Badge } from "@vault/ui";
 
@@ -21,7 +22,52 @@ function formatVolume(v: number): string {
   return `$${v.toFixed(0)}`;
 }
 
+// Countdown hook
+function useCountdown(targetDate: Date | null) {
+  const [timeLeft, setTimeLeft] = useState<{
+    days: number;
+    hours: number;
+    minutes: number;
+    seconds: number;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!targetDate) return;
+
+    const calculateTimeLeft = () => {
+      const now = new Date().getTime();
+      const target = new Date(targetDate).getTime();
+      const difference = target - now;
+
+      if (difference <= 0) {
+        return null;
+      }
+
+      return {
+        days: Math.floor(difference / (1000 * 60 * 60 * 24)),
+        hours: Math.floor((difference % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)),
+        minutes: Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60)),
+        seconds: Math.floor((difference % (1000 * 60)) / 1000),
+      };
+    };
+
+    setTimeLeft(calculateTimeLeft());
+
+    const timer = setInterval(() => {
+      setTimeLeft(calculateTimeLeft());
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [targetDate]);
+
+  return timeLeft;
+}
+
 export function PropEventHeader({ event }: PropEventHeaderProps) {
+  const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
+  const [isDescriptionTruncated, setIsDescriptionTruncated] = useState(false);
+  const descriptionRef = useRef<HTMLParagraphElement>(null);
+
   // Calculate total volume
   const totalVolume = event.markets.reduce((sum, m) => {
     return sum + Number(m.seed0 || 0) + Number(m.seed1 || 0) + Number(m.pool0 || 0) + Number(m.pool1 || 0);
@@ -29,6 +75,23 @@ export function PropEventHeader({ event }: PropEventHeaderProps) {
 
   const eventDate = event.endTime || event.startTime;
   const totalMarkets = event.markets.length;
+  
+  // Countdown to resolution
+  const timeLeft = useCountdown(eventDate ? new Date(eventDate) : null);
+
+  // Check if description is truncated
+  useEffect(() => {
+    const checkTruncation = () => {
+      if (descriptionRef.current) {
+        const isOverflowing = descriptionRef.current.scrollHeight > descriptionRef.current.clientHeight;
+        setIsDescriptionTruncated(isOverflowing);
+      }
+    };
+
+    checkTruncation();
+    window.addEventListener("resize", checkTruncation);
+    return () => window.removeEventListener("resize", checkTruncation);
+  }, [event.description]);
 
   return (
     <motion.div
@@ -62,7 +125,7 @@ export function PropEventHeader({ event }: PropEventHeaderProps) {
           className="flex items-start gap-3 sm:gap-4"
         >
           {event.logoUrl && (
-            <div className="w-12 h-12 sm:w-16 sm:h-16 md:w-20 md:h-20 rounded-xl overflow-hidden bg-card border-2 border-background shadow-lg shrink-0">
+            <div className="hidden sm:block w-16 h-16 md:w-20 md:h-20 rounded-xl overflow-hidden bg-card border-2 border-background shadow-lg shrink-0">
               <Image
                 src={event.logoUrl}
                 alt=""
@@ -96,14 +159,91 @@ export function PropEventHeader({ event }: PropEventHeaderProps) {
               {event.title}
             </h1>
 
-            {/* Description */}
+            {/* Description with read more */}
             {event.description && (
-              <p className="text-xs sm:text-sm text-muted-foreground mt-1.5 sm:mt-2 line-clamp-2">
-                {event.description}
-              </p>
+              <div className="mt-1.5 sm:mt-2">
+                <p 
+                  ref={descriptionRef}
+                  className={`text-xs sm:text-sm text-muted-foreground ${
+                    isDescriptionExpanded ? "" : "line-clamp-2"
+                  }`}
+                >
+                  {event.description}
+                </p>
+                
+                {/* Read more button - only shown when truncated */}
+                {(isDescriptionTruncated || isDescriptionExpanded) && (
+                  <button
+                    onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)}
+                    className="inline-flex items-center gap-0.5 text-xs text-primary hover:text-primary/80 transition-colors mt-0.5"
+                  >
+                    <span>{isDescriptionExpanded ? "Show less" : "Read more"}</span>
+                    <motion.div
+                      animate={{ rotate: isDescriptionExpanded ? 180 : 0 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      <ChevronDown className="h-3 w-3" />
+                    </motion.div>
+                  </button>
+                )}
+              </div>
             )}
           </div>
         </motion.div>
+
+        {/* Countdown timer - prominent display */}
+        {timeLeft && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.15 }}
+            className="mt-4 sm:mt-6 p-3 sm:p-4 rounded-xl bg-primary/10 border border-primary/20"
+          >
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                <Clock className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
+                <span className="text-xs sm:text-sm text-muted-foreground">Resolution in</span>
+              </div>
+              <div className="flex items-center gap-2 sm:gap-3">
+                <div className="flex items-center gap-1 sm:gap-2">
+                  {timeLeft.days > 0 && (
+                    <div className="flex flex-col items-center">
+                      <span className="text-lg sm:text-2xl font-bold font-mono text-foreground">
+                        {timeLeft.days}
+                      </span>
+                      <span className="text-[10px] sm:text-xs text-muted-foreground uppercase">days</span>
+                    </div>
+                  )}
+                  {(timeLeft.days > 0 || timeLeft.hours > 0) && (
+                    <>
+                      {timeLeft.days > 0 && <span className="text-lg sm:text-2xl font-bold text-muted-foreground/50">:</span>}
+                      <div className="flex flex-col items-center">
+                        <span className="text-lg sm:text-2xl font-bold font-mono text-foreground">
+                          {timeLeft.hours.toString().padStart(2, "0")}
+                        </span>
+                        <span className="text-[10px] sm:text-xs text-muted-foreground uppercase">hrs</span>
+                      </div>
+                    </>
+                  )}
+                  <span className="text-lg sm:text-2xl font-bold text-muted-foreground/50">:</span>
+                  <div className="flex flex-col items-center">
+                    <span className="text-lg sm:text-2xl font-bold font-mono text-foreground">
+                      {timeLeft.minutes.toString().padStart(2, "0")}
+                    </span>
+                    <span className="text-[10px] sm:text-xs text-muted-foreground uppercase">min</span>
+                  </div>
+                  <span className="text-lg sm:text-2xl font-bold text-muted-foreground/50">:</span>
+                  <div className="flex flex-col items-center">
+                    <span className="text-lg sm:text-2xl font-bold font-mono text-primary">
+                      {timeLeft.seconds.toString().padStart(2, "0")}
+                    </span>
+                    <span className="text-[10px] sm:text-xs text-muted-foreground uppercase">sec</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
 
         {/* Stats row */}
         <motion.div
@@ -128,7 +268,7 @@ export function PropEventHeader({ event }: PropEventHeaderProps) {
             <div className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm">
               <Calendar className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
               <span className="text-muted-foreground">
-                Ends {format(new Date(eventDate), "MMM d, yyyy")}
+                {timeLeft ? "Ends" : "Ended"} {format(new Date(eventDate), "MMM d, yyyy")}
               </span>
             </div>
           )}
