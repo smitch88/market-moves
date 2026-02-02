@@ -76,11 +76,13 @@ function extractMarketPath(url: string): string {
  * Verify that tweet content matches expected requirements
  * - Checks for content match (case-insensitive)
  * - Checks for link match using just the path/slug, ignoring base URL
+ * - Also checks expanded URLs from tweet metadata (Twitter shortens URLs to t.co)
  */
 export function verifyTweetContent(
   tweetText: string,
   expectedContent: string,
-  expectedLink: string
+  expectedLink: string,
+  expandedUrls?: string[]
 ): { matches: boolean; hasContent: boolean; hasLink: boolean } {
   const normalizedTweet = tweetText.toLowerCase().replace(/\s+/g, " ").trim();
   const normalizedExpected = expectedContent.toLowerCase().replace(/\s+/g, " ").trim();
@@ -94,7 +96,12 @@ export function verifyTweetContent(
   
   // Check if tweet contains the market path (works with any base URL)
   // This matches: vault.markets/markets/slug, localhost:3000/markets/slug, etc.
-  const hasLink = tweetText.toLowerCase().includes(marketPath);
+  let hasLink = tweetText.toLowerCase().includes(marketPath);
+
+  // Also check expanded URLs (Twitter shortens URLs to t.co links)
+  if (!hasLink && expandedUrls?.length) {
+    hasLink = expandedUrls.some(url => url.toLowerCase().includes(marketPath));
+  }
 
   // Must have either content OR link for now (can be stricter later)
   const matches = hasContent || hasLink;
@@ -140,7 +147,8 @@ export async function verifyTweetByTimeline(
       const { matches, hasContent, hasLink } = verifyTweetContent(
         tweet.text,
         expectedContent,
-        expectedLink
+        expectedLink,
+        tweet.linkUrls
       );
 
       if (matches) {
@@ -238,7 +246,8 @@ export async function verifyTweetByUrl(
     const { matches, hasContent, hasLink } = verifyTweetContent(
       tweet.text,
       expectedContent,
-      expectedLink
+      expectedLink,
+      tweet.linkUrls
     );
 
     // Store proof in database (even if not verified)

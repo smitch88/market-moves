@@ -124,6 +124,21 @@ export async function POST(request: NextRequest) {
     if (verificationResult.verified) {
       // Update bet status to confirmed and execute trade
       await prisma.$transaction(async (tx) => {
+        // Update the TweetProof to verified
+        if (bet.tweetProofId) {
+          await tx.tweetProof.update({
+            where: { id: bet.tweetProofId },
+            data: {
+              verified: true,
+              verifiedAt: new Date(),
+              tweetId: verificationResult.tweetId,
+              tweetUrl: verificationResult.tweetId 
+                ? `https://x.com/i/web/status/${verificationResult.tweetId}` 
+                : undefined,
+            },
+          });
+        }
+
         // Update bet status
         await tx.bet.update({
           where: { id: bet.id },
