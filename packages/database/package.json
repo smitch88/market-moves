@@ -20,6 +20,8 @@
     "db:migrate:referral-codes:dry": "tsx scripts/migrate-referral-codes.ts --dry-run",
     "db:clean-and-reseed": "tsx scripts/clean-and-reseed.ts",
     "db:clean-and-reseed:dry": "tsx scripts/clean-and-reseed.ts --dry-run",
+    "db:verify-balance": "tsx scripts/verify-user-balance.ts",
+    "db:verify-balance:all": "tsx scripts/verify-user-balance.ts --all",
     "db:studio": "prisma studio",
     "db:seed": "prisma db seed",
     "db:reset": "prisma db push --force-reset && prisma db seed",
