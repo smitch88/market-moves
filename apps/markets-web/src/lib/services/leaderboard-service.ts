@@ -15,7 +15,7 @@ import { calculateLevel } from "./xp-service";
 // TYPES
 // ============================================================================
 
-export type LeaderboardMetric = "xp" | "pnl" | "volume" | "creators";
+export type LeaderboardMetric = "xp" | "pnl" | "volume" | "creators" | "referrals";
 export type LeaderboardPeriod = "all" | "monthly" | "weekly";
 
 export interface LeaderboardEntry {
@@ -826,6 +826,8 @@ export async function getLeaderboard(
     result = await getVolumeLeaderboard(period, page, pageSize);
   } else if (metric === "creators") {
     result = await getCreatorLeaderboard(period, page, pageSize);
+  } else if (metric === "referrals") {
+    result = await getReferralsLeaderboard(period, page, pageSize);
   } else {
     result = await getPnLLeaderboard(period, page, pageSize);
   }
@@ -858,6 +860,9 @@ export async function getUserRank(
   }
   if (metric === "creators") {
     return getCreatorRank(userId, period);
+  }
+  if (metric === "referrals") {
+    return getUserReferralsRank(userId, period);
   }
   return getUserPnLRank(userId, period);
 }
@@ -1085,6 +1090,150 @@ export async function getCreatorRank(
   return {
     rank: userEntry.rank,
     value: userEntry.value,
+    totalUsers: total,
+  };
+}
+
+// ============================================================================
+// REFERRALS LEADERBOARD
+// ============================================================================
+
+export interface ReferralsLeaderboardEntry extends LeaderboardEntry {
+  referralCount: number;
+  qualifiedCount: number;
+}
+
+/**
+ * Get Referrals leaderboard ranked by total referrals
+ * For "all" period: uses total referrals count
+ * For weekly/monthly: uses referrals created in that period
+ */
+export async function getReferralsLeaderboard(
+  period: LeaderboardPeriod = "all",
+  page: number = 1,
+  pageSize: number = 25
+): Promise<{ entries: ReferralsLeaderboardEntry[]; total: number }> {
+  const skip = (page - 1) * pageSize;
+  const startDate = getPeriodStartDate(period);
+
+  // Build where clause for referrals
+  const whereClause = startDate ? { createdAt: { gte: startDate } } : {};
+
+  // Get referral counts grouped by referrer
+  const referralCounts = await prisma.referral.groupBy({
+    by: ["referrerUserId"],
+    where: whereClause,
+    _count: { _all: true },
+  });
+
+  if (referralCounts.length === 0) {
+    return { entries: [], total: 0 };
+  }
+
+  // Get qualified referral counts (referrals that made at least one bet)
+  const qualifiedCounts = await prisma.referral.groupBy({
+    by: ["referrerUserId"],
+    where: {
+      ...whereClause,
+      qualifiedAt: { not: null },
+    },
+    _count: { _all: true },
+  });
+
+  const qualifiedMap = new Map(
+    qualifiedCounts.map((q) => [q.referrerUserId, q._count._all])
+  );
+
+  // Sort by referral count (descending)
+  const sortedReferrals = referralCounts
+    .map((r) => ({
+      userId: r.referrerUserId,
+      referralCount: r._count._all,
+      qualifiedCount: qualifiedMap.get(r.referrerUserId) ?? 0,
+    }))
+    .sort((a, b) => b.referralCount - a.referralCount);
+
+  const total = sortedReferrals.length;
+  const paginatedReferrals = sortedReferrals.slice(skip, skip + pageSize);
+
+  if (paginatedReferrals.length === 0) {
+    return { entries: [], total };
+  }
+
+  // Get user details
+  const userIds = paginatedReferrals.map((r) => r.userId);
+  const users = await prisma.user.findMany({
+    where: { id: { in: userIds } },
+    select: {
+      id: true,
+      handle: true,
+      name: true,
+      profileImageUrl: true,
+      xp: true,
+    },
+  });
+
+  const userMap = new Map(users.map((u) => [u.id, u]));
+
+  const entries: ReferralsLeaderboardEntry[] = paginatedReferrals.map(
+    (entry, index) => {
+      const user = userMap.get(entry.userId);
+      return {
+        rank: skip + index + 1,
+        userId: entry.userId,
+        handle: user?.handle ?? null,
+        name: user?.name ?? null,
+        profileImageUrl: user?.profileImageUrl ?? null,
+        value: entry.referralCount, // Total referrals as primary value
+        level: user ? calculateLevel(user.xp) : 0,
+        referralCount: entry.referralCount,
+        qualifiedCount: entry.qualifiedCount,
+      };
+    }
+  );
+
+  return { entries, total };
+}
+
+/**
+ * Get a user's referrals rank
+ */
+export async function getUserReferralsRank(
+  userId: string,
+  period: LeaderboardPeriod = "all"
+): Promise<UserRankResult | null> {
+  const startDate = getPeriodStartDate(period);
+
+  // Build where clause
+  const whereClause = startDate
+    ? { referrerUserId: userId, createdAt: { gte: startDate } }
+    : { referrerUserId: userId };
+
+  // Get user's referral count
+  const userReferralCount = await prisma.referral.count({
+    where: whereClause,
+  });
+
+  if (userReferralCount === 0) return null;
+
+  // Get all referral counts for the period
+  const periodWhereClause = startDate ? { createdAt: { gte: startDate } } : {};
+  const allReferralCounts = await prisma.referral.groupBy({
+    by: ["referrerUserId"],
+    where: periodWhereClause,
+    _count: { _all: true },
+  });
+
+  // Count how many users have more referrals
+  const usersAhead = allReferralCounts.filter(
+    (r) => r._count._all > userReferralCount
+  ).length;
+
+  const total = allReferralCounts.length;
+
+  return {
+    rank: usersAhead + 1,
+    value: userReferralCount,
     totalUsers: total,
   };
 }

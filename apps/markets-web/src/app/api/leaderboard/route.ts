@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
     const pageSizeParam = searchParams.get("pageSize") || "25";
 
     // Validate metric
-    const validMetrics: LeaderboardMetric[] = ["xp", "pnl", "volume", "creators"];
+    const validMetrics: LeaderboardMetric[] = ["xp", "pnl", "volume", "creators", "referrals"];
     const metric = validMetrics.includes(metricParam as LeaderboardMetric)
       ? (metricParam as LeaderboardMetric)
       : "xp";

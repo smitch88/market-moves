@@ -31,6 +31,7 @@ import {
   Star,
   Users,
   Check,
+  UserPlus,
 } from "lucide-react";
 import { cn } from "@vault/ui/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
@@ -52,11 +53,14 @@ interface LeaderboardEntry {
   followerPnL?: number;
   followerVolume?: number;
   isKOL?: boolean;
+  // Referral-specific fields
+  referralCount?: number;
+  qualifiedCount?: number;
 }
 
 interface LeaderboardResponse {
   entries: LeaderboardEntry[];
-  metric: "xp" | "pnl" | "volume" | "creators";
+  metric: "xp" | "pnl" | "volume" | "creators" | "referrals";
   period: "all" | "monthly" | "weekly";
   page: number;
   pageSize: number;
@@ -66,7 +70,7 @@ interface LeaderboardResponse {
   updatedAt: string;
 }
 
-type Metric = "xp" | "pnl" | "volume" | "creators";
+type Metric = "xp" | "pnl" | "volume" | "creators" | "referrals";
 type Period = "all" | "monthly" | "weekly";
 
 // ============================================================================
@@ -80,6 +84,7 @@ const metricTabs = [
   { label: "PnL", value: "pnl" as Metric, icon: TrendingUp },
   { label: "Volume", value: "volume" as Metric, icon: TrendingUp },
   { label: "Captains", value: "creators" as Metric, icon: Star },
+  { label: "Referrals", value: "referrals" as Metric, icon: UserPlus },
 ];
 
 const periodTabs = [
@@ -264,6 +269,16 @@ function LeaderboardRow({
         </div>
       )}
 
+      {/* Qualified - for referrals metric */}
+      {metric === "referrals" && (
+        <div className="w-20 text-center hidden sm:flex items-center justify-center gap-1">
+          <Check className="h-3.5 w-3.5 text-emerald-400" />
+          <span className="text-sm text-muted-foreground">
+            {entry.qualifiedCount ?? 0}
+          </span>
+        </div>
+      )}
+
       {/* Value */}
       <div className="w-28 text-right">
         <span
@@ -275,6 +290,8 @@ function LeaderboardRow({
               ? "text-blue-400"
               : metric === "creators"
               ? "text-yellow-500"
+              : metric === "referrals"
+              ? "text-purple-400"
               : entry.value >= 0
               ? "text-emerald-400"
               : "text-red-400"
@@ -286,6 +303,8 @@ function LeaderboardRow({
             ? formatVolume(entry.value)
             : metric === "creators"
             ? formatVolume(entry.value)
+            : metric === "referrals"
+            ? entry.value.toLocaleString()
             : formatPnl(entry.value)}
         </span>
         {metric === "creators" && entry.followerPnL !== undefined && (
@@ -614,7 +633,7 @@ export function LeaderboardContent() {
             <Search className="absolute left-0 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/40" />
             <input
               type="text"
-              placeholder={metric === "creators" ? "Search captains..." : "Search users..."}
+              placeholder={metric === "creators" ? "Search captains..." : metric === "referrals" ? "Search referrers..." : "Search users..."}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-6 py-1 text-sm font-normal normal-case tracking-normal bg-transparent border-none outline-none focus:outline-none placeholder:text-muted-foreground/40"
@@ -626,8 +645,11 @@ export function LeaderboardContent() {
           {metric === "creators" && (
             <div className="w-20 text-center hidden sm:block">Followers</div>
           )}
+          {metric === "referrals" && (
+            <div className="w-20 text-center hidden sm:block">Qualified</div>
+          )}
           <div className="w-28 text-right">
-            {metric === "xp" ? "MP" : metric === "volume" ? "Volume" : metric === "creators" ? "Vol" : "PnL"}
+            {metric === "xp" ? "MP" : metric === "volume" ? "Volume" : metric === "creators" ? "Vol" : metric === "referrals" ? "Referrals" : "PnL"}
           </div>
         </div>
       )}
