@@ -4,6 +4,7 @@ import { prisma, MarketCategory, EventType } from "@vault/database";
 import { Header } from "@/components/layout/header";
 import { MarketDetail } from "@/components/markets/market-detail";
 import { MarketDetailSkeleton } from "@/components/markets/market-detail-skeleton";
+import { MarketDetailErrorBoundary } from "@/components/markets/market-detail-error-boundary";
 import { SportsEventView } from "@/components/sports";
 import type { Metadata } from "next";
 
@@ -155,13 +156,15 @@ export default async function MarketPage({ params }: PageProps) {
     <div className="min-h-screen">
       <Header />
       <main className="container mx-auto px-3 sm:px-4 py-4 sm:py-6">
-        <Suspense fallback={<MarketDetailSkeleton />}>
-          {useSportsView ? (
-            <SportsEventView event={serializedEvent} />
-          ) : (
-            <MarketDetail event={serializedEvent} />
-          )}
-        </Suspense>
+        <MarketDetailErrorBoundary>
+          <Suspense fallback={<MarketDetailSkeleton />}>
+            {useSportsView ? (
+              <SportsEventView event={serializedEvent} />
+            ) : (
+              <MarketDetail event={serializedEvent} />
+            )}
+          </Suspense>
+        </MarketDetailErrorBoundary>
       </main>
     </div>
   );

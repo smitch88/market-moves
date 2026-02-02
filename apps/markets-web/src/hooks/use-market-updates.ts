@@ -282,8 +282,22 @@ export function useMarketUpdates(options: UseMarketUpdatesOptions = {}) {
     connect();
   }, [connect, disconnect]);
 
-  // Connect on mount, cleanup on unmount
+  // Track if we're hydrated (client-side only)
+  const [isHydrated, setIsHydrated] = useState(false);
+  
+  // Set hydrated flag after first render
   useEffect(() => {
+    setIsHydrated(true);
+  }, []);
+
+  // Connect on mount, cleanup on unmount
+  // Only after hydration is complete to avoid any interference
+  useEffect(() => {
+    // Wait for hydration to complete
+    if (!isHydrated) {
+      return;
+    }
+    
     if (!enabled) {
       disconnect();
       isConnectingRef.current = false;
@@ -302,24 +316,29 @@ export function useMarketUpdates(options: UseMarketUpdatesOptions = {}) {
 
     lastEventIdRef.current = eventId;
 
-    // Connect with a delay to ensure page is interactive first
-    // Use requestIdleCallback if available, otherwise setTimeout
+    // Connect with a delay to ensure page is fully interactive
     let cancelled = false;
     
     const doConnect = () => {
       if (cancelled) return;
-      isConnectingRef.current = true;
-      connect();
+      try {
+        isConnectingRef.current = true;
+        connect();
+      } catch (err) {
+        console.error("[SSE] Error starting connection:", err);
+        isConnectingRef.current = false;
+      }
     };
 
-    // Delay connection to not block initial render
+    // Longer delay (2 seconds) to ensure hydration is fully complete
+    // and the page is interactive before starting SSE
     const timer = setTimeout(() => {
       if (typeof requestIdleCallback !== "undefined") {
-        requestIdleCallback(doConnect, { timeout: 2000 });
+        requestIdleCallback(doConnect, { timeout: 5000 });
       } else {
         doConnect();
       }
-    }, 500); // Wait 500ms before even trying to connect
+    }, 2000);
 
     return () => {
       cancelled = true;
@@ -328,7 +347,7 @@ export function useMarketUpdates(options: UseMarketUpdatesOptions = {}) {
       isConnectingRef.current = false;
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, eventId]);
+  }, [enabled, eventId, isHydrated]);
 
   return {
     /** Current connection status */

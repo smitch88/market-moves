@@ -22,7 +22,7 @@ function formatVolume(v: number): string {
   return `$${v.toFixed(0)}`;
 }
 
-// Countdown hook
+// Countdown hook - ensures no hydration mismatch by starting null
 function useCountdown(targetDate: Date | null) {
   const [timeLeft, setTimeLeft] = useState<{
     days: number;
@@ -30,14 +30,31 @@ function useCountdown(targetDate: Date | null) {
     minutes: number;
     seconds: number;
   } | null>(null);
+  const [isMounted, setIsMounted] = useState(false);
+  
+  // Convert to timestamp for stable comparison (Date objects change identity on every render)
+  const targetTimestamp = targetDate ? new Date(targetDate).getTime() : null;
+
+  // Mark as mounted after first render (client-side only)
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   useEffect(() => {
-    if (!targetDate) return;
+    // Only run on client side after mount
+    if (!isMounted) {
+      return;
+    }
+    
+    // No target date
+    if (!targetTimestamp || isNaN(targetTimestamp)) {
+      setTimeLeft(null);
+      return;
+    }
 
     const calculateTimeLeft = () => {
-      const now = new Date().getTime();
-      const target = new Date(targetDate).getTime();
-      const difference = target - now;
+      const now = Date.now();
+      const difference = targetTimestamp - now;
 
       if (difference <= 0) {
         return null;
@@ -51,14 +68,22 @@ function useCountdown(targetDate: Date | null) {
       };
     };
 
+    // Initial calculation
     setTimeLeft(calculateTimeLeft());
 
+    // Update every second
     const timer = setInterval(() => {
-      setTimeLeft(calculateTimeLeft());
+      const result = calculateTimeLeft();
+      setTimeLeft(result);
+      
+      // Clear interval if countdown finished
+      if (!result) {
+        clearInterval(timer);
+      }
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [targetDate]);
+  }, [targetTimestamp, isMounted]);
 
   return timeLeft;
 }
