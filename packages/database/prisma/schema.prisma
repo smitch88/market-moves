@@ -908,3 +908,29 @@ model DailySpin {
   @@index([userId])
   @@index([spinDate])
 }
+
+// ============================================================================
+// FEATURE FLAGS
+// ============================================================================
+
+enum FeatureFlagStatus {
+  OFF        // Feature disabled for everyone
+  ON         // Feature enabled for everyone
+  ADMIN_ONLY // Feature enabled only for admins
+}
+
+/// Feature flags for controlling feature rollout
+model FeatureFlag {
+  id          String            @id @default(cuid())
+  key         String            @unique // Unique identifier (e.g., "daily_spin", "dark_mode")
+  name        String            // Human-readable name
+  description String?           // Optional description of what the flag controls
+  status      FeatureFlagStatus @default(OFF)
+  
+  // Metadata
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@index([key])
+  @@index([status])
+}

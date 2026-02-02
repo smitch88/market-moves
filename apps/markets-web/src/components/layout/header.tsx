@@ -94,6 +94,7 @@ export function Header() {
   });
 
   const canSpin = spinStatus?.canSpin ?? false;
+  const dailySpinEnabled = !spinStatus?.featureDisabled;
 
   // Refetch spin status and profile when modal closes
   const handleSpinModalClose = () => {
@@ -223,7 +224,7 @@ export function Header() {
           </motion.button>
 
           {/* Mobile daily spin button */}
-          {hasSession && (
+          {hasSession && dailySpinEnabled && (
             <motion.button
               className="sm:hidden p-1 rounded-md hover:bg-muted/50 transition-colors relative"
               onClick={() => setDailySpinOpen(true)}
@@ -248,18 +249,20 @@ export function Header() {
                 <span className="text-[10px] lg:text-[11px] text-muted-foreground font-medium tracking-wide">Balance</span>
                 <AnimatedBalanceDisplay balance={balance} isLoading={isLoadingUserData} />
               </div>
-              <motion.button
-                onClick={() => setDailySpinOpen(true)}
-                className="p-1 rounded-md hover:bg-muted/50 transition-colors relative"
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                aria-label="Daily Spin"
-              >
-                <Gift className="h-4 w-4 text-white" />
-                {canSpin && (
-                  <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-primary" />
-                )}
-              </motion.button>
+              {dailySpinEnabled && (
+                <motion.button
+                  onClick={() => setDailySpinOpen(true)}
+                  className="p-1 rounded-md hover:bg-muted/50 transition-colors relative"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  aria-label="Daily Spin"
+                >
+                  <Gift className="h-4 w-4 text-white" />
+                  {canSpin && (
+                    <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-primary" />
+                  )}
+                </motion.button>
+              )}
             </div>
           )}
 

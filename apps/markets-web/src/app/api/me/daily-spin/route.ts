@@ -6,6 +6,7 @@ import {
   getPrizeTiers,
   getUserSpinHistory 
 } from "@/lib/services/daily-spin-service";
+import { isFeatureEnabled, FeatureFlags } from "@/lib/services/feature-flag-service";
 
 /**
  * GET /api/me/daily-spin
@@ -14,6 +15,15 @@ import {
 export async function GET() {
   try {
     const user = await requireUser();
+    
+    // Check feature flag
+    const featureEnabled = await isFeatureEnabled(FeatureFlags.DAILY_SPIN, user);
+    if (!featureEnabled) {
+      return NextResponse.json({
+        canSpin: false,
+        featureDisabled: true,
+      });
+    }
     
     const spinStatus = await canUserSpin(user.id);
     const prizeTiers = getPrizeTiers();
@@ -46,6 +56,15 @@ export async function GET() {
 export async function POST() {
   try {
     const user = await requireUser();
+    
+    // Check feature flag
+    const featureEnabled = await isFeatureEnabled(FeatureFlags.DAILY_SPIN, user);
+    if (!featureEnabled) {
+      return NextResponse.json(
+        { error: "Daily spin is currently disabled" },
+        { status: 403 }
+      );
+    }
     
     const result = await executeDailySpin(user.id);
     

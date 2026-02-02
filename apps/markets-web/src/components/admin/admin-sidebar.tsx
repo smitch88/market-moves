@@ -25,6 +25,7 @@ import {
   Lightbulb,
   Sparkles,
   Gift,
+  Flag,
 } from "lucide-react";
 import { useLogout } from "@privy-io/react-auth";
 
@@ -49,6 +50,7 @@ const navItems = [
   { href: "/admin/bets", label: "Bets", icon: Receipt },
   { href: "/admin/users", label: "Users", icon: Users },
   { href: "/admin/daily-spins", label: "Daily Spins", icon: Gift },
+  { href: "/admin/feature-flags", label: "Feature Flags", icon: Flag },
   { href: "/admin/xp", label: "MP Config", icon: Sparkles },
   { href: "/admin/requests", label: "Requests", icon: Lightbulb },
   { href: "/admin/social", label: "Social", icon: Share2 },
