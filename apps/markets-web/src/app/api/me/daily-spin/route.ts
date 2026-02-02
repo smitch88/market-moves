@@ -3,7 +3,6 @@ import { requireUser } from "@vault/auth";
 import { 
   canUserSpin, 
   executeDailySpin, 
-  getPrizeTiers,
   getUserSpinHistory 
 } from "@/lib/services/daily-spin-service";
 import { isFeatureEnabled, FeatureFlags } from "@/lib/services/feature-flag-service";
@@ -26,12 +25,10 @@ export async function GET() {
     }
     
     const spinStatus = await canUserSpin(user.id);
-    const prizeTiers = getPrizeTiers();
     const history = await getUserSpinHistory(user.id, 5);
     
     return NextResponse.json({
       ...spinStatus,
-      prizeTiers,
       history: history.map(spin => ({
         ...spin,
         reward: Number(spin.reward),

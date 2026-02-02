@@ -94,7 +94,8 @@ export function Header() {
   });
 
   const canSpin = spinStatus?.canSpin ?? false;
-  const dailySpinEnabled = !spinStatus?.featureDisabled;
+  // Only show daily spin button once we've loaded status AND feature is not disabled
+  const dailySpinEnabled = spinStatus !== undefined && !spinStatus?.featureDisabled;
 
   // Refetch spin status and profile when modal closes
   const handleSpinModalClose = () => {
