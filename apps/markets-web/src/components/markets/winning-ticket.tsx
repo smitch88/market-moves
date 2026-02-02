@@ -1,6 +1,6 @@
 "use client";
 
-import { forwardRef } from "react";
+import { forwardRef, useState } from "react";
 import { Trophy } from "lucide-react";
 
 interface WinningTicketProps {
@@ -38,6 +38,7 @@ export const WinningTicket = forwardRef<HTMLDivElement, WinningTicketProps>(
     },
     ref
   ) => {
+    const [avatarError, setAvatarError] = useState(false);
     const formattedDate = settledDate.toLocaleDateString("en-US", {
       month: "short",
       day: "numeric",
@@ -180,12 +181,13 @@ export const WinningTicket = forwardRef<HTMLDivElement, WinningTicketProps>(
           {/* User & Date Info */}
           <div className="flex items-center justify-between -my-1 xs:-my-2">
             <div className="flex items-center gap-1.5 xs:gap-2">
-              {userAvatar ? (
+              {userAvatar && !avatarError ? (
                 <img
                   src={userAvatar}
                   alt={userName || userHandle || "User"}
                   className="w-8 h-8 xs:w-10 xs:h-10 rounded-full"
                   style={{ border: "2px solid #22c55e" }}
+                  onError={() => setAvatarError(true)}
                 />
               ) : (
                 <div

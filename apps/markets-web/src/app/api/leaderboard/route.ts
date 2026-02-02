@@ -49,9 +49,11 @@ export async function GET(request: NextRequest) {
 
     // Try to get current user's rank if authenticated
     let currentUserEntry = null;
+    let isAuthenticated = false;
     try {
       const user = await getEffectiveUser();
       if (user) {
+        isAuthenticated = true;
         // Check if user is already in the current page
         const isInCurrentPage = result.entries.some((e) => e.userId === user.id);
         if (!isInCurrentPage) {
@@ -62,7 +64,13 @@ export async function GET(request: NextRequest) {
       // User not authenticated, that's fine
     }
 
-    // Return with cache headers for CDN caching
+    // Return with appropriate cache headers
+    // Use private caching for authenticated requests to prevent CDN from
+    // serving one user's currentUserEntry to another user
+    const cacheControl = isAuthenticated
+      ? "private, max-age=30"
+      : "public, s-maxage=30, stale-while-revalidate=60";
+    
     return NextResponse.json(
       {
         ...result,
@@ -70,7 +78,7 @@ export async function GET(request: NextRequest) {
       },
       {
         headers: {
-          "Cache-Control": "public, s-maxage=30, stale-while-revalidate=60",
+          "Cache-Control": cacheControl,
         },
       }
     );

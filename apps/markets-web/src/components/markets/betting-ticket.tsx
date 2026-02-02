@@ -1,6 +1,6 @@
 "use client";
 
-import { forwardRef } from "react";
+import { forwardRef, useState } from "react";
 import type { Market, Event } from "@vault/database";
 
 // Event type that accepts both Date and string for date fields (API serialization)
@@ -25,6 +25,7 @@ interface BettingTicketProps {
 
 export const BettingTicket = forwardRef<HTMLDivElement, BettingTicketProps>(
   ({ market, event, outcomeLabel, outcomeIndex, amount, userName, userHandle, userAvatar, timestamp = new Date() }, ref) => {
+    const [avatarError, setAvatarError] = useState(false);
     const formattedDate = timestamp.toLocaleDateString("en-US", {
       month: "short",
       day: "numeric",
@@ -133,12 +134,13 @@ export const BettingTicket = forwardRef<HTMLDivElement, BettingTicketProps>(
             {/* User & Time Info */}
             <div className="flex items-center justify-between -my-1 xs:-my-2">
               <div className="flex items-center gap-1.5 xs:gap-2">
-                {userAvatar ? (
+                {userAvatar && !avatarError ? (
                   <img 
                     src={userAvatar} 
                     alt={userName || userHandle || "User"} 
                     className="w-8 h-8 xs:w-10 xs:h-10 rounded-full"
                     style={{ border: "2px solid #FB2C36" }}
+                    onError={() => setAvatarError(true)}
                   />
                 ) : (
                   <div 
