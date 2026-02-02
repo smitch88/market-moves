@@ -73,7 +73,7 @@ type Period = "all" | "monthly" | "weekly";
 // CONSTANTS
 // ============================================================================
 
-const PAGE_SIZE = 25;
+const PAGE_SIZE = 10;
 
 const metricTabs = [
   { label: "MP", value: "xp" as Metric, icon: Sparkles },
@@ -588,7 +588,27 @@ export function LeaderboardContent() {
         </div>
       )}
 
-      {/* Search Header - Outside AnimatePresence to prevent state issues */}
+      {/* Your Position - Top Right (visible when not in current page) */}
+      {data && !isLoading && data.currentUserEntry && !currentUserInPage && (
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-end gap-2">
+          <div className="sm:w-96">
+            <div className="flex items-center gap-2 px-4 py-2 text-xs text-muted-foreground uppercase tracking-wider">
+              <User className="h-3.5 w-3.5" />
+              <span>Your Position</span>
+            </div>
+            <div className="bg-card rounded-xl border border-primary/30 overflow-hidden">
+              <LeaderboardRow
+                entry={data.currentUserEntry}
+                index={data.currentUserEntry.rank}
+                metric={metric}
+                isCurrentUser
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Search Header */}
       {data && !isLoading && (
         <div className="flex items-center px-4 py-3 text-xs text-muted-foreground/60 uppercase tracking-wider bg-card rounded-t-xl border border-border/50 border-b-0">
           <div className="w-12" />
@@ -638,28 +658,11 @@ export function LeaderboardContent() {
                     entry={entry}
                     index={index}
                     metric={metric}
+                    isCurrentUser={data.currentUserEntry?.userId === entry.userId}
                   />
                 ))
               )}
             </div>
-
-            {/* Current User Position (if not in current page) */}
-            {data.currentUserEntry && !currentUserInPage && (
-              <div className="mt-4">
-                <div className="flex items-center gap-2 px-4 py-2 text-sm text-muted-foreground mb-2">
-                  <User className="h-4 w-4" />
-                  <span>Your Position</span>
-                </div>
-                <div className="bg-card rounded-xl border border-primary/30 overflow-hidden">
-                  <LeaderboardRow
-                    entry={data.currentUserEntry}
-                    index={data.currentUserEntry.rank}
-                    metric={metric}
-                    isCurrentUser
-                  />
-                </div>
-              </div>
-            )}
 
             {/* Pagination */}
             {totalPages > 1 && (
