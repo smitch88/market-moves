@@ -64,6 +64,7 @@ export function useMarketUpdates(options: UseMarketUpdatesOptions = {}) {
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isConnectingRef = useRef(false);
   const lastEventIdRef = useRef(eventId);
+  const gracefulReconnectRef = useRef(false);
   
   // Store callback in a ref to avoid dependency issues
   const onPriceUpdateRef = useRef(onPriceUpdate);
@@ -80,13 +81,29 @@ export function useMarketUpdates(options: UseMarketUpdatesOptions = {}) {
    * Connect to the SSE stream
    */
   const connect = useCallback(() => {
+    // Guard: Only run in browser
+    if (typeof window === "undefined" || typeof EventSource === "undefined") {
+      return;
+    }
+    
     if (!enabled) return;
+    
+    // Prevent multiple simultaneous connection attempts
+    if (isConnectingRef.current && eventSourceRef.current) {
+      return;
+    }
     
     // Close existing connection
     if (eventSourceRef.current) {
-      eventSourceRef.current.close();
+      try {
+        eventSourceRef.current.close();
+      } catch {
+        // Ignore errors when closing
+      }
+      eventSourceRef.current = null;
     }
 
+    isConnectingRef.current = true;
     setStatus("connecting");
 
     // Build URL with optional eventId filter
@@ -94,10 +111,43 @@ export function useMarketUpdates(options: UseMarketUpdatesOptions = {}) {
       ? `/api/markets/stream?eventId=${encodeURIComponent(eventId)}`
       : "/api/markets/stream";
 
-    const eventSource = new EventSource(url);
+    let eventSource: EventSource;
+    try {
+      eventSource = new EventSource(url);
+    } catch (error) {
+      console.error("[SSE] Failed to create EventSource:", error);
+      isConnectingRef.current = false;
+      setStatus("error");
+      return;
+    }
+    
     eventSourceRef.current = eventSource;
 
+    // Connection timeout - if we don't get connected within 30 seconds, something is wrong
+    const connectionTimeoutId = setTimeout(() => {
+      if (eventSourceRef.current && eventSourceRef.current.readyState === EventSource.CONNECTING) {
+        console.warn("[SSE] Connection timeout - closing and retrying");
+        try {
+          eventSource.close();
+        } catch {
+          // Ignore
+        }
+        eventSourceRef.current = null;
+        isConnectingRef.current = false;
+        setStatus("error");
+        
+        // Trigger reconnect
+        if (reconnectAttemptsRef.current < maxReconnectAttempts) {
+          reconnectAttemptsRef.current++;
+          reconnectTimeoutRef.current = setTimeout(() => {
+            connect();
+          }, 5000);
+        }
+      }
+    }, 30000);
+
     eventSource.onopen = () => {
+      clearTimeout(connectionTimeoutId);
       setStatus("connected");
       reconnectAttemptsRef.current = 0; // Reset reconnect attempts on successful connection
     };
@@ -108,6 +158,15 @@ export function useMarketUpdates(options: UseMarketUpdatesOptions = {}) {
         
         if (data.type === "connected") {
           // Initial connection confirmation
+          return;
+        }
+
+        if (data.type === "reconnect") {
+          // Server is closing connection due to max duration
+          // Set flag for graceful reconnect (no backoff delay)
+          // The error handler will handle the actual reconnection
+          console.log("[SSE] Server requested reconnect:", data.reason);
+          gracefulReconnectRef.current = true;
           return;
         }
 
@@ -133,29 +192,55 @@ export function useMarketUpdates(options: UseMarketUpdatesOptions = {}) {
     };
 
     eventSource.onerror = () => {
-      // Prevent duplicate error handling
-      if (!eventSourceRef.current) {
-        return;
-      }
-      
-      setStatus("error");
-      eventSource.close();
-      eventSourceRef.current = null;
-      isConnectingRef.current = false;
-
-      // Attempt to reconnect with exponential backoff
-      // Use a minimum delay of 5 seconds to prevent rapid reconnection
-      if (reconnectAttemptsRef.current < maxReconnectAttempts) {
-        const baseDelay = Math.max(reconnectDelay, 5000);
-        const delay = baseDelay * Math.pow(1.5, reconnectAttemptsRef.current);
-        reconnectAttemptsRef.current++;
+      try {
+        // Prevent duplicate error handling
+        if (!eventSourceRef.current) {
+          return;
+        }
         
-        reconnectTimeoutRef.current = setTimeout(() => {
+        const isGraceful = gracefulReconnectRef.current;
+        gracefulReconnectRef.current = false;
+        
+        if (!isGraceful) {
+          setStatus("error");
+        }
+        
+        try {
+          eventSource.close();
+        } catch {
+          // Ignore close errors
+        }
+        eventSourceRef.current = null;
+        isConnectingRef.current = false;
+
+        // For graceful reconnects (server max duration), use short delay
+        if (isGraceful) {
+          reconnectTimeoutRef.current = setTimeout(() => {
+            setStatus("disconnected");
+            isConnectingRef.current = false;
+            connect();
+          }, 500);
+          return;
+        }
+
+        // Attempt to reconnect with exponential backoff for actual errors
+        // Use a minimum delay of 5 seconds to prevent rapid reconnection
+        if (reconnectAttemptsRef.current < maxReconnectAttempts) {
+          const baseDelay = Math.max(reconnectDelay, 5000);
+          const delay = baseDelay * Math.pow(1.5, reconnectAttemptsRef.current);
+          reconnectAttemptsRef.current++;
+          
+          reconnectTimeoutRef.current = setTimeout(() => {
+            setStatus("disconnected");
+            isConnectingRef.current = false;
+            connect();
+          }, Math.min(delay, 30000)); // Cap at 30 seconds
+        } else {
           setStatus("disconnected");
-          isConnectingRef.current = false;
-          connect();
-        }, Math.min(delay, 30000)); // Cap at 30 seconds
-      } else {
+        }
+      } catch (err) {
+        console.error("[SSE] Error in error handler:", err);
+        isConnectingRef.current = false;
         setStatus("disconnected");
       }
     };
@@ -165,18 +250,27 @@ export function useMarketUpdates(options: UseMarketUpdatesOptions = {}) {
    * Disconnect from the SSE stream
    */
   const disconnect = useCallback(() => {
-    if (reconnectTimeoutRef.current) {
-      clearTimeout(reconnectTimeoutRef.current);
-      reconnectTimeoutRef.current = null;
+    try {
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
+      }
+      
+      if (eventSourceRef.current) {
+        try {
+          eventSourceRef.current.close();
+        } catch {
+          // Ignore close errors
+        }
+        eventSourceRef.current = null;
+      }
+      
+      setStatus("disconnected");
+      reconnectAttemptsRef.current = 0;
+      gracefulReconnectRef.current = false;
+    } catch (err) {
+      console.error("[SSE] Error during disconnect:", err);
     }
-    
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close();
-      eventSourceRef.current = null;
-    }
-    
-    setStatus("disconnected");
-    reconnectAttemptsRef.current = 0;
   }, []);
 
   /**
@@ -207,14 +301,28 @@ export function useMarketUpdates(options: UseMarketUpdatesOptions = {}) {
     }
 
     lastEventIdRef.current = eventId;
-    isConnectingRef.current = true;
 
-    // Connect with a small delay to batch rapid updates
-    const timer = setTimeout(() => {
+    // Connect with a delay to ensure page is interactive first
+    // Use requestIdleCallback if available, otherwise setTimeout
+    let cancelled = false;
+    
+    const doConnect = () => {
+      if (cancelled) return;
+      isConnectingRef.current = true;
       connect();
-    }, 50);
+    };
+
+    // Delay connection to not block initial render
+    const timer = setTimeout(() => {
+      if (typeof requestIdleCallback !== "undefined") {
+        requestIdleCallback(doConnect, { timeout: 2000 });
+      } else {
+        doConnect();
+      }
+    }, 500); // Wait 500ms before even trying to connect
 
     return () => {
+      cancelled = true;
       clearTimeout(timer);
       disconnect();
       isConnectingRef.current = false;
