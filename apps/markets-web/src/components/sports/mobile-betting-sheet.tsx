@@ -462,29 +462,27 @@ export function MobileBettingSheet({
                 {!canBet ? (
                   /* Market closed state */
                   <div className="text-center py-8 pb-6">
-                    <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-muted/50 flex items-center justify-center">
-                      {selectedMarket.status === "SETTLED" ? (
-                        <span className="text-3xl">🏆</span>
-                      ) : selectedMarket.status === "RESOLVED" ? (
-                        <span className="text-3xl">✓</span>
-                      ) : (
-                        <span className="text-3xl">🔒</span>
-                      )}
-                    </div>
-                    <h3 className="font-semibold text-lg mb-1">
-                      {selectedMarket.status === "SETTLED"
-                        ? "Market Settled"
-                        : selectedMarket.status === "RESOLVED"
-                          ? "Market Resolved"
-                          : "Market Closed"}
-                    </h3>
-                    <p className="text-sm text-muted-foreground mb-4">
-                      {selectedMarket.status === "SETTLED"
-                        ? "Check your positions for any payouts."
-                        : selectedMarket.status === "RESOLVED"
-                          ? `Outcome: ${outcomes[selectedMarket.resolvedOutcome ?? 0] || "Unknown"}`
-                          : "This market is not open for trading."}
-                    </p>
+                    {(selectedMarket.status === "SETTLED" || selectedMarket.status === "RESOLVED") && selectedMarket.resolvedOutcome !== null ? (
+                      <>
+                        <p className="text-sm text-muted-foreground mb-1">
+                          {selectedMarket.status === "SETTLED" ? "Final result" : "Resolved to"}
+                        </p>
+                        <p className="font-bold text-xl text-green-500 mb-2">
+                          {outcomes[selectedMarket.resolvedOutcome] || "Unknown"}
+                        </p>
+                        {selectedMarket.resolutionSourceUrl && (
+                          <a href={selectedMarket.resolutionSourceUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-muted-foreground hover:text-primary mb-4 inline-block">
+                            Source ↗
+                          </a>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <h3 className="font-semibold text-lg mb-1">Market Closed</h3>
+                        <p className="text-sm text-muted-foreground mb-4">Awaiting resolution</p>
+                      </>
+                    )}
+                    
                     {userShares > 0 && (
                       <p className="text-sm text-muted-foreground">
                         Your position: <span className="font-semibold text-foreground">{userShares.toFixed(2)} shares</span>

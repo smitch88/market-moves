@@ -25,6 +25,8 @@ const dryRun = args.includes("--dry-run");
 async function cleanDatabase() {
   console.log("🧹 Cleaning database...\n");
   
+  console.log("DATABASE_URL:", process.env.DATABASE_URL);
+
   if (dryRun) {
     console.log("   (DRY RUN - no changes will be made)\n");
   }

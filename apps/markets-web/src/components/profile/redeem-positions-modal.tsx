@@ -12,7 +12,7 @@ import {
   toast,
   Skeleton,
 } from "@vault/ui";
-import { Gift, Check, TrendingUp, TrendingDown, Loader2 } from "lucide-react";
+import { Check, TrendingUp, TrendingDown, Loader2 } from "lucide-react";
 import { cn } from "@vault/ui/lib/utils";
 import { useAuthFetch } from "@/lib/auth/auth-fetch";
 import { useXPAnimation } from "@/components/layout/xp-animation";
@@ -75,13 +75,21 @@ export function RedeemPositionsModal({ open, onOpenChange }: RedeemPositionsModa
       return res.json();
     },
     onSuccess: (data) => {
-      // Queue balance increase animation (redeeming adds to balance)
+      // Queue balance increase animation (only if there's actual payout)
       if (data.totalRedeemed && data.totalRedeemed > 0) {
         queueBalanceChange(Math.round(data.totalRedeemed));
       }
       
       setRedeemed(true);
       setRedeemedAmount(data.totalRedeemed);
+      
+      // Show appropriate toast message
+      if (data.totalRedeemed > 0) {
+        toast.success(`Claimed $${data.totalRedeemed.toFixed(2)}!`);
+      } else {
+        toast.success("Positions closed out");
+      }
+      
       queryClient.invalidateQueries({ queryKey: ["positions"] });
       queryClient.invalidateQueries({ queryKey: ["redeemable-positions"] });
       queryClient.invalidateQueries({ queryKey: ["profile"] });
@@ -115,15 +123,12 @@ export function RedeemPositionsModal({ open, onOpenChange }: RedeemPositionsModa
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <div className="p-1.5 rounded-lg bg-green-500/10">
-              <Gift className="h-5 w-5 text-green-500" />
-            </div>
             {redeemed ? "Positions Redeemed!" : "Redeem Your Winnings"}
           </DialogTitle>
           <DialogDescription>
             {redeemed 
               ? "Your winnings have been added to your balance."
-              : "Claim payouts from your winning positions."
+              : "Claim payouts and close out settled positions."
             }
           </DialogDescription>
         </DialogHeader>
@@ -133,12 +138,25 @@ export function RedeemPositionsModal({ open, onOpenChange }: RedeemPositionsModa
             <div className="w-16 h-16 rounded-full bg-green-500/20 flex items-center justify-center mx-auto mb-4">
               <Check className="h-8 w-8 text-green-500" />
             </div>
-            <p className="text-3xl font-bold text-green-500 mb-2">
-              +${redeemedAmount.toFixed(2)}
-            </p>
-            <p className="text-muted-foreground">
-              Successfully claimed to your balance
-            </p>
+            {redeemedAmount > 0 ? (
+              <>
+                <p className="text-3xl font-bold text-green-500 mb-2">
+                  +${redeemedAmount.toFixed(2)}
+                </p>
+                <p className="text-muted-foreground">
+                  Successfully claimed to your balance
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-2xl font-bold text-foreground mb-2">
+                  Positions Closed
+                </p>
+                <p className="text-muted-foreground">
+                  Your settled positions have been cleared
+                </p>
+              </>
+            )}
             <Button onClick={handleClose} className="mt-6">
               Done
             </Button>
@@ -225,19 +243,28 @@ export function RedeemPositionsModal({ open, onOpenChange }: RedeemPositionsModa
 
               <Button
                 onClick={handleRedeem}
-                disabled={redeemMutation.isPending || summary.totalRedeemable === 0}
-                className="w-full bg-green-500 hover:bg-green-600"
+                disabled={redeemMutation.isPending}
+                className={cn(
+                  "w-full",
+                  summary.totalRedeemable > 0 
+                    ? "bg-green-500 hover:bg-green-600"
+                    : "bg-muted hover:bg-muted/80"
+                )}
                 size="lg"
               >
                 {redeemMutation.isPending ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Claiming...
+                    Processing...
+                  </>
+                ) : summary.totalRedeemable > 0 ? (
+                  <>
+                    Claim ${summary.totalRedeemable.toFixed(2)}
                   </>
                 ) : (
                   <>
-                    <Gift className="h-4 w-4 mr-2" />
-                    Claim ${summary.totalRedeemable.toFixed(2)}
+                    <Check className="h-4 w-4 mr-2" />
+                    Close Out Positions
                   </>
                 )}
               </Button>

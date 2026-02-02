@@ -238,35 +238,39 @@ export function BettingPanel({ market, event, stats }: BettingPanelProps) {
         <GlassCardContent className="space-y-4">
           {!canBet ? (
             <div className="text-center py-6">
-              <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-muted/50 flex items-center justify-center">
-                {market.status === "SETTLED" ? (
-                  <span className="text-2xl">🏆</span>
-                ) : market.status === "RESOLVED" ? (
-                  <span className="text-2xl">✓</span>
-                ) : (
-                  <span className="text-2xl">🔒</span>
-                )}
-              </div>
-              <h3 className="font-semibold text-lg mb-1">
-                {market.status === "SETTLED" 
-                  ? "Market Settled"
-                  : market.status === "RESOLVED"
-                    ? "Market Resolved"
-                    : market.closesAt && new Date(market.closesAt) < new Date()
+              {(market.status === "SETTLED" || market.status === "RESOLVED") && market.resolvedOutcome !== null ? (
+                <>
+                  <p className="text-sm text-muted-foreground mb-1">
+                    {market.status === "SETTLED" ? "Final result" : "Resolved to"}
+                  </p>
+                  <p className="font-bold text-lg text-green-500 mb-2">
+                    {outcomes[market.resolvedOutcome]}
+                  </p>
+                  {market.resolutionSourceUrl && (
+                    <a
+                      href={market.resolutionSourceUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-muted-foreground hover:text-primary"
+                    >
+                      Source ↗
+                    </a>
+                  )}
+                </>
+              ) : (
+                <>
+                  <h3 className="font-semibold text-lg mb-1">
+                    {market.closesAt && new Date(market.closesAt) < new Date()
                       ? "Market Closed"
-                      : "Trading Unavailable"
-                }
-              </h3>
-              <p className="text-sm text-muted-foreground">
-                {market.status === "SETTLED" 
-                  ? "This market has been settled. Check your positions for any payouts."
-                  : market.status === "RESOLVED"
-                    ? "The outcome has been determined. Awaiting settlement."
-                    : market.closesAt && new Date(market.closesAt) < new Date()
-                      ? "This market has closed for betting."
-                      : "This market is not currently open for trading."
-                }
-              </p>
+                      : "Trading Unavailable"}
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    {market.closesAt && new Date(market.closesAt) < new Date()
+                      ? "Awaiting resolution"
+                      : "Not open for trading"}
+                  </p>
+                </>
+              )}
             </div>
           ) : step === "select" ? (
             <SelectOutcomeStep

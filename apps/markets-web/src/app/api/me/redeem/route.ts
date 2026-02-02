@@ -89,10 +89,6 @@ export async function POST(request: NextRequest) {
         };
       }
 
-      const redemptions: RedemptionResult[] = [];
-      let totalPayout = new Prisma.Decimal(0);
-      let totalProfit = new Prisma.Decimal(0);
-
       // Get current user balance
       const currentUser = await tx.user.findUnique({
         where: { id: user.id },
@@ -103,9 +99,55 @@ export async function POST(request: NextRequest) {
         throw new Error("User not found");
       }
 
+      // First pass: Mark positions as claimed atomically to prevent race conditions
+      const claimTimestamp = new Date();
+      const claimedPositionIds: string[] = [];
+      
+      for (const position of positions) {
+        const updateResult = await tx.position.updateMany({
+          where: { 
+            id: position.id,
+            claimedAt: null, // Only update if not already claimed
+          },
+          data: { claimedAt: claimTimestamp },
+        });
+        
+        if (updateResult.count > 0) {
+          claimedPositionIds.push(position.id);
+        } else {
+          console.warn(`Position ${position.id} already claimed by concurrent request, skipping`);
+        }
+      }
+
+      // Filter to only process positions we successfully claimed
+      const claimedPositions = positions.filter(p => claimedPositionIds.includes(p.id));
+
+      if (claimedPositions.length === 0) {
+        return {
+          success: true,
+          totalRedeemed: 0,
+          positionsRedeemed: 0,
+          positions: [],
+          message: "No positions to redeem (already claimed or unavailable)",
+        };
+      }
+
+      // Second pass: Calculate payouts and create ledger entries
+      const redemptions: RedemptionResult[] = [];
+      const balanceLedgerEntries: Array<{
+        userId: string;
+        delta: Prisma.Decimal;
+        balanceBefore: Prisma.Decimal;
+        balanceAfter: Prisma.Decimal;
+        reason: BalanceReason;
+        correlationId: string;
+      }> = [];
+      
+      let totalPayout = new Prisma.Decimal(0);
+      let totalProfit = new Prisma.Decimal(0);
       let runningBalance = currentUser.balance;
 
-      for (const position of positions) {
+      for (const position of claimedPositions) {
         const { market } = position;
         const outcomes = JSON.parse(market.outcomes) as string[];
         const resolvedOutcome = market.resolvedOutcome;
@@ -131,7 +173,6 @@ export async function POST(request: NextRequest) {
             payout = shares.mul(1 - fee).floor();
           }
           const costBasis = shares.mul(avgCost);
-
           const profit = payout.minus(costBasis);
 
           redemptions.push({
@@ -151,81 +192,76 @@ export async function POST(request: NextRequest) {
           totalPayout = totalPayout.plus(payout);
           totalProfit = totalProfit.plus(profit);
 
-          // Create balance ledger entry for winners
+          // Prepare balance ledger entry for winners
           if (isWinner && !payout.isZero()) {
             const newBalance = runningBalance.plus(payout);
             
-            await tx.balanceLedger.create({
-              data: {
-                userId: user.id,
-                delta: payout,
-                balanceBefore: runningBalance,
-                balanceAfter: newBalance,
-                reason: BalanceReason.SETTLEMENT_PAYOUT,
-                correlationId: position.id,
-              },
+            balanceLedgerEntries.push({
+              userId: user.id,
+              delta: payout,
+              balanceBefore: runningBalance,
+              balanceAfter: newBalance,
+              reason: BalanceReason.SETTLEMENT_PAYOUT,
+              correlationId: position.id,
             });
             
             runningBalance = newBalance;
           }
 
-          // Create balance ledger entry for losers (tracking entry with delta=0)
+          // Prepare balance ledger entry for losers (tracking entry with delta=0)
           if (!isWinner && !shares.isZero()) {
-            await tx.balanceLedger.create({
-              data: {
-                userId: user.id,
-                delta: new Prisma.Decimal(0),
-                balanceBefore: runningBalance,
-                balanceAfter: runningBalance,
-                reason: BalanceReason.SETTLEMENT_LOSS,
-                correlationId: position.id,
-              },
+            balanceLedgerEntries.push({
+              userId: user.id,
+              delta: new Prisma.Decimal(0),
+              balanceBefore: runningBalance,
+              balanceAfter: runningBalance,
+              reason: BalanceReason.SETTLEMENT_LOSS,
+              correlationId: position.id,
             });
           }
         }
+      }
 
-        // Mark position as claimed
-        await tx.position.update({
-          where: { id: position.id },
-          data: { claimedAt: new Date() },
+      // Batch create all balance ledger entries
+      if (balanceLedgerEntries.length > 0) {
+        await tx.balanceLedger.createMany({
+          data: balanceLedgerEntries,
         });
       }
 
-      // Update user balance and realized PnL
-      if (!totalPayout.isZero() || !totalProfit.isZero()) {
-        const newRealizedPnL = currentUser.realizedPnL.plus(totalProfit);
-        
-        await tx.user.update({
-          where: { id: user.id },
-          data: {
-            balance: runningBalance,
-            realizedPnL: newRealizedPnL,
-          },
-        });
+      // Update user balance and realized PnL (even for losses)
+      const newRealizedPnL = currentUser.realizedPnL.plus(totalProfit);
+      
+      await tx.user.update({
+        where: { id: user.id },
+        data: {
+          balance: runningBalance,
+          realizedPnL: newRealizedPnL,
+        },
+      });
 
-        // Create PnL ledger entry for audit trail
-        await tx.pnLLedger.create({
-          data: {
-            userId: user.id,
-            delta: totalProfit,
-            pnlBefore: currentUser.realizedPnL,
-            pnlAfter: newRealizedPnL,
-            reason: PnLReason.REDEMPTION,
-            correlationId: `redeem-${Date.now()}`,
-            metadata: {
-              positionsRedeemed: positions.length,
-              totalPayout: totalPayout.toNumber(),
-              markets: positions.map((p) => p.marketId),
-            },
+      // Create PnL ledger entry for audit trail (even for $0 payout)
+      await tx.pnLLedger.create({
+        data: {
+          userId: user.id,
+          delta: totalProfit,
+          pnlBefore: currentUser.realizedPnL,
+          pnlAfter: newRealizedPnL,
+          reason: PnLReason.REDEMPTION,
+          correlationId: `redeem-${Date.now()}`,
+          metadata: {
+            positionsRedeemed: claimedPositions.length,
+            totalPayout: totalPayout.toNumber(),
+            markets: claimedPositions.map((p) => p.marketId),
           },
-        });
-      }
+        },
+      });
 
       return {
         success: true,
         totalRedeemed: totalPayout.toNumber(),
         totalProfit: totalProfit.toNumber(),
-        positionsRedeemed: positions.length,
+        positionsRedeemed: claimedPositions.length,
         positions: redemptions,
       };
     });
@@ -301,7 +337,7 @@ export async function GET() {
       },
     });
 
-    let totalRedeemable = 0;
+    let totalRedeemable = new Prisma.Decimal(0);
     let winnersCount = 0;
     let losersCount = 0;
 
@@ -311,25 +347,25 @@ export async function GET() {
       const resolvedOutcome = market.resolvedOutcome;
       const fee = market.feeBps / 10000;
 
-      let payout = 0;
+      let payout = new Prisma.Decimal(0);
       let isWinner = false;
 
       // Check outcome 0 (CPMM: 1 share = $1)
-      const shares0 = Number(position.shares0);
-      if (resolvedOutcome === 0 && shares0 > 0) {
+      const shares0 = new Prisma.Decimal(position.shares0);
+      if (resolvedOutcome === 0 && !shares0.isZero()) {
         isWinner = true;
-        payout += Math.floor(shares0 * (1 - fee));
+        payout = payout.plus(shares0.mul(1 - fee).floor());
       }
 
       // Check outcome 1 (CPMM: 1 share = $1)
-      const shares1 = Number(position.shares1);
-      if (resolvedOutcome === 1 && shares1 > 0) {
+      const shares1 = new Prisma.Decimal(position.shares1);
+      if (resolvedOutcome === 1 && !shares1.isZero()) {
         isWinner = true;
-        payout += Math.floor(shares1 * (1 - fee));
+        payout = payout.plus(shares1.mul(1 - fee).floor());
       }
 
       if (isWinner) {
-        totalRedeemable += payout;
+        totalRedeemable = totalRedeemable.plus(payout);
         winnersCount++;
       } else {
         losersCount++;
@@ -340,13 +376,13 @@ export async function GET() {
         marketId: market.id,
         marketQuestion: market.question,
         winningOutcome: outcomes[resolvedOutcome ?? 0],
-        payout,
+        payout: payout.toNumber(),
         isWinner,
       };
     });
 
     return NextResponse.json({
-      totalRedeemable,
+      totalRedeemable: totalRedeemable.toNumber(),
       positionsCount: positions.length,
       winnersCount,
       losersCount,

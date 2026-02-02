@@ -186,10 +186,6 @@ function RedemptionRow({ redemption }: { redemption: RedemptionEntry }) {
   const content = (
     <div className="flex items-center gap-4 p-4 rounded-lg border border-border/50 bg-card/50 group transition-all duration-200 hover:border-border hover:bg-card/80 hover:shadow-lg hover:shadow-black/5 hover:-translate-y-0.5 cursor-pointer">
       {/* Gift icon for redemption */}
-      <div className="w-6 h-6 rounded-full bg-green-500/20 flex items-center justify-center flex-shrink-0">
-        <Gift className="h-3.5 w-3.5 text-green-500" />
-      </div>
-
       {/* Content */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5">

@@ -748,13 +748,27 @@ export function ProfilePositions({ userHandle, readOnly = false }: ProfilePositi
   }, [positionRows]);
 
   // Calculate totals - memoized for consistent hook order
+  // Accounts for settled positions using their final value instead of current price
   const totals = useMemo(() => {
     return positionRows.reduce(
       (acc, row) => {
-        const prices = parseNumericArray(row.position.market.outcomePrices);
-        const currentPrice = prices[row.outcomeIndex];
-        const currentValue = row.shares * currentPrice; // Already in dollars
+        const { market } = row.position;
+        const isSettled = market.settledAt !== null;
         const costBasis = row.shares * row.avgCost;
+        
+        let currentValue: number;
+        if (isSettled) {
+          // For settled markets, use final value (1 share = $1 for winners, $0 for losers)
+          const didWin = market.resolvedOutcome === row.outcomeIndex;
+          const fee = (market.feeBps || 100) / 10000;
+          currentValue = didWin ? Math.floor(row.shares * (1 - fee)) : 0;
+        } else {
+          // For open markets, use current price
+          const prices = parseNumericArray(market.outcomePrices);
+          const currentPrice = prices[row.outcomeIndex];
+          currentValue = row.shares * currentPrice;
+        }
+        
         return {
           totalValue: acc.totalValue + currentValue,
           totalCost: acc.totalCost + costBasis,
@@ -842,9 +856,6 @@ export function ProfilePositions({ userHandle, readOnly = false }: ProfilePositi
           {/* Desktop layout */}
           <div className="hidden sm:flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-full bg-green-500/20 animate-pulse">
-                <Gift className="h-5 w-5 text-green-500" />
-              </div>
               <div>
                 <h3 className="font-semibold">Winnings Ready to Claim</h3>
                 <p className="text-sm text-muted-foreground">
@@ -860,7 +871,6 @@ export function ProfilePositions({ userHandle, readOnly = false }: ProfilePositi
                 onClick={() => setShowRedeemModal(true)}
                 className="bg-green-500 hover:bg-green-600"
               >
-                <Gift className="h-4 w-4 mr-2" />
                 Redeem {redeemableSummary.winnersCount} Position{redeemableSummary.winnersCount !== 1 ? "s" : ""}
               </Button>
             </div>
