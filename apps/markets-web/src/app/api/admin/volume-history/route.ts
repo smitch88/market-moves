@@ -20,8 +20,19 @@ export async function GET() {
       orderBy: { createdAt: "asc" },
     });
 
-    // Calculate total volume
-    const totalVolume = bets.reduce((sum, bet) => sum + Number(bet.amount), 0);
+    // Calculate total volume from markets (pool0 + pool1 = user betting volume)
+    // This matches how volume is calculated on the event detail page
+    const markets = await prisma.market.findMany({
+      select: {
+        pool0: true,
+        pool1: true,
+      },
+    });
+
+    const totalVolume = markets.reduce(
+      (sum, m) => sum + Number(m.pool0) + Number(m.pool1),
+      0
+    );
 
     // Group by day and calculate cumulative volume
     const volumeByDay = new Map<string, number>();
