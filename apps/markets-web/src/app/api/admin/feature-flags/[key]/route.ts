@@ -72,9 +72,18 @@ export async function PATCH(
         { status: 400 }
       );
     }
-    
-    const flag = await updateFeatureFlag(key, validation.data);
-    
+
+    // Remove null from description. This satisfies the type error.
+    const updateData = {
+      ...validation.data,
+      // Only include description if it is not null (undefined is OK)
+      ...(validation.data.description === null
+        ? {}
+        : { description: validation.data.description })
+    };
+
+    const flag = await updateFeatureFlag(key, updateData as any);
+
     return NextResponse.json({ flag });
   } catch (error) {
     console.error("Error updating feature flag:", error);
