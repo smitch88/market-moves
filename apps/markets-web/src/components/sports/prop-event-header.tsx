@@ -2,11 +2,10 @@
 
 import Image from "next/image";
 import { useState, useEffect, useRef } from "react";
-import { format } from "date-fns";
 import { motion } from "framer-motion";
 import { Calendar, TrendingUp, Zap, Clock, ChevronDown } from "lucide-react";
 import type { Event, Market } from "@vault/database";
-import { Badge } from "@vault/ui";
+import { Badge, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@vault/ui";
 
 interface PropEventHeaderProps {
   event: Event & {
@@ -20,6 +19,43 @@ function formatVolume(v: number): string {
   if (v >= 1000000) return `$${(v / 1000000).toFixed(2)}M`;
   if (v >= 1000) return `$${(v / 1000).toFixed(1)}K`;
   return `$${v.toFixed(0)}`;
+}
+
+// Format date in UTC timezone (without external dependency)
+function formatDateUTC(date: Date | string, style: "short" | "full"): string {
+  const d = typeof date === "string" ? new Date(date) : date;
+  
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const month = months[d.getUTCMonth()];
+  const day = d.getUTCDate();
+  const year = d.getUTCFullYear();
+  
+  if (style === "short") {
+    return `${month} ${day}, ${year}`;
+  }
+  
+  // Full format with time
+  let hours = d.getUTCHours();
+  const minutes = d.getUTCMinutes().toString().padStart(2, "0");
+  const ampm = hours >= 12 ? "PM" : "AM";
+  hours = hours % 12 || 12;
+  
+  return `${month} ${day}, ${year} at ${hours}:${minutes} ${ampm}`;
+}
+
+// Format date in user's local timezone
+function formatDateLocal(date: Date | string): string {
+  const d = typeof date === "string" ? new Date(date) : date;
+  
+  return d.toLocaleString(undefined, {
+    weekday: "short",
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZoneName: "short",
+  });
 }
 
 // Countdown hook - ensures no hydration mismatch by starting null
@@ -290,17 +326,29 @@ export function PropEventHeader({ event }: PropEventHeaderProps) {
           </div>
 
           {eventDate && (
-            <div className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm">
-              <Calendar className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
-              {/* Mobile: short date */}
-              <span className="text-muted-foreground sm:hidden">
-                {timeLeft ? "Ends" : "Ended"} {format(new Date(eventDate), "MMM d, yyyy")}
-              </span>
-              {/* Desktop: full timestamp with UTC */}
-              <span className="text-muted-foreground hidden sm:inline">
-                {timeLeft ? "Ends" : "Ended"} {format(new Date(eventDate), "MMM d, yyyy 'at' h:mm a")} UTC
-              </span>
-            </div>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm cursor-help">
+                    <Calendar className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
+                    {/* Mobile: short date in UTC */}
+                    <span className="text-muted-foreground sm:hidden">
+                      {timeLeft ? "Ends" : "Ended"} {formatDateUTC(eventDate, "short")}
+                    </span>
+                    {/* Desktop: full timestamp with UTC */}
+                    <span className="text-muted-foreground hidden sm:inline">
+                      {timeLeft ? "Ends" : "Ended"} {formatDateUTC(eventDate, "full")} UTC
+                    </span>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="bg-card border border-border text-foreground">
+                  <div className="text-center">
+                    <p className="text-[10px] text-muted-foreground mb-0.5">Your local time</p>
+                    <p className="font-medium">{formatDateLocal(eventDate)}</p>
+                  </div>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           )}
         </motion.div>
       </div>

@@ -5,6 +5,7 @@ import { z } from "zod";
 
 const resolveSchema = z.object({
   outcomeIndex: z.number().int().min(0).max(1),
+  resolutionSourceUrl: z.string().url().optional().nullable(),
 });
 
 export async function POST(
@@ -15,7 +16,7 @@ export async function POST(
     const admin = await requireAdmin();
     const { id } = await params;
     const body = await request.json();
-    const { outcomeIndex } = resolveSchema.parse(body);
+    const { outcomeIndex, resolutionSourceUrl } = resolveSchema.parse(body);
 
     const market = await prisma.$transaction(async (tx) => {
       const existing = await tx.market.findUnique({
@@ -91,6 +92,7 @@ export async function POST(
           status: MarketStatus.RESOLVED,
           resolvedOutcome: outcomeIndex,
           resolvedAt: new Date(),
+          ...(resolutionSourceUrl && { resolutionSourceUrl }),
         },
       });
 
@@ -106,6 +108,7 @@ export async function POST(
             newStatus: MarketStatus.RESOLVED,
             pendingBetsRejected: refundedCount,
             totalRefunded,
+            resolutionSourceUrl: resolutionSourceUrl || null,
           },
         },
       });

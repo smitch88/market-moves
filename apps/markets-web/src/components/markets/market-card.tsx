@@ -7,8 +7,28 @@ import { Clock, TrendingUp, Users, Sparkles } from "lucide-react";
 import { motion } from "framer-motion";
 import type { Market, Event } from "@vault/database";
 import { cn } from "@vault/ui/lib/utils";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@vault/ui";
 import { getMarketUrl } from "@/lib/urls";
 import { getOutcomeColors } from "@/lib/outcome-colors";
+
+// Format date in user's local timezone
+function formatDateLocal(date: Date | string): string {
+  const d = typeof date === "string" ? new Date(date) : date;
+  return d.toLocaleString(undefined, {
+    weekday: "short",
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZoneName: "short",
+  });
+}
 
 interface MarketCardProps {
   market: Market & {
@@ -193,10 +213,25 @@ export function MarketCard({ market, index = 0 }: MarketCardProps) {
                 </div>
               </div>
               {closesAt && (
-                <div className={`flex items-center gap-1 ${isClosingSoon ? "text-red-500" : ""}`}>
-                  <Clock className="h-3 w-3" />
-                  <span>{format(closesAt, "MMM d")}</span>
-                </div>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className={cn(
+                        "flex items-center gap-1 cursor-help",
+                        isClosingSoon ? "text-primary" : ""
+                      )}>
+                        <Clock className="h-3 w-3" />
+                        <span>{format(closesAt, "MMM d")}</span>
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="bg-card border border-border text-foreground">
+                      <div className="text-center">
+                        <p className="text-[10px] text-muted-foreground mb-0.5">Closes at (your time)</p>
+                        <p className="font-medium text-xs">{formatDateLocal(closesAt)}</p>
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               )}
             </div>
           </div>

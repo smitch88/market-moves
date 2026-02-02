@@ -20,8 +20,10 @@ import {
   SelectTrigger,
   SelectValue,
   Badge,
+  Input,
+  Label,
 } from "@vault/ui";
-import { AlertTriangle, Check, Loader2, Play, Lock, Trophy, Wallet } from "lucide-react";
+import { AlertTriangle, Check, Loader2, Play, Lock, Trophy, Wallet, ExternalLink } from "lucide-react";
 import type { Market } from "@vault/database";
 
 interface MarketActionsProps {
@@ -34,6 +36,7 @@ export function MarketActions({ market, outcomes }: MarketActionsProps) {
   const [resolveDialogOpen, setResolveDialogOpen] = useState(false);
   const [settleDialogOpen, setSettleDialogOpen] = useState(false);
   const [selectedOutcomeIndex, setSelectedOutcomeIndex] = useState<string>("");
+  const [resolutionSourceUrl, setResolutionSourceUrl] = useState(market.resolutionSourceUrl || "");
 
   const publishMutation = useMutation({
     mutationFn: async () => {
@@ -60,11 +63,11 @@ export function MarketActions({ market, outcomes }: MarketActionsProps) {
   });
 
   const resolveMutation = useMutation({
-    mutationFn: async (outcomeIndex: number) => {
+    mutationFn: async ({ outcomeIndex, sourceUrl }: { outcomeIndex: number; sourceUrl?: string }) => {
       const res = await fetch(`/api/admin/markets/${market.id}/resolve`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ outcomeIndex }),
+        body: JSON.stringify({ outcomeIndex, resolutionSourceUrl: sourceUrl }),
       });
       if (!res.ok) throw new Error("Failed to resolve market");
       return res.json();
@@ -182,29 +185,55 @@ export function MarketActions({ market, outcomes }: MarketActionsProps) {
           <DialogHeader>
             <DialogTitle>Resolve Market</DialogTitle>
             <DialogDescription>
-              Select the winning outcome. This action cannot be undone.
+              Select the winning outcome and provide a resolution source. This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
-          <div className="py-4">
-            <Select value={selectedOutcomeIndex} onValueChange={setSelectedOutcomeIndex}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select winning outcome" />
-              </SelectTrigger>
-              <SelectContent>
-                {outcomes.map((outcome, index) => (
-                  <SelectItem key={index} value={String(index)}>
-                    {outcome}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="py-4 space-y-4">
+            <div className="space-y-2">
+              <Label>Winning Outcome</Label>
+              <Select value={selectedOutcomeIndex} onValueChange={setSelectedOutcomeIndex}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select winning outcome" />
+                </SelectTrigger>
+                <SelectContent>
+                  {outcomes.map((outcome, index) => (
+                    <SelectItem key={index} value={String(index)}>
+                      {outcome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="resolutionSourceUrl">Resolution Source URL</Label>
+              <Input
+                id="resolutionSourceUrl"
+                type="url"
+                placeholder="https://example.com/source"
+                value={resolutionSourceUrl}
+                onChange={(e) => setResolutionSourceUrl(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Link to the official source confirming the outcome (e.g., ESPN, official league site)
+              </p>
+            </div>
+            
+            {market.resolutionSourceUrl && resolutionSourceUrl !== market.resolutionSourceUrl && (
+              <p className="text-xs text-amber-500">
+                Note: This will update the existing resolution source URL
+              </p>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setResolveDialogOpen(false)}>
               Cancel
             </Button>
             <Button
-              onClick={() => resolveMutation.mutate(parseInt(selectedOutcomeIndex, 10))}
+              onClick={() => resolveMutation.mutate({ 
+                outcomeIndex: parseInt(selectedOutcomeIndex, 10),
+                sourceUrl: resolutionSourceUrl || undefined
+              })}
               disabled={selectedOutcomeIndex === "" || resolveMutation.isPending}
             >
               {resolveMutation.isPending && (

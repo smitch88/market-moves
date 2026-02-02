@@ -5,6 +5,8 @@ import type { Market } from "@vault/database";
 import { cn } from "@vault/ui/lib/utils";
 import { MarketCard, OutcomeButton } from "./sports-market-row";
 import { MarketChart } from "./market-chart";
+import { MarketInfoModal } from "@/components/markets/market-info-modal";
+import { Lock, Info } from "lucide-react";
 import {
   parseOutcomes,
   parseOutcomePrices,
@@ -12,6 +14,22 @@ import {
   formatVolume,
   getMarketVolume,
 } from "./market-utils";
+
+// Check if a market is closed (by status or by closesAt time)
+function isMarketClosed(market: Market): boolean {
+  // Check market status
+  if (market.status === "CLOSED" || market.status === "RESOLVED") {
+    return true;
+  }
+  
+  // Check if closesAt time has passed
+  if (market.closesAt) {
+    const closesAt = new Date(market.closesAt);
+    return closesAt.getTime() < Date.now();
+  }
+  
+  return false;
+}
 
 // =============================================================================
 // GENERIC MARKET ROW - For binary Yes/No markets with full question display
@@ -47,6 +65,7 @@ export function GenericMarketRow({
 
   const isSelected = selectedMarketId === market.id;
   const isExpanded = expandedMarketId === market.id;
+  const isClosed = isMarketClosed(market);
 
   // Determine labels - use actual outcome names
   const label0 = outcomes[0] || "Yes";
@@ -78,12 +97,23 @@ export function GenericMarketRow({
         >
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
             <div className="flex-1 min-w-0">
-              <h4 className="font-medium text-sm sm:text-base text-foreground line-clamp-2">
-                {displayLabel}
-              </h4>
-              <p className="text-xs text-muted-foreground mt-0.5 sm:mt-1">
-                {formatVolume(volume)} volume
-              </p>
+              <div className="flex items-center gap-2">
+                <h4 className="font-medium text-sm sm:text-base text-foreground line-clamp-2">
+                  {displayLabel}
+                </h4>
+                {isClosed && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-muted text-muted-foreground border border-border/50 shrink-0">
+                    <Lock className="h-2.5 w-2.5" />
+                    Closed
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2 mt-0.5 sm:mt-1">
+                <p className="text-xs text-muted-foreground">
+                  {formatVolume(volume)} volume
+                </p>
+                <MarketInfoModal market={market} outcomes={outcomes} />
+              </div>
             </div>
 
             <div className="flex items-center gap-2 w-full sm:w-auto sm:shrink-0">
@@ -93,6 +123,7 @@ export function GenericMarketRow({
                 isSelected={isSelected && selectedOutcome === 0}
                 onClick={() => onSelectOutcome(market.id, 0)}
                 fullWidth
+                disabled={isClosed}
               />
               <OutcomeButton
                 label={label1}
@@ -100,6 +131,7 @@ export function GenericMarketRow({
                 isSelected={isSelected && selectedOutcome === 1}
                 onClick={() => onSelectOutcome(market.id, 1)}
                 fullWidth
+                disabled={isClosed}
               />
             </div>
           </div>

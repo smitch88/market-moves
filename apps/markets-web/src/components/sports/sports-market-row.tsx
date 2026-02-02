@@ -6,6 +6,8 @@ import type { Market } from "@vault/database";
 import { cn } from "@vault/ui/lib/utils";
 import { LineSelector } from "./line-selector";
 import { MarketChart } from "./market-chart";
+import { MarketInfoModal } from "@/components/markets/market-info-modal";
+import { Lock } from "lucide-react";
 import {
   parseOutcomes,
   parseOutcomePrices,
@@ -19,6 +21,22 @@ import {
   groupMarketsByLine,
   getLineValues,
 } from "./market-utils";
+
+// Check if a market is closed (by status or by closesAt time)
+function isMarketClosed(market: Market): boolean {
+  // Check market status
+  if (market.status === "CLOSED" || market.status === "RESOLVED") {
+    return true;
+  }
+  
+  // Check if closesAt time has passed
+  if (market.closesAt) {
+    const closesAt = new Date(market.closesAt);
+    return closesAt.getTime() < Date.now();
+  }
+  
+  return false;
+}
 
 // Common props for all market row components
 interface BaseMarketRowProps {
@@ -41,6 +59,8 @@ export interface OutcomeButtonProps {
   onClick: () => void;
   /** When true, button takes full width on mobile */
   fullWidth?: boolean;
+  /** When true, button is disabled (market closed) */
+  disabled?: boolean;
 }
 
 export function OutcomeButton({
@@ -49,6 +69,7 @@ export function OutcomeButton({
   isSelected,
   onClick,
   fullWidth = false,
+  disabled = false,
 }: OutcomeButtonProps) {
   // Only truncate if label is longer than ~12 characters
   const shouldTruncate = label.length > 12;
@@ -57,18 +78,21 @@ export function OutcomeButton({
     <motion.button
       onClick={(e) => {
         e.stopPropagation();
-        onClick();
+        if (!disabled) onClick();
       }}
+      disabled={disabled}
       className={cn(
         "px-2 sm:px-3 py-2 sm:py-2.5 rounded-lg font-medium text-xs sm:text-sm transition-all",
         "flex items-center justify-between gap-1 sm:gap-2",
         fullWidth ? "flex-1 sm:flex-none sm:w-[120px]" : "min-w-[90px] sm:min-w-[120px]",
-        isSelected
-          ? "bg-primary text-primary-foreground ring-2 ring-primary ring-offset-2 ring-offset-background"
-          : "bg-muted/30 text-foreground hover:bg-muted/60 border border-border hover:border-primary/50"
+        disabled
+          ? "bg-muted/20 text-muted-foreground cursor-not-allowed opacity-60 border border-border/50"
+          : isSelected
+            ? "bg-primary text-primary-foreground ring-2 ring-primary ring-offset-2 ring-offset-background"
+            : "bg-muted/30 text-foreground hover:bg-muted/60 border border-border hover:border-primary/50"
       )}
-      whileHover={{ scale: 1.01 }}
-      whileTap={{ scale: 0.99 }}
+      whileHover={disabled ? {} : { scale: 1.01 }}
+      whileTap={disabled ? {} : { scale: 0.99 }}
     >
       <span className={cn("font-medium text-left", shouldTruncate ? "truncate flex-1" : "whitespace-nowrap")}>{label}</span>
       <span className="font-bold tabular-nums flex-shrink-0">{price}%</span>
@@ -196,6 +220,7 @@ export function MoneylineRow({
   const volume = getMarketVolume(market);
 
   const isSelected = selectedMarketId === market.id;
+  const isClosed = isMarketClosed(market);
   const team0 = getTeamAbbreviation(outcomes[0] || "A");
   const team1 = getTeamAbbreviation(outcomes[1] || "B");
 
@@ -209,7 +234,15 @@ export function MoneylineRow({
     >
       <div className="flex items-center justify-between gap-4">
         <div className="flex-1 min-w-0">
-          <h4 className="font-semibold text-foreground">Moneyline</h4>
+          <div className="flex items-center gap-2">
+            <h4 className="font-semibold text-foreground">Moneyline</h4>
+            {isClosed && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-muted text-muted-foreground border border-border/50">
+                <Lock className="h-2.5 w-2.5" />
+                Closed
+              </span>
+            )}
+          </div>
           <p className="text-xs text-muted-foreground mt-0.5">
             {formatVolume(volume)} volume
           </p>
@@ -221,12 +254,14 @@ export function MoneylineRow({
             price={price0}
             isSelected={isSelected && selectedOutcome === 0}
             onClick={() => onSelectOutcome(market.id, 0)}
+            disabled={isClosed}
           />
           <OutcomeButton
             label={team1}
             price={price1}
             isSelected={isSelected && selectedOutcome === 1}
             onClick={() => onSelectOutcome(market.id, 1)}
+            disabled={isClosed}
           />
         </div>
       </div>
@@ -288,6 +323,7 @@ export function SpreadRow({
   const totalVolume = markets.reduce((sum, m) => sum + getMarketVolume(m), 0);
 
   const isSelected = selectedMarketId === activeMarket.id;
+  const isClosed = isMarketClosed(activeMarket);
   const label0 = shortenOutcomeLabel(outcomes[0] || "");
   const label1 = shortenOutcomeLabel(outcomes[1] || "");
 
@@ -302,7 +338,15 @@ export function SpreadRow({
       <div className="space-y-3">
         <div className="flex items-center justify-between gap-4">
           <div className="flex-1 min-w-0">
-            <h4 className="font-semibold text-foreground">{title}</h4>
+            <div className="flex items-center gap-2">
+              <h4 className="font-semibold text-foreground">{title}</h4>
+              {isClosed && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-muted text-muted-foreground border border-border/50">
+                  <Lock className="h-2.5 w-2.5" />
+                  Closed
+                </span>
+              )}
+            </div>
             <p className="text-xs text-muted-foreground mt-0.5">
               {formatVolume(totalVolume)} volume
             </p>
@@ -314,12 +358,14 @@ export function SpreadRow({
               price={price0}
               isSelected={isSelected && selectedOutcome === 0}
               onClick={() => onSelectOutcome(activeMarket.id, 0)}
+              disabled={isClosed}
             />
             <OutcomeButton
               label={label1}
               price={price1}
               isSelected={isSelected && selectedOutcome === 1}
               onClick={() => onSelectOutcome(activeMarket.id, 1)}
+              disabled={isClosed}
             />
           </div>
         </div>
@@ -389,6 +435,7 @@ export function TotalsRow({
   const totalVolume = markets.reduce((sum, m) => sum + getMarketVolume(m), 0);
 
   const isSelected = selectedMarketId === activeMarket.id;
+  const isClosed = isMarketClosed(activeMarket);
   const line = extractLine(activeMarket.question) || activeLine;
 
   return (
@@ -402,7 +449,15 @@ export function TotalsRow({
       <div className="space-y-3">
         <div className="flex items-center justify-between gap-4">
           <div className="flex-1 min-w-0">
-            <h4 className="font-semibold text-foreground">{title}</h4>
+            <div className="flex items-center gap-2">
+              <h4 className="font-semibold text-foreground">{title}</h4>
+              {isClosed && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-muted text-muted-foreground border border-border/50">
+                  <Lock className="h-2.5 w-2.5" />
+                  Closed
+                </span>
+              )}
+            </div>
             <p className="text-xs text-muted-foreground mt-0.5">
               {formatVolume(totalVolume)} volume
             </p>
@@ -414,12 +469,14 @@ export function TotalsRow({
               price={price0}
               isSelected={isSelected && selectedOutcome === 0}
               onClick={() => onSelectOutcome(activeMarket.id, 0)}
+              disabled={isClosed}
             />
             <OutcomeButton
               label={`U ${line}`}
               price={price1}
               isSelected={isSelected && selectedOutcome === 1}
               onClick={() => onSelectOutcome(activeMarket.id, 1)}
+              disabled={isClosed}
             />
           </div>
         </div>
@@ -489,6 +546,7 @@ export function TeamTotalRow({
   const totalVolume = markets.reduce((sum, m) => sum + getMarketVolume(m), 0);
 
   const isSelected = selectedMarketId === activeMarket.id;
+  const isClosed = isMarketClosed(activeMarket);
   const line = extractLine(activeMarket.question) || activeLine;
 
   return (
@@ -502,7 +560,15 @@ export function TeamTotalRow({
       <div className="space-y-3">
         <div className="flex items-center justify-between gap-4">
           <div className="flex-1 min-w-0">
-            <h4 className="font-semibold text-foreground">{teamName}</h4>
+            <div className="flex items-center gap-2">
+              <h4 className="font-semibold text-foreground">{teamName}</h4>
+              {isClosed && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-muted text-muted-foreground border border-border/50">
+                  <Lock className="h-2.5 w-2.5" />
+                  Closed
+                </span>
+              )}
+            </div>
             <p className="text-xs text-muted-foreground mt-0.5">
               {formatVolume(totalVolume)} volume
             </p>
@@ -514,12 +580,14 @@ export function TeamTotalRow({
               price={price0}
               isSelected={isSelected && selectedOutcome === 0}
               onClick={() => onSelectOutcome(activeMarket.id, 0)}
+              disabled={isClosed}
             />
             <OutcomeButton
               label={`U ${line}`}
               price={price1}
               isSelected={isSelected && selectedOutcome === 1}
               onClick={() => onSelectOutcome(activeMarket.id, 1)}
+              disabled={isClosed}
             />
           </div>
         </div>
@@ -562,6 +630,7 @@ export function PlayerPropRow({
   const volume = getMarketVolume(market);
 
   const isSelected = selectedMarketId === market.id;
+  const isClosed = isMarketClosed(market);
   const playerName = extractPlayerName(market.question) || market.question;
   const line = extractLine(market.question);
   const isYesNo = outcomes[0]?.toLowerCase() === "yes";
@@ -591,10 +660,21 @@ export function PlayerPropRow({
     >
       <div className="flex items-center justify-between gap-4">
         <div className="flex-1 min-w-0">
-          <h4 className="font-medium text-foreground">{playerName}</h4>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            {formatVolume(volume)} volume
-          </p>
+          <div className="flex items-center gap-2">
+            <h4 className="font-medium text-foreground">{playerName}</h4>
+            {isClosed && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-muted text-muted-foreground border border-border/50">
+                <Lock className="h-2.5 w-2.5" />
+                Closed
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2 mt-0.5">
+            <p className="text-xs text-muted-foreground">
+              {formatVolume(volume)} volume
+            </p>
+            <MarketInfoModal market={market} outcomes={outcomes} />
+          </div>
         </div>
 
         <div className="flex items-center gap-2">
@@ -603,12 +683,14 @@ export function PlayerPropRow({
             price={price0}
             isSelected={isSelected && selectedOutcome === 0}
             onClick={() => onSelectOutcome(market.id, 0)}
+            disabled={isClosed}
           />
           <OutcomeButton
             label={label1}
             price={price1}
             isSelected={isSelected && selectedOutcome === 1}
             onClick={() => onSelectOutcome(market.id, 1)}
+            disabled={isClosed}
           />
         </div>
       </div>

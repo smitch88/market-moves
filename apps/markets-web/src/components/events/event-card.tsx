@@ -57,6 +57,20 @@ function formatVolume(v: number): string {
   return `$${v.toFixed(0)}`;
 }
 
+// Format date in user's local timezone
+function formatDateLocal(date: Date | string): string {
+  const d = typeof date === "string" ? new Date(date) : date;
+  return d.toLocaleString(undefined, {
+    weekday: "short",
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZoneName: "short",
+  });
+}
+
 export function EventCard({ event, index = 0 }: EventCardProps) {
   const endTime = event.endTime ? new Date(event.endTime) : null;
   const isEndingSoon = endTime && endTime.getTime() - Date.now() < 24 * 60 * 60 * 1000;
@@ -96,19 +110,31 @@ export function EventCard({ event, index = 0 }: EventCardProps) {
               {/* Category badge and date */}
               <div className="absolute top-3 right-3 flex items-center gap-2">
                 {endTime && (
-                  <div
-                    className={cn(
-                      "flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-semibold backdrop-blur-sm shadow-lg",
-                      isEndingSoon 
-                        ? "bg-red-500/90 text-white" 
-                        : "bg-black/60 text-white"
-                    )}
-                  >
-                    <Clock className="h-3.5 w-3.5" />
-                    <span>{format(endTime, "MMM d")}</span>
-                  </div>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div
+                          className={cn(
+                            "flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-semibold backdrop-blur-sm shadow-lg cursor-help",
+                            isEndingSoon 
+                              ? "bg-primary/90 text-primary-foreground" 
+                              : "bg-black/60 text-white"
+                          )}
+                        >
+                          <Clock className="h-3.5 w-3.5" />
+                          <span>{format(endTime, "MMM d")}</span>
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom" className="bg-card border border-border text-foreground">
+                        <div className="text-center">
+                          <p className="text-[10px] text-muted-foreground mb-0.5">Ends at (your time)</p>
+                          <p className="font-medium text-xs">{formatDateLocal(endTime)}</p>
+                        </div>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 )}
-                <span className="px-3 py-1.5 rounded-full text-xs font-semibold bg-primary/90 text-primary-foreground backdrop-blur-sm shadow-lg">
+                <span className="px-3 py-1.5 rounded-full text-xs font-semibold bg-black/60 text-white backdrop-blur-sm shadow-lg">
                   {event.category}
                 </span>
               </div>
@@ -122,19 +148,31 @@ export function EventCard({ event, index = 0 }: EventCardProps) {
             {!event.bannerUrl && (
               <div className="mb-3 flex items-center gap-2 flex-wrap">
                 {endTime && (
-                  <div
-                    className={cn(
-                      "flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-semibold",
-                      isEndingSoon 
-                        ? "bg-red-500/10 text-red-500 border border-red-500/20" 
-                        : "bg-muted text-muted-foreground border border-border"
-                    )}
-                  >
-                    <Clock className="h-3.5 w-3.5" />
-                    <span>{format(endTime, "MMM d")}</span>
-                  </div>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div
+                          className={cn(
+                            "flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-semibold cursor-help",
+                            isEndingSoon 
+                              ? "bg-primary/10 text-primary border border-primary/20" 
+                              : "bg-muted text-muted-foreground border border-border"
+                          )}
+                        >
+                          <Clock className="h-3.5 w-3.5" />
+                          <span>{format(endTime, "MMM d")}</span>
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom" className="bg-card border border-border text-foreground">
+                        <div className="text-center">
+                          <p className="text-[10px] text-muted-foreground mb-0.5">Ends at (your time)</p>
+                          <p className="font-medium text-xs">{formatDateLocal(endTime)}</p>
+                        </div>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 )}
-                <span className="px-3 py-1.5 rounded-full text-xs font-semibold bg-primary/10 text-primary border border-primary/20">
+                <span className="px-3 py-1.5 rounded-full text-xs font-semibold bg-muted text-muted-foreground border border-border">
                   {event.category}
                 </span>
               </div>
