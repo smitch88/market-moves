@@ -32,18 +32,18 @@ const WHEEL_SEGMENTS_DARK = [
   { amount: 7500,  label: "$7.5K",  color: "#1c1c1e", textColor: "#FB2C36" },
 ];
 
-// Light mode - rich cream/charcoal alternating with accent colors
+// Light mode - clean white/soft gray with bold accents
 const WHEEL_SEGMENTS_LIGHT = [
-  { amount: 500,   label: "$500",   color: "#1c1917", textColor: "#a8a29e" },  // stone-900
-  { amount: 5000,  label: "$5K",    color: "#fafaf9", textColor: "#dc2626" },  // stone-50 + red
-  { amount: 750,   label: "$750",   color: "#1c1917", textColor: "#a8a29e" },  // stone-900
-  { amount: 10000, label: "$10K",   color: "#fafaf9", textColor: "#b45309" },  // stone-50 + amber
-  { amount: 1000,  label: "$1K",    color: "#1c1917", textColor: "#d6d3d1" },  // stone-900
-  { amount: 3000,  label: "$3K",    color: "#fafaf9", textColor: "#18181b" },  // stone-50 + black
-  { amount: 1500,  label: "$1.5K",  color: "#1c1917", textColor: "#d6d3d1" },  // stone-900
-  { amount: 20000, label: "$20K",   color: "#b91c1c", textColor: "#fef2f2" },  // red-700 + cream (JACKPOT)
-  { amount: 2000,  label: "$2K",    color: "#1c1917", textColor: "#e7e5e4" },  // stone-900
-  { amount: 7500,  label: "$7.5K",  color: "#fafaf9", textColor: "#dc2626" },  // stone-50 + red
+  { amount: 500,   label: "$500",   color: "#ffffff", textColor: "#71717a" },
+  { amount: 5000,  label: "$5K",    color: "#f4f4f5", textColor: "#dc2626" },
+  { amount: 750,   label: "$750",   color: "#ffffff", textColor: "#71717a" },
+  { amount: 10000, label: "$10K",   color: "#f4f4f5", textColor: "#ea580c" },
+  { amount: 1000,  label: "$1K",    color: "#ffffff", textColor: "#52525b" },
+  { amount: 3000,  label: "$3K",    color: "#f4f4f5", textColor: "#18181b" },
+  { amount: 1500,  label: "$1.5K",  color: "#ffffff", textColor: "#52525b" },
+  { amount: 20000, label: "$20K",   color: "#fef2f2", textColor: "#dc2626" },
+  { amount: 2000,  label: "$2K",    color: "#ffffff", textColor: "#3f3f46" },
+  { amount: 7500,  label: "$7.5K",  color: "#f4f4f5", textColor: "#ea580c" },
 ];
 
 const NUM_SEGMENTS = WHEEL_SEGMENTS_DARK.length;
@@ -138,23 +138,24 @@ export function DailySpinWheel({
 
     ctx.clearRect(0, 0, size, size);
 
-    // Outer glow/shadow for light mode
+    // Soft shadow for light mode
     if (!isDark) {
       ctx.save();
-      ctx.shadowColor = "rgba(0, 0, 0, 0.15)";
-      ctx.shadowBlur = 20;
+      ctx.shadowColor = "rgba(0, 0, 0, 0.08)";
+      ctx.shadowBlur = 24;
+      ctx.shadowOffsetY = 4;
       ctx.beginPath();
       ctx.arc(cx, cy, r, 0, Math.PI * 2);
-      ctx.fillStyle = "#fafaf9";
+      ctx.fillStyle = "#ffffff";
       ctx.fill();
       ctx.restore();
     }
 
-    // Outer ring - thicker and more visible
+    // Outer ring
     ctx.beginPath();
-    ctx.arc(cx, cy, r + 2, 0, Math.PI * 2);
-    ctx.strokeStyle = isDark ? "rgba(255,255,255,0.08)" : "#1c1917";
-    ctx.lineWidth = isDark ? 1 : 3;
+    ctx.arc(cx, cy, r + 1, 0, Math.PI * 2);
+    ctx.strokeStyle = isDark ? "rgba(255,255,255,0.08)" : "#e4e4e7";
+    ctx.lineWidth = isDark ? 1 : 2;
     ctx.stroke();
 
     // Segments
@@ -174,8 +175,8 @@ export function DailySpinWheel({
       ctx.fill();
       
       // Segment dividers
-      ctx.strokeStyle = isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.12)";
-      ctx.lineWidth = isDark ? 1 : 1.5;
+      ctx.strokeStyle = isDark ? "rgba(255,255,255,0.06)" : "#e4e4e7";
+      ctx.lineWidth = 1;
       ctx.stroke();
 
       // Text
@@ -183,7 +184,7 @@ export function DailySpinWheel({
       ctx.rotate(start + seg / 2 + Math.PI / 2);
       ctx.translate(0, -r * 0.65);
       ctx.fillStyle = s.textColor;
-      ctx.font = `700 ${s.amount >= 1000 ? 14 : 13}px system-ui, -apple-system, sans-serif`;
+      ctx.font = `600 ${s.amount >= 1000 ? 13 : 12}px system-ui, -apple-system, sans-serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText(s.label, 0, 0);
@@ -199,42 +200,19 @@ export function DailySpinWheel({
       const px = cx + r * Math.cos(angle);
       const py = cy + r * Math.sin(angle);
       
-      // Peg shadow in light mode
-      if (!isDark) {
-        ctx.beginPath();
-        ctx.arc(px + 1, py + 1, 4, 0, Math.PI * 2);
-        ctx.fillStyle = "rgba(0,0,0,0.2)";
-        ctx.fill();
-      }
-      
       ctx.beginPath();
-      ctx.arc(px, py, isDark ? 3 : 4, 0, Math.PI * 2);
+      ctx.arc(px, py, 3, 0, Math.PI * 2);
       ctx.fillStyle = "#dc2626";
-      ctx.fill();
-      
-      // Highlight on pegs
-      ctx.beginPath();
-      ctx.arc(px - 1, py - 1, isDark ? 1 : 1.5, 0, Math.PI * 2);
-      ctx.fillStyle = "rgba(255,255,255,0.5)";
       ctx.fill();
     }
 
-    // Center hub with gradient
-    const hubGradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, r * 0.18);
-    if (isDark) {
-      hubGradient.addColorStop(0, "#27272a");
-      hubGradient.addColorStop(1, "#09090b");
-    } else {
-      hubGradient.addColorStop(0, "#fafaf9");
-      hubGradient.addColorStop(1, "#e7e5e4");
-    }
-    
+    // Center hub
     ctx.beginPath();
     ctx.arc(cx, cy, r * 0.15, 0, Math.PI * 2);
-    ctx.fillStyle = hubGradient;
+    ctx.fillStyle = isDark ? "#18181b" : "#ffffff";
     ctx.fill();
-    ctx.strokeStyle = isDark ? "rgba(255,255,255,0.15)" : "#1c1917";
-    ctx.lineWidth = isDark ? 2 : 2.5;
+    ctx.strokeStyle = isDark ? "rgba(255,255,255,0.1)" : "#e4e4e7";
+    ctx.lineWidth = 2;
     ctx.stroke();
 
   }, [isDark, WHEEL_SEGMENTS]);
@@ -340,9 +318,9 @@ export function DailySpinWheel({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/50 dark:bg-black/80 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/40 dark:bg-black/80 backdrop-blur-sm" onClick={onClose} />
       
-      <div className="relative w-full max-w-sm bg-background dark:bg-zinc-900/95 backdrop-blur-md border border-border dark:border-white/10 rounded-2xl shadow-[0_25px_50px_-12px_rgba(0,0,0,0.25)] dark:shadow-2xl overflow-hidden">
+      <div className="relative w-full max-w-sm bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-2xl shadow-xl overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-5 pt-5 pb-3">
           <div>
@@ -358,15 +336,15 @@ export function DailySpinWheel({
         <div className="flex flex-col items-center px-5 pt-4 pb-4">
           {/* Canvas wrapper for overlay positioning */}
           <div className="relative" style={{ width: 280, height: 280 }}>
-            {/* Pointer with shadow */}
+            {/* Pointer */}
             <div 
-              className="absolute left-1/2 -translate-x-1/2 z-20 drop-shadow-lg"
+              className="absolute left-1/2 -translate-x-1/2 z-20"
               style={{
                 top: 0,
-                borderLeft: "12px solid transparent",
-                borderRight: "12px solid transparent",
-                borderTop: "18px solid #dc2626",
-                filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.3))",
+                borderLeft: "10px solid transparent",
+                borderRight: "10px solid transparent",
+                borderTop: "16px solid #dc2626",
+                filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.2))",
               }}
             />
             <canvas ref={canvasRef} className="w-full h-full" />
