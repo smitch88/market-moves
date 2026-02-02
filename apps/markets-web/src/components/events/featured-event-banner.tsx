@@ -487,8 +487,8 @@ export function FeaturedEventBanner({ events }: FeaturedEventBannerProps) {
                 </div>
 
                 {/* Chart */}
-                <div className="flex-1 min-h-[180px]">
-                  <ResponsiveContainer width="100%" height="100%">
+                <div className="flex-1 h-[180px] min-h-[180px]">
+                  <ResponsiveContainer width="100%" height={180}>
                     <LineChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 5 }}>
                       <XAxis
                         dataKey="time"

@@ -292,8 +292,13 @@ export function PropEventHeader({ event }: PropEventHeaderProps) {
           {eventDate && (
             <div className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm">
               <Calendar className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
-              <span className="text-muted-foreground">
+              {/* Mobile: short date */}
+              <span className="text-muted-foreground sm:hidden">
                 {timeLeft ? "Ends" : "Ended"} {format(new Date(eventDate), "MMM d, yyyy")}
+              </span>
+              {/* Desktop: full timestamp with UTC */}
+              <span className="text-muted-foreground hidden sm:inline">
+                {timeLeft ? "Ends" : "Ended"} {format(new Date(eventDate), "MMM d, yyyy 'at' h:mm a")} UTC
               </span>
             </div>
           )}

@@ -63,9 +63,54 @@ const categories: { value: MarketCategory; label: string }[] = [
   { value: "OTHER", label: "Other" },
 ];
 
+// Format a UTC date for datetime-local input (displays UTC time)
 function formatDateForInput(date: Date | string): string {
-  const d = typeof date === "string" ? new Date(date) : date;
-  return d.toISOString().slice(0, 16);
+  let d: Date;
+  if (typeof date === "string") {
+    // Ensure the string is parsed as UTC by appending Z if not present
+    const dateStr = date.endsWith("Z") || date.includes("+") || date.includes("-", 10) 
+      ? date 
+      : date + "Z";
+    d = new Date(dateStr);
+  } else {
+    d = date;
+  }
+  // Get UTC components and format as YYYY-MM-DDTHH:MM
+  const year = d.getUTCFullYear();
+  const month = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  const hours = String(d.getUTCHours()).padStart(2, "0");
+  const minutes = String(d.getUTCMinutes()).padStart(2, "0");
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
+// Convert datetime-local input value (which represents UTC) to ISO string for saving
+function inputToUTCISO(inputValue: string): string {
+  if (!inputValue) return "";
+  // Append Z to treat the input value as UTC
+  return new Date(inputValue + "Z").toISOString();
+}
+
+// Format UTC date string to user's local timezone for display
+function formatLocalTime(utcDateString: string): string {
+  if (!utcDateString) return "";
+  try {
+    // The input value represents UTC time, so append Z to parse as UTC
+    const utcDate = new Date(utcDateString + "Z");
+    
+    // Format in user's local timezone
+    return utcDate.toLocaleString(undefined, {
+      weekday: "short",
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      timeZoneName: "short",
+    });
+  } catch {
+    return "";
+  }
 }
 
 export function EventForm({ event }: EventFormProps) {
@@ -125,10 +170,8 @@ export function EventForm({ event }: EventFormProps) {
           category: data.category,
           bannerUrl: data.bannerUrl || undefined,
           logoUrl: data.logoUrl || undefined,
-          startTime: data.startTime
-            ? new Date(data.startTime).toISOString()
-            : null,
-          endTime: data.endTime ? new Date(data.endTime).toISOString() : null,
+          startTime: data.startTime ? inputToUTCISO(data.startTime) : null,
+          endTime: data.endTime ? inputToUTCISO(data.endTime) : null,
           active: data.active,
           closed: data.closed,
           tagIds: selectedTagIds,
@@ -245,11 +288,16 @@ export function EventForm({ event }: EventFormProps) {
       <GlassCard>
         <GlassCardHeader>
           <h2 className="text-lg font-semibold">Timing</h2>
+          <p className="text-sm text-muted-foreground">
+            All times are saved in <span className="font-medium text-foreground">UTC</span>. Your local time is shown below for reference.
+          </p>
         </GlassCardHeader>
         <GlassCardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="startTime">Start Time</Label>
+              <Label htmlFor="startTime">
+                Start Time <span className="text-xs text-muted-foreground font-normal">(UTC)</span>
+              </Label>
               <Input
                 id="startTime"
                 name="startTime"
@@ -257,9 +305,17 @@ export function EventForm({ event }: EventFormProps) {
                 value={formData.startTime}
                 onChange={handleChange}
               />
+              {formData.startTime && (
+                <p className="text-xs text-muted-foreground">
+                  <span className="text-foreground/70">Your local time:</span>{" "}
+                  {formatLocalTime(formData.startTime)}
+                </p>
+              )}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="endTime">End Time</Label>
+              <Label htmlFor="endTime">
+                End Time <span className="text-xs text-muted-foreground font-normal">(UTC)</span>
+              </Label>
               <Input
                 id="endTime"
                 name="endTime"
@@ -267,6 +323,12 @@ export function EventForm({ event }: EventFormProps) {
                 value={formData.endTime}
                 onChange={handleChange}
               />
+              {formData.endTime && (
+                <p className="text-xs text-muted-foreground">
+                  <span className="text-foreground/70">Your local time:</span>{" "}
+                  {formatLocalTime(formData.endTime)}
+                </p>
+              )}
             </div>
           </div>
         </GlassCardContent>

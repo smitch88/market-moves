@@ -94,15 +94,15 @@ export function MarketForm({ market }: MarketFormProps) {
           category: data.category,
           bannerUrl: data.bannerUrl || undefined,
           logoUrl: data.logoUrl || undefined,
-          startTime: data.startTime ? new Date(data.startTime).toISOString() : undefined,
+          startTime: data.startTime ? inputToUTCISO(data.startTime) : undefined,
           markets: [
             {
               question: data.question || data.title,
               outcomes: [data.outcome0Label, data.outcome1Label],
               detailsMarkdown: data.detailsMarkdown || undefined,
               resolutionSourceUrl: data.resolutionSourceUrl || undefined,
-              opensAt: data.opensAt ? new Date(data.opensAt).toISOString() : undefined,
-              closesAt: data.closesAt ? new Date(data.closesAt).toISOString() : undefined,
+              opensAt: data.opensAt ? inputToUTCISO(data.opensAt) : undefined,
+              closesAt: data.closesAt ? inputToUTCISO(data.closesAt) : undefined,
               feeBps: parseInt(data.feeBps, 10),
               seed0: parseInt(data.seed0, 10),
               seed1: parseInt(data.seed1, 10),
@@ -139,8 +139,8 @@ export function MarketForm({ market }: MarketFormProps) {
           outcomes: [data.outcome0Label, data.outcome1Label],
           detailsMarkdown: data.detailsMarkdown || undefined,
           resolutionSourceUrl: data.resolutionSourceUrl || undefined,
-          opensAt: data.opensAt ? new Date(data.opensAt).toISOString() : undefined,
-          closesAt: data.closesAt ? new Date(data.closesAt).toISOString() : undefined,
+          opensAt: data.opensAt ? inputToUTCISO(data.opensAt) : undefined,
+          closesAt: data.closesAt ? inputToUTCISO(data.closesAt) : undefined,
           feeBps: parseInt(data.feeBps, 10),
           seed0: parseInt(data.seed0, 10),
           seed1: parseInt(data.seed1, 10),
@@ -253,7 +253,9 @@ export function MarketForm({ market }: MarketFormProps) {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="startTime">Event Start Time</Label>
+                <Label htmlFor="startTime">
+                  Event Start Time <span className="text-xs text-muted-foreground font-normal">(UTC)</span>
+                </Label>
                 <Input
                   id="startTime"
                   name="startTime"
@@ -261,6 +263,12 @@ export function MarketForm({ market }: MarketFormProps) {
                   value={formData.startTime}
                   onChange={handleChange}
                 />
+                {formData.startTime && (
+                  <p className="text-xs text-muted-foreground">
+                    <span className="text-foreground/70">Your local time:</span>{" "}
+                    {formatLocalTime(formData.startTime)}
+                  </p>
+                )}
               </div>
             </div>
 
@@ -364,11 +372,16 @@ export function MarketForm({ market }: MarketFormProps) {
       <GlassCard>
         <GlassCardHeader>
           <h2 className="text-lg font-semibold">Schedule</h2>
+          <p className="text-sm text-muted-foreground">
+            All times are saved in <span className="font-medium text-foreground">UTC</span>. Your local time is shown below for reference.
+          </p>
         </GlassCardHeader>
         <GlassCardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="opensAt">Opens At</Label>
+              <Label htmlFor="opensAt">
+                Opens At <span className="text-xs text-muted-foreground font-normal">(UTC)</span>
+              </Label>
               <Input
                 id="opensAt"
                 name="opensAt"
@@ -376,9 +389,17 @@ export function MarketForm({ market }: MarketFormProps) {
                 value={formData.opensAt}
                 onChange={handleChange}
               />
+              {formData.opensAt && (
+                <p className="text-xs text-muted-foreground">
+                  <span className="text-foreground/70">Your local time:</span>{" "}
+                  {formatLocalTime(formData.opensAt)}
+                </p>
+              )}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="closesAt">Closes At (Kickoff)</Label>
+              <Label htmlFor="closesAt">
+                Closes At (Kickoff) <span className="text-xs text-muted-foreground font-normal">(UTC)</span>
+              </Label>
               <Input
                 id="closesAt"
                 name="closesAt"
@@ -386,6 +407,12 @@ export function MarketForm({ market }: MarketFormProps) {
                 value={formData.closesAt}
                 onChange={handleChange}
               />
+              {formData.closesAt && (
+                <p className="text-xs text-muted-foreground">
+                  <span className="text-foreground/70">Your local time:</span>{" "}
+                  {formatLocalTime(formData.closesAt)}
+                </p>
+              )}
             </div>
           </div>
           <div className="space-y-2">
@@ -475,7 +502,52 @@ export function MarketForm({ market }: MarketFormProps) {
   );
 }
 
+// Format a UTC date for datetime-local input (displays UTC time)
 function formatDateForInput(date: Date | string): string {
-  const d = typeof date === "string" ? new Date(date) : date;
-  return d.toISOString().slice(0, 16);
+  let d: Date;
+  if (typeof date === "string") {
+    // Ensure the string is parsed as UTC by appending Z if not present
+    const dateStr = date.endsWith("Z") || date.includes("+") || date.includes("-", 10) 
+      ? date 
+      : date + "Z";
+    d = new Date(dateStr);
+  } else {
+    d = date;
+  }
+  // Get UTC components and format as YYYY-MM-DDTHH:MM
+  const year = d.getUTCFullYear();
+  const month = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  const hours = String(d.getUTCHours()).padStart(2, "0");
+  const minutes = String(d.getUTCMinutes()).padStart(2, "0");
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
+// Convert datetime-local input value (which represents UTC) to ISO string for saving
+function inputToUTCISO(inputValue: string): string {
+  if (!inputValue) return "";
+  // Append Z to treat the input value as UTC
+  return new Date(inputValue + "Z").toISOString();
+}
+
+// Format UTC date string to user's local timezone for display
+function formatLocalTime(utcDateString: string): string {
+  if (!utcDateString) return "";
+  try {
+    // The input value represents UTC time, so append Z to parse as UTC
+    const utcDate = new Date(utcDateString + "Z");
+    
+    // Format in user's local timezone
+    return utcDate.toLocaleString(undefined, {
+      weekday: "short",
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      timeZoneName: "short",
+    });
+  } catch {
+    return "";
+  }
 }
