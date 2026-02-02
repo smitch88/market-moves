@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { toast } from "@vault/ui";
 import { Clock, X } from "lucide-react";
+import { useTheme } from "next-themes";
 
 interface SpinReward {
   amount: number;
@@ -14,11 +15,11 @@ interface SpinReward {
 interface SpinStatus {
   canSpin: boolean;
   nextSpinAt?: string;
-  lastReward?: number;
+  todayReward?: number;
 }
 
-// Wheel segments (clockwise from top)
-const WHEEL_SEGMENTS = [
+// Wheel segments - colors for dark and light mode
+const WHEEL_SEGMENTS_DARK = [
   { amount: 500,   label: "$500",   color: "#18181b", textColor: "#a1a1aa" },
   { amount: 5000,  label: "$5K",    color: "#1c1c1e", textColor: "#FB2C36" },
   { amount: 750,   label: "$750",   color: "#18181b", textColor: "#a1a1aa" },
@@ -31,7 +32,20 @@ const WHEEL_SEGMENTS = [
   { amount: 7500,  label: "$7.5K",  color: "#1c1c1e", textColor: "#FB2C36" },
 ];
 
-const NUM_SEGMENTS = WHEEL_SEGMENTS.length;
+const WHEEL_SEGMENTS_LIGHT = [
+  { amount: 500,   label: "$500",   color: "#f4f4f5", textColor: "#71717a" },
+  { amount: 5000,  label: "$5K",    color: "#e4e4e7", textColor: "#dc2626" },
+  { amount: 750,   label: "$750",   color: "#f4f4f5", textColor: "#71717a" },
+  { amount: 10000, label: "$10K",   color: "#e4e4e7", textColor: "#d97706" },
+  { amount: 1000,  label: "$1K",    color: "#f4f4f5", textColor: "#52525b" },
+  { amount: 3000,  label: "$3K",    color: "#e4e4e7", textColor: "#18181b" },
+  { amount: 1500,  label: "$1.5K",  color: "#f4f4f5", textColor: "#52525b" },
+  { amount: 20000, label: "$20K",   color: "#fecaca", textColor: "#991b1b" },
+  { amount: 2000,  label: "$2K",    color: "#f4f4f5", textColor: "#27272a" },
+  { amount: 7500,  label: "$7.5K",  color: "#e4e4e7", textColor: "#dc2626" },
+];
+
+const NUM_SEGMENTS = WHEEL_SEGMENTS_DARK.length;
 const SEGMENT_ANGLE = 360 / NUM_SEGMENTS;
 
 export function DailySpinWheel({ 
@@ -43,6 +57,10 @@ export function DailySpinWheel({
   onClose: () => void;
   onBalanceUpdate?: (newBalance: number) => void;
 }) {
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
+  const WHEEL_SEGMENTS = isDark ? WHEEL_SEGMENTS_DARK : WHEEL_SEGMENTS_LIGHT;
+  
   const [spinStatus, setSpinStatus] = useState<SpinStatus | null>(null);
   const [isSpinning, setIsSpinning] = useState(false);
   const [rotation, setRotation] = useState(0);
@@ -122,7 +140,7 @@ export function DailySpinWheel({
     // Outer ring
     ctx.beginPath();
     ctx.arc(cx, cy, r, 0, Math.PI * 2);
-    ctx.strokeStyle = "rgba(255,255,255,0.08)";
+    ctx.strokeStyle = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.1)";
     ctx.lineWidth = 1;
     ctx.stroke();
 
@@ -153,7 +171,7 @@ export function DailySpinWheel({
       ctx.closePath();
       ctx.fillStyle = s.color;
       ctx.fill();
-      ctx.strokeStyle = "rgba(255,255,255,0.04)";
+      ctx.strokeStyle = isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.06)";
       ctx.lineWidth = 1;
       ctx.stroke();
 
@@ -174,22 +192,46 @@ export function DailySpinWheel({
     // Center hub
     ctx.beginPath();
     ctx.arc(cx, cy, r * 0.15, 0, Math.PI * 2);
-    ctx.fillStyle = "#09090b";
+    ctx.fillStyle = isDark ? "#09090b" : "#ffffff";
     ctx.fill();
-    ctx.strokeStyle = "rgba(255,255,255,0.1)";
+    ctx.strokeStyle = isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)";
     ctx.lineWidth = 2;
     ctx.stroke();
 
-  }, []);
+  }, [isDark, WHEEL_SEGMENTS]);
 
   useEffect(() => {
     if (isOpen) drawWheel(rotation);
-  }, [isOpen, drawWheel, rotation]);
+  }, [isOpen, drawWheel, rotation, isDark]);
+
+  // Helper to format amount as label
+  const formatRewardLabel = (amount: number): string => {
+    if (amount >= 1000) return `$${(amount / 1000).toLocaleString()}K`;
+    return `$${amount.toLocaleString()}`;
+  };
 
   async function fetchSpinStatus() {
     try {
       const res = await fetch("/api/me/daily-spin");
-      if (res.ok) setSpinStatus(await res.json());
+      if (res.ok) {
+        const data = await res.json();
+        setSpinStatus(data);
+        
+        // If user already spun today, show their result
+        if (!data.canSpin && data.todayReward !== undefined) {
+          setResult({
+            amount: data.todayReward,
+            label: formatRewardLabel(data.todayReward),
+            tier: data.todayReward >= 5000 ? "jackpot" : "normal",
+            color: "#10B981",
+          });
+          setShowResult(true);
+        } else {
+          // Reset result state when they can spin again
+          setResult(null);
+          setShowResult(false);
+        }
+      }
     } catch (e) { console.error(e); }
   }
 
@@ -259,16 +301,16 @@ export function DailySpinWheel({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/60 dark:bg-black/80 backdrop-blur-sm" onClick={onClose} />
       
-      <div className="relative w-full max-w-sm bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl shadow-2xl overflow-hidden">
+      <div className="relative w-full max-w-sm bg-background/95 dark:bg-white/5 backdrop-blur-md border border-border rounded-2xl shadow-2xl overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-5 pt-5 pb-3">
           <div>
             <h2 className="text-base font-semibold text-foreground">Daily Spin</h2>
             <p className="text-xs text-muted-foreground">Win up to $20,000</p>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/5 transition-colors">
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-muted transition-colors">
             <X className="w-4 h-4 text-muted-foreground" />
           </button>
         </div>
@@ -298,7 +340,9 @@ export function DailySpinWheel({
                 <div className={`text-3xl font-semibold ${result.amount >= 5000 ? "text-amber-400" : "text-primary"}`}>
                   {result.label}
                 </div>
-                <div className="text-sm text-muted-foreground mt-1">Added to balance</div>
+                <div className="text-sm text-muted-foreground mt-1">
+                  {spinStatus?.canSpin === false && !isSpinning ? "Today's reward" : "Added to balance"}
+                </div>
               </div>
               </div>
             )}

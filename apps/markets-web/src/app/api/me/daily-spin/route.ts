@@ -27,8 +27,14 @@ export async function GET() {
     const spinStatus = await canUserSpin(user.id);
     const history = await getUserSpinHistory(user.id, 5);
     
+    // If user can't spin (already spun today), include their last reward
+    const todayReward = !spinStatus.canSpin && history.length > 0 
+      ? Number(history[0].reward) 
+      : undefined;
+    
     return NextResponse.json({
       ...spinStatus,
+      todayReward,
       history: history.map(spin => ({
         ...spin,
         reward: Number(spin.reward),

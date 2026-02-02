@@ -232,7 +232,7 @@ export function Header() {
               aria-label="Daily Spin"
               whileTap={{ scale: 0.9 }}
             >
-              <Gift className="h-4 w-4 text-white" />
+              <Gift className="h-4 w-4 text-foreground" />
               {canSpin && (
                 <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-primary" />
               )}
@@ -258,7 +258,7 @@ export function Header() {
                   whileTap={{ scale: 0.95 }}
                   aria-label="Daily Spin"
                 >
-                  <Gift className="h-4 w-4 text-white" />
+                  <Gift className="h-4 w-4 text-foreground" />
                   {canSpin && (
                     <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-primary" />
                   )}
