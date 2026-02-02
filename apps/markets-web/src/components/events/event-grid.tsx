@@ -211,6 +211,7 @@ function getViewOrderBy(view: string): Prisma.EventOrderByWithRelationInput {
 
 // Generic sort function that works with any event type that has these fields
 function sortEvents<T extends {
+  pinned: boolean;
   startTime: string | null;
   _aggregations: {
     totalVolume: number;
@@ -224,6 +225,10 @@ function sortEvents<T extends {
   const direction = sortDir === "asc" ? 1 : -1;
 
   return [...events].sort((a, b) => {
+    // Pinned events always come first
+    if (a.pinned && !b.pinned) return -1;
+    if (!a.pinned && b.pinned) return 1;
+
     switch (sortBy) {
       case "volume":
         return (a._aggregations.totalVolume - b._aggregations.totalVolume) * direction;

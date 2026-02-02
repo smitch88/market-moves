@@ -348,6 +348,7 @@ model Event {
   active      Boolean        @default(true)
   closed      Boolean        @default(false)
   featured    Boolean        @default(false) // Show in featured carousel
+  pinned      Boolean        @default(false) // Prioritize at top of event grid
   isPublished Boolean        @default(false) // Whether event is visible on public site
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
@@ -368,6 +369,7 @@ model Event {
   @@index([closed])
   @@index([startTime])
   @@index([featured])
+  @@index([pinned])
   @@index([isPublished])
   @@index([createdByKolId])
 }
