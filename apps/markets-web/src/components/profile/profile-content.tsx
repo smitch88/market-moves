@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { usePrivy } from "@privy-io/react-auth";
 import {
   Tabs,
@@ -66,8 +66,14 @@ export function ProfileContent({ userId }: ProfileContentProps) {
   const defaultTab = searchParams.get("tab") || "positions";
   const { user } = usePrivy();
   const authFetch = useAuthFetch();
+  const queryClient = useQueryClient();
   const [requestModalOpen, setRequestModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState(defaultTab);
+
+  // Handler for when daily spin updates balance
+  const handleBalanceUpdate = () => {
+    queryClient.invalidateQueries({ queryKey: ["profile"] });
+  };
 
   const { data: profile, isLoading: profileLoading } = useQuery({
     queryKey: ["profile"],

@@ -24,3 +24,6 @@ export * from "./kol-service";
 
 // KOL daily competition
 export * from "./kol-competition-service";
+
+// Daily spin rewards
+export * from "./daily-spin-service";

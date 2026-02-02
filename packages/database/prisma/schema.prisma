@@ -85,6 +85,7 @@ model User {
   dailyKOLSnapshots      DailyKOLSnapshot[]
   kolCreatedEvents       Event[]           @relation("KOLCreatedEvents")
   kolCreatedMarkets      Market[]          @relation("KOLCreatedMarkets")
+  dailySpins             DailySpin[]
 
   @@index([email])
   @@index([twitterSubject])
@@ -728,6 +729,7 @@ enum BalanceReason {
   REFERRAL_BONUS // Referral reward
   OTHER // Other reasons
   TRADE_SELL // Proceeds from selling shares
+  DAILY_SPIN // Daily spin reward
 }
 
 enum PnLReason {
@@ -888,5 +890,21 @@ model ResolutionDataPoint {
 }
 
 // ============================================================================
-// USER & AUTHENTICATION
+// DAILY SPIN
 // ============================================================================
+
+/// Daily spin rewards for users (once per day bonus)
+model DailySpin {
+  id        String   @id @default(cuid())
+  userId    String
+  spinDate  DateTime @db.Date // Date only (one spin per day)
+  reward    Decimal  @db.Decimal(19, 2) // Amount won (can be 0)
+  createdAt DateTime @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, spinDate])
+  @@index([userId])
+  @@index([spinDate])
+}

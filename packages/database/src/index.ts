@@ -35,6 +35,7 @@ export type {
   XPLedger,
   XPConfig,
   PnLLedger,
+  DailySpin,
 } from "./generated/client";
 
 export {
