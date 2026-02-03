@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@vault/auth";
-import { setUserCaptain, getUserCaptain, getAllKOLs } from "@/lib/services/kol-service";
+import { setUserCaptain, getUserCaptain } from "@/lib/services/kol-service";
 import { z } from "zod";
 
 const setCaptainSchema = z.object({
@@ -40,6 +40,19 @@ export async function PUT(request: NextRequest) {
 
     const { captainId } = setCaptainSchema.parse(body);
 
+    // Enforce one-time captain selection:
+    // - If a user already has a captain, they cannot remove or change it (idempotent set is allowed).
+    const existingCaptain = await getUserCaptain(user.id);
+    if (existingCaptain) {
+      const isIdempotent = captainId === existingCaptain.id;
+      if (!isIdempotent) {
+        return NextResponse.json(
+          { error: "Captain selection is a one-time choice and cannot be changed." },
+          { status: 400 }
+        );
+      }
+    }
+
     await setUserCaptain(user.id, captainId);
 
     // Return updated captain info
@@ -72,9 +85,3 @@ export async function PUT(request: NextRequest) {
     );
   }
 }
-
-/**
- * GET /api/me/captain/available
- * Get all available KOLs that user can select as their captain
- * This endpoint is accessed via /api/me/captain?action=list
- */

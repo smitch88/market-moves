@@ -584,7 +584,7 @@ export function ProfileSettings({ profile, showReferrals = true, onlyReferrals =
 
           {/* Captain (KOL) Selection */}
           <div className="pt-4 border-t border-border">
-            <CaptainSelector />
+            <CaptainSelector autoPrompt={false} />
           </div>
 
           <div className="pt-4 border-t border-border">

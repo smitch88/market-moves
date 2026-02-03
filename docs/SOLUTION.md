@@ -55,7 +55,7 @@ vault-markets/
 |-------|-------------|
 | `/` | Home page - Event grid with Quick Bet, search, filters, bookmarks |
 | `/m/[slug]` | Event detail page with betting panel and price chart |
-| `/leaderboard` | User rankings by XP, PnL, or Volume |
+| `/leaderboard` | Rankings by XP (MP), PnL, Volume, and follower-based totals (Captains/Referrals) |
 | `/faq` | Frequently asked questions |
 | `/terms` | Terms of Service |
 | `/privacy` | Privacy Policy |
@@ -388,7 +388,7 @@ model MarketRequest {
 - Manage bookmarks in profile
 
 ### Leaderboard
-- Rankings by XP, PnL, Volume
+- Rankings by XP (MP), PnL, Volume, Captains (follower/team totals), Referrals
 - Time periods: All Time, Monthly, Weekly
 - User search and pagination
 - Current user position always visible

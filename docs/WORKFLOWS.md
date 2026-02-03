@@ -414,6 +414,11 @@ After successful bet:
 - Referral link and code
 - Friends invited count
 - Share referral on X
+- Captain selection (KOL team)
+  - If the user has no captain, the profile header shows a **"Choose a Captain"** button which opens the captain picker modal
+  - On desktop, a pulsing captain icon button appears in the bottom-right. Clicking it opens the same modal.
+  - Captain choice is a **one-time selection** (cannot be changed after set)
+  - Being under a captain rolls your activity into team totals and can earn MP bonuses when your captain wins the daily competition
 
 ---
 
@@ -906,6 +911,10 @@ DRAFT → PUBLISHED → OPEN → CLOSED → RESOLVED → SETTLED
 - Search users
 - Pagination
 - Current user always visible
+- Tabs include: XP (MP), PnL, Volume, Captains (Team Stats), Referrals
+- Team Stats view (Captains)
+  - Captains are ranked by follower (team) totals
+  - Vol and PnL shown are based on combined follower performance (not the captain alone)
 
 ---
 

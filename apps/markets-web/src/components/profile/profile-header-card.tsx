@@ -13,6 +13,7 @@ import {
   DialogTrigger,
 } from "@vault/ui";
 import { cn } from "@vault/ui/lib/utils";
+import { CaptainSelector } from "./captain-selector";
 
 export interface ProfileStat {
   label: string;
@@ -108,37 +109,46 @@ export function ProfileHeaderCard({
 
         {/* Name & meta */}
         <div className="flex-1 min-w-0">
-          <h1 className="text-xl font-bold truncate">{displayName}</h1>
-          <div className="flex items-center gap-2 mt-0.5">
-            {handle && (
-              <>
-                {showHandleLink ? (
-                  <a
-                    href={`https://x.com/${handle}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-sm text-muted-foreground hover:text-foreground transition-colors inline-flex items-center gap-1"
-                  >
-                    @{handle}
-                    <ExternalLink className="h-3 w-3" />
-                  </a>
-                ) : (
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h1 className="text-xl font-bold truncate">{displayName}</h1>
+              <div className="flex items-center gap-2 mt-0.5">
+                {handle && (
+                  <>
+                    {showHandleLink ? (
+                      <a
+                        href={`https://x.com/${handle}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-muted-foreground hover:text-foreground transition-colors inline-flex items-center gap-1"
+                      >
+                        @{handle}
+                        <ExternalLink className="h-3 w-3" />
+                      </a>
+                    ) : (
+                      <span className="text-sm text-muted-foreground">
+                        @{handle}
+                      </span>
+                    )}
+                    <span className="text-muted-foreground">·</span>
+                  </>
+                )}
+                {joinedAt && (
                   <span className="text-sm text-muted-foreground">
-                    @{handle}
+                    Joined{" "}
+                    {format(
+                      typeof joinedAt === "string" ? new Date(joinedAt) : joinedAt,
+                      "MMM yyyy"
+                    )}
                   </span>
                 )}
-                <span className="text-muted-foreground">·</span>
-              </>
-            )}
-            {joinedAt && (
-              <span className="text-sm text-muted-foreground">
-                Joined{" "}
-                {format(
-                  typeof joinedAt === "string" ? new Date(joinedAt) : joinedAt,
-                  "MMM yyyy"
-                )}
-              </span>
-            )}
+              </div>
+            </div>
+
+            {/* Only shows when user has no captain */}
+            <div className="flex-shrink-0">
+              <CaptainSelector mode="buttonOnly" autoPrompt={false} triggerLabel="Choose a Captain" />
+            </div>
           </div>
         </div>
       </div>

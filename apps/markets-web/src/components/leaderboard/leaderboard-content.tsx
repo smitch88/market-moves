@@ -261,7 +261,7 @@ function LeaderboardRow({
 
       {/* Followers - for captains metric */}
       {metric === "creators" && (
-        <div className="w-20 text-center hidden sm:flex items-center justify-center gap-1">
+        <div className="w-24 mr-3 text-center hidden sm:flex items-center justify-center gap-1">
           <Users className="h-3.5 w-3.5 text-muted-foreground" />
           <span className="text-sm text-muted-foreground">
             {entry.followerCount ?? 0}
@@ -280,7 +280,7 @@ function LeaderboardRow({
       )}
 
       {/* Value */}
-      <div className="w-28 text-right">
+      <div className={cn("text-right", metric === "creators" ? "w-32" : "w-28")}>
         <span
           className={cn(
             "font-semibold tabular-nums",
@@ -312,7 +312,7 @@ function LeaderboardRow({
             "text-xs",
             entry.followerPnL >= 0 ? "text-emerald-400/70" : "text-red-400/70"
           )}>
-            {formatPnl(entry.followerPnL)} PnL
+            {formatPnl(entry.followerPnL)} Team PnL
           </p>
         )}
       </div>
@@ -346,6 +346,11 @@ export function LeaderboardContent() {
   const [period, setPeriod] = useState<Period>("all");
   const [page, setPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState("");
+  const headerTitle = "Leaderboards";
+  const headerSubtitle =
+    metric === "creators"
+      ? "Captains ranked by follower (team) totals — volume and PnL reflect followers"
+      : "Top predictors on Vault Markets";
 
   // Reset page when filters change
   const handleMetricChange = (newMetric: Metric) => {
@@ -423,8 +428,8 @@ export function LeaderboardContent() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
       >
-        <h1 className="text-3xl font-bold mb-2">Leaderboard</h1>
-        <p className="text-muted-foreground">Top predictors on Vault Markets</p>
+        <h1 className="text-3xl font-bold mb-2">{headerTitle}</h1>
+        <p className="text-muted-foreground">{headerSubtitle}</p>
       </motion.div>
 
       {/* Filters Row */}
@@ -643,13 +648,21 @@ export function LeaderboardContent() {
             <div className="w-16 text-center hidden sm:block">Level</div>
           )}
           {metric === "creators" && (
-            <div className="w-20 text-center hidden sm:block">Followers</div>
+            <div className="w-24 mr-3 text-center hidden sm:block">Followers</div>
           )}
           {metric === "referrals" && (
             <div className="w-20 text-center hidden sm:block">Qualified</div>
           )}
-          <div className="w-28 text-right">
-            {metric === "xp" ? "MP" : metric === "volume" ? "Volume" : metric === "creators" ? "Vol" : metric === "referrals" ? "Referrals" : "PnL"}
+          <div className={cn("text-right", metric === "creators" ? "w-32" : "w-28")}>
+            {metric === "xp"
+              ? "MP"
+              : metric === "volume"
+              ? "Volume"
+              : metric === "creators"
+              ? "Follower Vol"
+              : metric === "referrals"
+              ? "Referrals"
+              : "PnL"}
           </div>
         </div>
       )}
