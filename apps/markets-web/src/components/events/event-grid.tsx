@@ -9,6 +9,7 @@ interface EventGridProps {
   query?: string;
   sortBy?: string;
   sortDir?: string;
+  status?: string;
 }
 
 export async function EventGrid({ 
@@ -17,6 +18,7 @@ export async function EventGrid({
   query,
   sortBy = "volume",
   sortDir = "desc",
+  status = "open",
 }: EventGridProps) {
   // Handle bookmarks view
   let bookmarkedEventIds: string[] = [];
@@ -49,6 +51,13 @@ export async function EventGrid({
           { description: { contains: query, mode: "insensitive" } },
         ],
       }),
+      // Filter events that have at least one market matching the status filter
+      markets: {
+        some: {
+          isPublished: true,
+          ...getMarketStatusFilter(status),
+        },
+      },
       // Apply view filters
       ...getViewFilter(view, bookmarkedEventIds),
     },
@@ -68,15 +77,17 @@ export async function EventGrid({
       markets: {
         where: {
           isPublished: true, // Only show published markets
-          status: { in: ["PUBLISHED", "OPEN"] },
+          ...getMarketStatusFilter(status),
         },
         select: {
           id: true,
+          status: true,
           seed0: true,
           seed1: true,
           pool0: true,
           pool1: true,
           closesAt: true,
+          resolvedOutcome: true,
           _count: {
             select: { 
               bets: { where: { status: BetStatus.CONFIRMED } },
@@ -90,8 +101,11 @@ export async function EventGrid({
     take: 50, // Fetch more to allow client-side sorting
   });
 
+  // Filter out events with no markets matching the status filter
+  const eventsWithMarkets = events.filter((event) => event.markets.length > 0);
+
   // Transform to include aggregations (convert Decimals to numbers)
-  let eventsWithAggregations = events.map((event) => {
+  let eventsWithAggregations = eventsWithMarkets.map((event) => {
     const totalVolume = event.markets.reduce((sum, market) => {
       return sum + Number(market.seed0 || 0) + Number(market.seed1 || 0) + Number(market.pool0 || 0) + Number(market.pool1 || 0);
     }, 0);
@@ -157,6 +171,18 @@ export async function EventGrid({
       ))}
     </div>
   );
+}
+
+function getMarketStatusFilter(status: string): Prisma.MarketWhereInput {
+  switch (status) {
+    case "open":
+      return { status: { in: ["PUBLISHED", "OPEN"] } };
+    case "closed":
+      return { status: { in: ["CLOSED", "RESOLVED", "SETTLED"] } };
+    case "all":
+    default:
+      return {}; // No status filter for "all"
+  }
 }
 
 function getViewFilter(view: string, bookmarkedEventIds?: string[]): Prisma.EventWhereInput {

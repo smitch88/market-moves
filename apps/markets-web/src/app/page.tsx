@@ -16,12 +16,13 @@ interface HomePageProps {
     category?: string;
     sortBy?: string;
     sortDir?: string;
+    status?: string;
   }>;
 }
 
 export default async function HomePage({ searchParams }: HomePageProps) {
   const params = await searchParams;
-  const { q, view, category, sortBy, sortDir } = params;
+  const { q, view, category, sortBy, sortDir, status } = params;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
@@ -45,6 +46,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
             query={q} 
             sortBy={sortBy}
             sortDir={sortDir}
+            status={status}
           />
         </Suspense>
       </main>

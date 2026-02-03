@@ -35,6 +35,9 @@ import {
   Filter,
   Bookmark,
   Star,
+  CircleDot,
+  Circle,
+  CheckCircle2,
 } from "lucide-react";
 import { usePrivy } from "@privy-io/react-auth";
 
@@ -44,6 +47,12 @@ const viewFilters = [
   { label: "New", value: "new", icon: Sparkles },
   { label: "Captain Created", value: "kol-created", icon: Star },
   { label: "Bookmarks", value: "bookmarks", icon: Bookmark, requiresAuth: true },
+];
+
+const statusFilters = [
+  { label: "Open", value: "open", icon: CircleDot },
+  { label: "All", value: "all", icon: Circle },
+  { label: "Closed", value: "closed", icon: CheckCircle2 },
 ];
 
 const categoryFilters = [
@@ -89,6 +98,7 @@ export function MarketFilters() {
   const [sortMenuOpen, setSortMenuOpen] = useState(false);
   const [viewMenuOpen, setViewMenuOpen] = useState(false);
   const [categoryMenuOpen, setCategoryMenuOpen] = useState(false);
+  const [statusMenuOpen, setStatusMenuOpen] = useState(false);
   const { authenticated, login } = usePrivy();
 
   // Filter view options based on auth status
@@ -100,11 +110,17 @@ export function MarketFilters() {
   const currentCategory = searchParams.get("category") || "all";
   const currentSortBy = searchParams.get("sortBy") || "volume";
   const currentSortDir = searchParams.get("sortDir") || "desc";
+  const currentStatus = searchParams.get("status") || "open";
 
   const handleFilter = (key: string, value: string) => {
     startTransition(() => {
       const params = new URLSearchParams(searchParams.toString());
-      if ((value === "all" && key === "category") || (value === "trending" && key === "view")) {
+      // Remove param if it's the default value
+      if (
+        (value === "all" && key === "category") || 
+        (value === "trending" && key === "view") ||
+        (value === "open" && key === "status")
+      ) {
         params.delete(key);
       } else {
         params.set(key, value);
@@ -139,8 +155,10 @@ export function MarketFilters() {
   const currentSortOption = sortOptions.find((s) => s.value === currentSortBy) || sortOptions[0];
   const currentViewOption = availableViewFilters.find((v) => v.value === currentView) || availableViewFilters[0];
   const currentCategoryOption = categoryFilters.find((c) => c.value === currentCategory) || categoryFilters[0];
+  const currentStatusOption = statusFilters.find((s) => s.value === currentStatus) || statusFilters[0];
   const ViewIcon = currentViewOption.icon;
   const CategoryIcon = currentCategoryOption.icon;
+  const StatusIcon = currentStatusOption.icon;
 
   const handleViewFilter = (value: string) => {
     const filter = viewFilters.find((f) => f.value === value);
@@ -244,6 +262,48 @@ export function MarketFilters() {
           </DropdownMenuContent>
         </DropdownMenu>
 
+        {/* Status Dropdown - Mobile */}
+        <DropdownMenu open={statusMenuOpen} onOpenChange={setStatusMenuOpen}>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="outline"
+              size="sm"
+              className={cn(
+                "flex-1 min-w-0 justify-between gap-1 xs:gap-2 h-8 xs:h-9 px-2 xs:px-3 rounded-full bg-transparent border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted/50",
+                isPending && "opacity-50 pointer-events-none"
+              )}
+            >
+              <span className="flex items-center gap-1 xs:gap-1.5 min-w-0">
+                <StatusIcon className="h-3 w-3 xs:h-3.5 xs:w-3.5 flex-shrink-0" />
+                <span className="font-medium text-foreground text-xs xs:text-sm truncate">{currentStatusOption.label}</span>
+              </span>
+              <ChevronDown className="h-3 w-3 xs:h-3.5 xs:w-3.5 flex-shrink-0" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-40">
+            {statusFilters.map((filter) => {
+              const Icon = filter.icon;
+              const isActive = currentStatus === filter.value || (filter.value === "open" && !searchParams.get("status"));
+              return (
+                <DropdownMenuItem
+                  key={filter.value}
+                  onClick={() => {
+                    handleFilter("status", filter.value);
+                    setStatusMenuOpen(false);
+                  }}
+                  className="flex items-center justify-between cursor-pointer"
+                >
+                  <div className="flex items-center gap-2">
+                    <Icon className="h-4 w-4 text-muted-foreground" />
+                    <span>{filter.label}</span>
+                  </div>
+                  {isActive && <Check className="h-4 w-4 text-primary" />}
+                </DropdownMenuItem>
+              );
+            })}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
         {/* Sort Dropdown - Mobile */}
         <DropdownMenu open={sortMenuOpen} onOpenChange={setSortMenuOpen}>
           <DropdownMenuTrigger asChild>
@@ -323,6 +383,48 @@ export function MarketFilters() {
 
       {/* Desktop: Inline buttons */}
       <div className="hidden sm:flex flex-wrap items-center gap-3">
+        {/* Status filter dropdown */}
+        <motion.div variants={itemVariants}>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className={cn(
+                  "gap-2 h-9 px-3 rounded-full bg-transparent border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted/50",
+                  isPending && "opacity-50 pointer-events-none"
+                )}
+              >
+                <StatusIcon className="h-3.5 w-3.5" />
+                <span className="font-medium text-foreground">{currentStatusOption.label}</span>
+                <ChevronDown className="h-3.5 w-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-40">
+              {statusFilters.map((filter) => {
+                const Icon = filter.icon;
+                const isActive = currentStatus === filter.value || (filter.value === "open" && !searchParams.get("status"));
+                return (
+                  <DropdownMenuItem
+                    key={filter.value}
+                    onClick={() => handleFilter("status", filter.value)}
+                    className="flex items-center justify-between cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Icon className="h-4 w-4 text-muted-foreground" />
+                      <span>{filter.label}</span>
+                    </div>
+                    {isActive && <Check className="h-4 w-4 text-primary" />}
+                  </DropdownMenuItem>
+                );
+              })}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </motion.div>
+
+        {/* Divider */}
+        <div className="h-6 w-px bg-border/50" />
+
         {/* View filters dropdown */}
         <motion.div variants={itemVariants}>
           <DropdownMenu>
