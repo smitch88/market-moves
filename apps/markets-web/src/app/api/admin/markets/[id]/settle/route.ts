@@ -12,6 +12,7 @@ export async function POST(
     const admin = await requireAdmin();
     const { id } = await params;
 
+    // Use extended timeout for markets with many bets/positions
     const result = await prisma.$transaction(async (tx) => {
       // Lock and fetch market with positions and bets
       const market = await tx.market.findUnique({
@@ -78,67 +79,101 @@ export async function POST(
       }
       
       // Create raffle entries for winners (still automatic as it's a reward, not payment)
-      for (const position of market.positions) {
+      const winningPositions = market.positions.filter(position => {
         const userShares = isOutcome0 ? Number(position.shares0) : Number(position.shares1);
-        
-        if (userShares > 0) {
-          await tx.raffleEntry.upsert({
-            where: {
-              userId_marketId_reason: {
-                userId: position.userId,
-                marketId: market.id,
-                reason: RaffleReason.CORRECT_PREDICTION,
-              },
-            },
-            update: {
-              entries: { increment: 1 },
-            },
-            create: {
+        return userShares > 0;
+      });
+      
+      // Upserts must be done individually (no batch upsert in Prisma)
+      for (const position of winningPositions) {
+        affectedUserIds.push(position.userId);
+        await tx.raffleEntry.upsert({
+          where: {
+            userId_marketId_reason: {
               userId: position.userId,
               marketId: market.id,
-              entries: 1,
               reason: RaffleReason.CORRECT_PREDICTION,
             },
-          });
-          
-          affectedUserIds.push(position.userId);
-        }
+          },
+          update: {
+            entries: { increment: 1 },
+          },
+          create: {
+            userId: position.userId,
+            marketId: market.id,
+            entries: 1,
+            reason: RaffleReason.CORRECT_PREDICTION,
+          },
+        });
       }
 
-      // Update bet statuses and payouts (CPMM: 1 share = $1)
-      const betPayouts = new Map<string, number>();
+      // Separate winning and losing bets
+      const winningBetIds: string[] = [];
+      const losingBetIds: string[] = [];
+      const betPayouts: { id: string; payout: number }[] = [];
       
       for (const bet of market.bets) {
         const isWinner = bet.outcomeIndex === market.resolvedOutcome;
         
-        if (isWinner && bet.shares) {
+        if (isWinner) {
+          winningBetIds.push(bet.id);
           // CPMM: payout based on shares (1 share = $1, minus fee)
-          const grossPayout = Number(bet.shares);
-          const betPayout = Math.floor(grossPayout * (1 - fee));
-          if (betPayout > 0) {
-            betPayouts.set(bet.id, betPayout);
+          if (bet.shares) {
+            const grossPayout = Number(bet.shares);
+            const betPayout = Math.floor(grossPayout * (1 - fee));
+            if (betPayout > 0) {
+              betPayouts.push({ id: bet.id, payout: betPayout });
+            }
+          }
+        } else {
+          losingBetIds.push(bet.id);
+          // Track losing users for PnL snapshots
+          if (!affectedUserIds.includes(bet.userId)) {
+            affectedUserIds.push(bet.userId);
           }
         }
       }
 
-      // Update all bets with their final status and payout
-      for (const bet of market.bets) {
-        const isWinner = bet.outcomeIndex === market.resolvedOutcome;
-        const payout = betPayouts.get(bet.id) || 0;
-
-        await tx.bet.update({
-          where: { id: bet.id },
+      // Batch update all losing bets at once (same status, payout 0)
+      if (losingBetIds.length > 0) {
+        await tx.bet.updateMany({
+          where: { id: { in: losingBetIds } },
           data: {
-            status: isWinner ? BetStatus.WON : BetStatus.LOST,
-            payout: payout,
+            status: BetStatus.LOST,
+            payout: 0,
           },
         });
-
-        // Note: We no longer create SETTLEMENT_LOSS ledger entries here
-        // or update realizedPnL. This happens during redemption.
-        // The bet status (WON/LOST) is sufficient for tracking.
-        if (!isWinner && !affectedUserIds.includes(bet.userId)) {
-          affectedUserIds.push(bet.userId);
+      }
+      
+      // Batch update winning bets
+      if (winningBetIds.length > 0) {
+        // Winners without specific payouts (payout defaults to 0)
+        const winnersWithPayouts = new Set(betPayouts.map(b => b.id));
+        const winnersWithoutPayouts = winningBetIds.filter(id => !winnersWithPayouts.has(id));
+        
+        // Batch update winners without specific payouts
+        if (winnersWithoutPayouts.length > 0) {
+          await tx.bet.updateMany({
+            where: { id: { in: winnersWithoutPayouts } },
+            data: {
+              status: BetStatus.WON,
+              payout: 0,
+            },
+          });
+        }
+        
+        // Update winners with payouts individually
+        // Note: Promise.all in interactive transactions still executes sequentially
+        // (single DB connection), but reduces JS overhead. For very large markets,
+        // consider chunking or using $transaction([...]) batch mode outside.
+        for (const { id, payout } of betPayouts) {
+          await tx.bet.update({
+            where: { id },
+            data: {
+              status: BetStatus.WON,
+              payout,
+            },
+          });
         }
       }
 
@@ -159,33 +194,36 @@ export async function POST(
         },
       });
 
-      for (const referral of qualifiedReferrals) {
-        // Check if referred user bet on this market
-        if (referral.referred.positions.length > 0) {
-          await tx.raffleEntry.upsert({
-            where: {
-              userId_marketId_reason: {
-                userId: referral.referrerUserId,
-                marketId: market.id,
-                reason: RaffleReason.REFERRAL_BONUS,
-              },
-            },
-            update: {
-              entries: { increment: 1 },
-            },
-            create: {
+      // Filter referrals where referred user bet on this market
+      const eligibleReferrals = qualifiedReferrals.filter(
+        referral => referral.referred.positions.length > 0
+      );
+      
+      // Award referral bonuses (must be done individually for upserts)
+      for (const referral of eligibleReferrals) {
+        await tx.raffleEntry.upsert({
+          where: {
+            userId_marketId_reason: {
               userId: referral.referrerUserId,
               marketId: market.id,
-              entries: 1,
               reason: RaffleReason.REFERRAL_BONUS,
             },
-          });
-
-          await tx.referral.update({
-            where: { id: referral.id },
-            data: { bonusEntriesAwarded: 1 },
-          });
-        }
+          },
+          update: {
+            entries: { increment: 1 },
+          },
+          create: {
+            userId: referral.referrerUserId,
+            marketId: market.id,
+            entries: 1,
+            reason: RaffleReason.REFERRAL_BONUS,
+          },
+        });
+        
+        await tx.referral.update({
+          where: { id: referral.id },
+          data: { bonusEntriesAwarded: 1 },
+        });
       }
 
       // Update market as settled
@@ -234,6 +272,9 @@ export async function POST(
         },
         affectedUserIds,
       };
+    }, {
+      timeout: 120000, // 2 minute timeout for markets with many bets
+      maxWait: 10000,  // Wait up to 10s to acquire transaction
     });
 
     // Create PnL snapshots for affected users (fire-and-forget)
