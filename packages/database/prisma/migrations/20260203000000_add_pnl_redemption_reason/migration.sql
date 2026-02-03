@@ -1,0 +1,2 @@
+-- Add REDEMPTION value to PnLReason enum
+ALTER TYPE "PnLReason" ADD VALUE IF NOT EXISTS 'REDEMPTION';
