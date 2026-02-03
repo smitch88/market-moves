@@ -13,6 +13,7 @@ const jetbrainsMono = JetBrains_Mono({
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { PrivyProvider } from "@/components/providers/privy-provider";
 import { QueryProvider } from "@/components/providers/query-provider";
+import { HeartbeatProvider } from "@/components/providers/heartbeat-provider";
 import { XPAnimationProvider } from "@/components/layout/xp-animation";
 import { KOLNotificationProvider } from "@/components/kol";
 import { DevTools } from "@/components/dev/dev-tools";
@@ -107,6 +108,7 @@ export default function RootLayout({
         >
           <QueryProvider>
             <PrivyProvider>
+              <HeartbeatProvider>
               <XPAnimationProvider>
                 <KOLNotificationProvider>
                   <div className="pb-20 md:pb-0">
@@ -119,6 +121,7 @@ export default function RootLayout({
                   <ThemedToaster />
                 </KOLNotificationProvider>
               </XPAnimationProvider>
+              </HeartbeatProvider>
             </PrivyProvider>
           </QueryProvider>
         </ThemeProvider>

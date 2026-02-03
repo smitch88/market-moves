@@ -21,6 +21,7 @@ export interface EffectiveUser {
   referralCode: string;
   hasSeenWelcomeModal: boolean;
   isKOL: boolean;
+  lastSeenAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
   _impersonated?: boolean;

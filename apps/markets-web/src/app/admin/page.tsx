@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { prisma } from "@vault/database";
 import { GlassCard, GlassCardContent, GlassCardHeader, Button } from "@vault/ui";
-import { BarChart3, Users, TrendingUp, Calendar, ArrowRight } from "lucide-react";
+import { BarChart3, TrendingUp, Calendar, ArrowRight } from "lucide-react";
 import { RecentActivity } from "@/components/admin/recent-activity";
 import { RecentSocialVerifications } from "@/components/admin/recent-social-verifications";
 import { LeaderboardExport } from "@/components/admin/leaderboard-export";
 import { VolumeChart } from "@/components/admin/volume-chart";
+import { ActiveUsersCard } from "@/components/admin/active-users-card";
 
 // X (Twitter) icon as inline SVG for server component
 function XIconInline({ className }: { className?: string }) {
@@ -39,12 +40,6 @@ export default async function AdminDashboard() {
       value: marketCount,
       icon: BarChart3,
       color: "text-chart-2",
-    },
-    {
-      label: "Total Users",
-      value: userCount,
-      icon: Users,
-      color: "text-chart-3",
     },
     {
       label: "Total Bets",
@@ -81,6 +76,8 @@ export default async function AdminDashboard() {
             </GlassCardContent>
           </GlassCard>
         ))}
+        {/* Active Users - Client Component with live updates */}
+        <ActiveUsersCard fallbackTotalUsers={userCount} />
       </div>
 
       {/* Volume Chart */}

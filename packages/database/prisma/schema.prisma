@@ -57,6 +57,9 @@ model User {
   // UI state
   hasSeenWelcomeModal Boolean @default(false)
 
+  // Activity tracking
+  lastSeenAt DateTime? // Last time user was active on the site
+
   // Timestamps
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -93,6 +96,7 @@ model User {
   @@index([handle])
   @@index([isKOL])
   @@index([captainId])
+  @@index([lastSeenAt])
 }
 
 // ============================================================================
