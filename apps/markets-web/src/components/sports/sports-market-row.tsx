@@ -24,12 +24,9 @@ import {
 
 // Check if a market is closed (by status or by closesAt time)
 function isMarketClosed(market: Market): boolean {
-  // Check market status
-  if (market.status === "CLOSED" || market.status === "RESOLVED") {
+  if (market.status === "CLOSED" || market.status === "RESOLVED" || market.status === "SETTLED") {
     return true;
   }
-  
-  // Check if closesAt time has passed
   if (market.closesAt) {
     const closesAt = new Date(market.closesAt);
     return closesAt.getTime() < Date.now();
@@ -61,6 +58,10 @@ export interface OutcomeButtonProps {
   fullWidth?: boolean;
   /** When true, button is disabled (market closed) */
   disabled?: boolean;
+  /** Winning outcome in resolved market */
+  isWinner?: boolean;
+  /** Losing outcome in resolved market */
+  isLoser?: boolean;
 }
 
 export function OutcomeButton({
@@ -70,6 +71,8 @@ export function OutcomeButton({
   onClick,
   fullWidth = false,
   disabled = false,
+  isWinner = false,
+  isLoser = false,
 }: OutcomeButtonProps) {
   // Only truncate if label is longer than ~12 characters
   const shouldTruncate = label.length > 12;
@@ -78,21 +81,25 @@ export function OutcomeButton({
     <motion.button
       onClick={(e) => {
         e.stopPropagation();
-        if (!disabled) onClick();
+        if (!disabled && !isWinner && !isLoser) onClick();
       }}
-      disabled={disabled}
+      disabled={disabled || isWinner || isLoser}
       className={cn(
         "px-2 sm:px-3 py-2 sm:py-2.5 rounded-lg font-medium text-xs sm:text-sm transition-all",
         "flex items-center justify-between gap-1 sm:gap-2",
         fullWidth ? "flex-1 sm:flex-none sm:w-[120px]" : "min-w-[90px] sm:min-w-[120px]",
-        disabled
-          ? "bg-muted/20 text-muted-foreground cursor-not-allowed opacity-60 border border-border/50"
-          : isSelected
-            ? "bg-primary text-primary-foreground ring-2 ring-primary ring-offset-2 ring-offset-background"
-            : "bg-muted/30 text-foreground hover:bg-muted/60 border border-border hover:border-primary/50"
+        isWinner
+          ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
+          : isLoser
+            ? "bg-muted/10 text-muted-foreground/40 border border-transparent"
+            : disabled
+              ? "bg-muted/20 text-muted-foreground cursor-not-allowed opacity-60 border border-border/50"
+              : isSelected
+                ? "bg-primary text-primary-foreground ring-2 ring-primary ring-offset-2 ring-offset-background"
+                : "bg-muted/30 text-foreground hover:bg-muted/60 border border-border hover:border-primary/50"
       )}
-      whileHover={disabled ? {} : { scale: 1.01 }}
-      whileTap={disabled ? {} : { scale: 0.99 }}
+      whileHover={disabled || isWinner || isLoser ? {} : { scale: 1.01 }}
+      whileTap={disabled || isWinner || isLoser ? {} : { scale: 0.99 }}
     >
       <span className={cn("font-medium text-left", shouldTruncate ? "truncate flex-1" : "whitespace-nowrap")}>{label}</span>
       <span className="font-bold tabular-nums flex-shrink-0">{price}%</span>

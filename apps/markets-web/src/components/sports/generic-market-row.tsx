@@ -17,18 +17,30 @@ import {
 
 // Check if a market is closed (by status or by closesAt time)
 function isMarketClosed(market: Market): boolean {
-  // Check market status
-  if (market.status === "CLOSED" || market.status === "RESOLVED") {
+  if (market.status === "CLOSED" || market.status === "RESOLVED" || market.status === "SETTLED") {
     return true;
   }
-  
-  // Check if closesAt time has passed
   if (market.closesAt) {
-    const closesAt = new Date(market.closesAt);
-    return closesAt.getTime() < Date.now();
+    return new Date(market.closesAt).getTime() < Date.now();
   }
-  
   return false;
+}
+
+// Get resolved outcome info
+function getResolvedInfo(market: Market): { label: string; index: number; isSettled: boolean } | null {
+  if ((market.status === "RESOLVED" || market.status === "SETTLED") && market.resolvedOutcome !== null) {
+    try {
+      const outcomes = JSON.parse(market.outcomes as string);
+      return {
+        label: outcomes[market.resolvedOutcome] || "Unknown",
+        index: market.resolvedOutcome,
+        isSettled: market.status === "SETTLED",
+      };
+    } catch {
+      return null;
+    }
+  }
+  return null;
 }
 
 // =============================================================================
@@ -66,6 +78,7 @@ export function GenericMarketRow({
   const isSelected = selectedMarketId === market.id;
   const isExpanded = expandedMarketId === market.id;
   const isClosed = isMarketClosed(market);
+  const resolved = getResolvedInfo(market);
 
   // Determine labels - use actual outcome names
   const label0 = outcomes[0] || "Yes";
@@ -80,6 +93,14 @@ export function GenericMarketRow({
     event: eventSlug ? { slug: eventSlug } : undefined,
   };
 
+  // Handle row click - toggle graph and select market in sidebar
+  const handleRowClick = () => {
+    onToggleExpand?.(market.id);
+    if (resolved) {
+      onSelectOutcome(market.id, resolved.index);
+    }
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
@@ -89,20 +110,20 @@ export function GenericMarketRow({
       <MarketCard>
         <div
           className={cn(
-            "p-3 sm:p-4 hover:bg-muted/20 transition-colors",
-            onToggleExpand && "cursor-pointer",
-            isExpanded && "bg-muted/10"
+            "p-3 sm:p-4 hover:bg-muted/20 transition-colors cursor-pointer",
+            isExpanded && "bg-muted/10",
+            isSelected && "ring-1 ring-primary/30"
           )}
-          onClick={() => onToggleExpand?.(market.id)}
+          onClick={handleRowClick}
         >
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <h4 className="font-medium text-sm sm:text-base text-foreground line-clamp-2">
                   {displayLabel}
                 </h4>
-                {isClosed && (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-muted text-muted-foreground border border-border/50 shrink-0">
+                {isClosed && !resolved && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-muted/50 text-muted-foreground shrink-0">
                     <Lock className="h-2.5 w-2.5" />
                     Closed
                   </span>
@@ -116,24 +137,33 @@ export function GenericMarketRow({
               </div>
             </div>
 
-            <div className="flex items-center gap-2 w-full sm:w-auto sm:shrink-0">
-              <OutcomeButton
-                label={label0}
-                price={price0}
-                isSelected={isSelected && selectedOutcome === 0}
-                onClick={() => onSelectOutcome(market.id, 0)}
-                fullWidth
-                disabled={isClosed}
-              />
-              <OutcomeButton
-                label={label1}
-                price={price1}
-                isSelected={isSelected && selectedOutcome === 1}
-                onClick={() => onSelectOutcome(market.id, 1)}
-                fullWidth
-                disabled={isClosed}
-              />
-            </div>
+            {/* For resolved markets, show the result instead of buttons */}
+            {resolved ? (
+              <div className="flex items-center sm:shrink-0 sm:pr-4">
+                <span className="text-lg sm:text-xl font-bold text-primary">
+                  {resolved.label}
+                </span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 w-full sm:w-auto sm:shrink-0">
+                <OutcomeButton
+                  label={label0}
+                  price={price0}
+                  isSelected={isSelected && selectedOutcome === 0}
+                  onClick={() => onSelectOutcome(market.id, 0)}
+                  fullWidth
+                  disabled={isClosed}
+                />
+                <OutcomeButton
+                  label={label1}
+                  price={price1}
+                  isSelected={isSelected && selectedOutcome === 1}
+                  onClick={() => onSelectOutcome(market.id, 1)}
+                  fullWidth
+                  disabled={isClosed}
+                />
+              </div>
+            )}
           </div>
         </div>
 
