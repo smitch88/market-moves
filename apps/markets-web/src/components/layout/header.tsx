@@ -99,6 +99,36 @@ export function Header() {
   // Only show daily spin button once we've loaded status AND feature is not disabled
   const dailySpinEnabled = spinStatus !== undefined && !spinStatus?.featureDisabled;
 
+  // Countdown timer for next daily spin
+  const [spinCountdown, setSpinCountdown] = useState<string>("");
+  
+  useEffect(() => {
+    if (!spinStatus?.nextSpinAt || spinStatus.canSpin) {
+      setSpinCountdown("");
+      return;
+    }
+    
+    const updateCountdown = () => {
+      const next = new Date(spinStatus.nextSpinAt!);
+      const diff = next.getTime() - Date.now();
+      
+      if (diff <= 0) {
+        setSpinCountdown("");
+        refetchSpinStatus();
+        return;
+      }
+      
+      const h = Math.floor(diff / 3600000);
+      const m = Math.floor((diff % 3600000) / 60000);
+      const s = Math.floor((diff % 60000) / 1000);
+      setSpinCountdown(`${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`);
+    };
+    
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 1000);
+    return () => clearInterval(interval);
+  }, [spinStatus?.nextSpinAt, spinStatus?.canSpin]);
+
   // Refetch spin status and profile when modal closes
   const handleSpinModalClose = () => {
     setDailySpinOpen(false);
@@ -230,19 +260,26 @@ export function Header() {
             <Search className="h-4 w-4 xs:h-5 xs:w-5 text-muted-foreground" />
           </motion.button>
 
-          {/* Mobile daily spin button */}
+          {/* Mobile daily spin button with timer */}
           {hasSession && dailySpinEnabled && (
-            <motion.button
-              className="sm:hidden p-1 rounded-md hover:bg-muted/50 transition-colors relative"
-              onClick={() => setDailySpinOpen(true)}
-              aria-label="Daily Spin"
-              whileTap={{ scale: 0.9 }}
-            >
-              <Gift className="h-4 w-4 text-foreground" />
-              {canSpin && (
-                <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-primary" />
+            <div className="sm:hidden flex flex-col items-center">
+              <motion.button
+                className="p-1 rounded-md hover:bg-muted/50 transition-colors relative"
+                onClick={() => setDailySpinOpen(true)}
+                aria-label="Daily Spin"
+                whileTap={{ scale: 0.9 }}
+              >
+                <Gift className="h-4 w-4 text-foreground" />
+                {canSpin && (
+                  <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-primary" />
+                )}
+              </motion.button>
+              {spinCountdown && (
+                <span className="text-[9px] font-mono text-muted-foreground tabular-nums">
+                  {spinCountdown}
+                </span>
               )}
-            </motion.button>
+            </div>
           )}
 
           {/* XP and Balance stats - shown when logged in */}
@@ -257,18 +294,25 @@ export function Header() {
                 <AnimatedBalanceDisplay balance={balance} isLoading={isLoadingUserData} />
               </div>
               {dailySpinEnabled && (
-                <motion.button
-                  onClick={() => setDailySpinOpen(true)}
-                  className="p-1 rounded-md hover:bg-muted/50 transition-colors relative"
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  aria-label="Daily Spin"
-                >
-                  <Gift className="h-4 w-4 text-foreground" />
-                  {canSpin && (
-                    <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-primary" />
+                <div className="flex flex-col items-center justify-center min-h-[44px]">
+                  <motion.button
+                    onClick={() => setDailySpinOpen(true)}
+                    className="p-1 rounded-md hover:bg-muted/50 transition-colors relative"
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    aria-label="Daily Spin"
+                  >
+                    <Gift className="h-4 w-4 text-foreground" />
+                    {canSpin && (
+                      <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-primary" />
+                    )}
+                  </motion.button>
+                  {spinCountdown && (
+                    <span className="text-[10px] lg:text-[11px] font-mono text-muted-foreground tabular-nums">
+                      {spinCountdown}
+                    </span>
                   )}
-                </motion.button>
+                </div>
               )}
             </div>
           )}
