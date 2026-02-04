@@ -74,11 +74,12 @@ vault-markets/
 |-------|-------------|
 | `/admin` | Admin dashboard with statistics |
 | `/admin/events` | Event management list |
-| `/admin/events/new` | Create new event with markets |
+| `/admin/events/new` | Create new event with markets (with clone option) |
 | `/admin/events/[id]` | View event details |
 | `/admin/events/[id]/edit` | Edit event |
-| `/admin/events/[id]/markets/new` | Add market to event |
+| `/admin/events/[id]/markets/new` | Add market to event (with clone option) |
 | `/admin/markets` | Market management list |
+| `/admin/markets/new` | Create standalone market (with clone option) |
 | `/admin/markets/[id]` | View/edit market details |
 | `/admin/users` | User management |
 | `/admin/bets` | Bet management with advanced filters |

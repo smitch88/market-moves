@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
@@ -21,9 +21,9 @@ import {
   AvatarImage,
   AvatarFallback,
 } from "@vault/ui";
-import { Loader2, X, Users } from "lucide-react";
-import { ImageUpload } from "@/components/admin";
-import { inputToUtcIso, formatUtcAsLocal } from "@/components/admin/datetime-utils";
+import { Loader2, X, Users, Copy } from "lucide-react";
+import { ImageUpload, CloneSelector, type EventForClone } from "@/components/admin";
+import { inputToUtcIso, formatUtcAsLocal, formatUtcForInput } from "@/components/admin/datetime-utils";
 import type { Tag, MarketCategory } from "@vault/database";
 
 // KOL type for selector
@@ -51,8 +51,30 @@ const categories: { value: MarketCategory; label: string }[] = [
   { value: "OTHER", label: "Other" },
 ];
 
+// Helper to generate a unique slug from a title
+function generateUniqueSlug(title: string): string {
+  const baseSlug = title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+  // Add timestamp to ensure uniqueness
+  const timestamp = Date.now().toString(36);
+  return `${baseSlug}-${timestamp}`;
+}
+
+// Helper to parse outcomes from JSON
+function parseOutcomes(outcomesJson: string): string[] {
+  try {
+    return JSON.parse(outcomesJson);
+  } catch {
+    return ["Yes", "No"];
+  }
+}
+
 export default function AdminNewEventPage() {
   const router = useRouter();
+  const [showCloneSelector, setShowCloneSelector] = useState(true);
+  const [clonedFrom, setClonedFrom] = useState<EventForClone | null>(null);
 
   const [formData, setFormData] = useState({
     title: "",
@@ -71,11 +93,47 @@ export default function AdminNewEventPage() {
     opensAt: "",
     closesAt: "",
     feeBps: "100",
-    seed0: "1000",
-    seed1: "1000",
+    seed0: "100000",
+    seed1: "100000",
   });
 
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
+
+  // Handle clone selection
+  const handleCloneSelect = useCallback((data: EventForClone | null) => {
+    setShowCloneSelector(false);
+    
+    if (data) {
+      // Clone from selected event
+      setClonedFrom(data);
+      const firstMarket = data.markets[0];
+      const outcomes = firstMarket ? parseOutcomes(firstMarket.outcomes) : ["Yes", "No"];
+      
+      setFormData({
+        title: `${data.title} (Copy)`,
+        slug: generateUniqueSlug(data.title),
+        description: data.description || "",
+        category: data.category,
+        bannerUrl: data.bannerUrl || "",
+        logoUrl: data.logoUrl || "",
+        startTime: "", // Don't copy dates - they should be new
+        endTime: "",
+        createdByKolId: data.createdByKolId || "",
+        // First market from cloned event
+        question: firstMarket?.question || "",
+        outcome0Label: outcomes[0] || "Yes",
+        outcome1Label: outcomes[1] || "No",
+        opensAt: "",
+        closesAt: "",
+        feeBps: firstMarket?.feeBps?.toString() || "100",
+        seed0: firstMarket?.seed0?.toString() || "100000",
+        seed1: firstMarket?.seed1?.toString() || "100000",
+      });
+      
+      // Copy tags
+      setSelectedTagIds(data.tags.map((t) => t.id));
+    }
+  }, []);
 
   // Fetch available tags
   const { data: tagsData } = useQuery({
@@ -172,13 +230,40 @@ export default function AdminNewEventPage() {
     );
   };
 
+  // Show clone selector first
+  if (showCloneSelector) {
+    return (
+      <div className="space-y-8">
+        <div>
+          <h1 className="text-3xl font-bold">New Event</h1>
+          <p className="text-muted-foreground">
+            Create a new event with its first market
+          </p>
+        </div>
+
+        <CloneSelector
+          type="event"
+          onSelect={(data) => handleCloneSelect(data as EventForClone | null)}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold">New Event</h1>
-        <p className="text-muted-foreground">
-          Create a new event with its first market
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">New Event</h1>
+          <p className="text-muted-foreground">
+            Create a new event with its first market
+          </p>
+        </div>
+        {clonedFrom && (
+          <Badge variant="secondary" className="flex items-center gap-1.5">
+            <Copy className="h-3 w-3" />
+            Cloned from: {clonedFrom.title}
+          </Badge>
+        )}
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-8">

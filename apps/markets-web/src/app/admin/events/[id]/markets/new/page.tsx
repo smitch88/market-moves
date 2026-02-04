@@ -1,26 +1,39 @@
 "use client";
 
-import { useState, use } from "react";
+import { useState, use, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   Button,
   Input,
   Label,
+  Badge,
   GlassCard,
   GlassCardContent,
   GlassCardHeader,
 } from "@vault/ui";
-import { Loader2 } from "lucide-react";
+import { Loader2, Copy } from "lucide-react";
 import { TipTapEditor } from "@/components/admin/tiptap-editor";
+import { CloneSelector, type MarketForClone } from "@/components/admin";
 
 interface PageProps {
   params: Promise<{ id: string }>;
 }
 
+// Helper to parse outcomes from JSON
+function parseOutcomes(outcomesJson: string): string[] {
+  try {
+    return JSON.parse(outcomesJson);
+  } catch {
+    return ["Yes", "No"];
+  }
+}
+
 export default function AdminNewMarketForEventPage({ params }: PageProps) {
   const { id: eventId } = use(params);
   const router = useRouter();
+  const [showCloneSelector, setShowCloneSelector] = useState(true);
+  const [clonedFrom, setClonedFrom] = useState<MarketForClone | null>(null);
 
   // Fetch event info for display
   const { data: eventData } = useQuery({
@@ -43,9 +56,32 @@ export default function AdminNewMarketForEventPage({ params }: PageProps) {
     opensAt: "",
     closesAt: "",
     feeBps: "100",
-    seed0: "1000",
-    seed1: "1000",
+    seed0: "100000",
+    seed1: "100000",
   });
+
+  // Handle clone selection
+  const handleCloneSelect = useCallback((data: MarketForClone | null) => {
+    setShowCloneSelector(false);
+    
+    if (data) {
+      setClonedFrom(data);
+      const outcomes = parseOutcomes(data.outcomes);
+      
+      setFormData({
+        question: `${data.question} (Copy)`,
+        outcome0Label: outcomes[0] || "Yes",
+        outcome1Label: outcomes[1] || "No",
+        detailsMarkdown: data.detailsMarkdown || "",
+        resolutionSourceUrl: data.resolutionSourceUrl || "",
+        opensAt: "",
+        closesAt: "",
+        feeBps: data.feeBps?.toString() || "100",
+        seed0: data.seed0?.toString() || "100000",
+        seed1: data.seed1?.toString() || "100000",
+      });
+    }
+  }, []);
 
   const createMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
@@ -94,13 +130,41 @@ export default function AdminNewMarketForEventPage({ params }: PageProps) {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
+  // Show clone selector first
+  if (showCloneSelector) {
+    return (
+      <div className="space-y-8">
+        <div>
+          <h1 className="text-3xl font-bold">Add Market</h1>
+          <p className="text-muted-foreground">
+            {event ? `Adding to: ${event.title}` : "Loading..."}
+          </p>
+        </div>
+
+        <CloneSelector
+          type="market"
+          eventId={eventId}
+          onSelect={(data) => handleCloneSelect(data as MarketForClone | null)}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold">Add Market</h1>
-        <p className="text-muted-foreground">
-          {event ? `Adding to: ${event.title}` : "Loading..."}
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Add Market</h1>
+          <p className="text-muted-foreground">
+            {event ? `Adding to: ${event.title}` : "Loading..."}
+          </p>
+        </div>
+        {clonedFrom && (
+          <Badge variant="secondary" className="flex items-center gap-1.5">
+            <Copy className="h-3 w-3" />
+            Cloned from market
+          </Badge>
+        )}
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-8">

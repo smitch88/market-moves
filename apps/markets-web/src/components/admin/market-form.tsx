@@ -31,8 +31,20 @@ function parseOutcomes(outcomes: string): string[] {
   }
 }
 
+interface InitialCloneData {
+  question: string;
+  outcome0Label: string;
+  outcome1Label: string;
+  detailsMarkdown: string;
+  resolutionSourceUrl: string;
+  feeBps: string;
+  seed0: string;
+  seed1: string;
+}
+
 interface MarketFormProps {
   market?: Market & { event: Event };
+  initialCloneData?: InitialCloneData | null;
 }
 
 const categories: { value: MarketCategory; label: string }[] = [
@@ -52,7 +64,7 @@ const categories: { value: MarketCategory; label: string }[] = [
   { value: "OTHER", label: "Other" },
 ];
 
-export function MarketForm({ market }: MarketFormProps) {
+export function MarketForm({ market, initialCloneData }: MarketFormProps) {
   const router = useRouter();
   const isEditing = !!market;
 
@@ -68,17 +80,17 @@ export function MarketForm({ market }: MarketFormProps) {
     bannerUrl: market?.event?.bannerUrl || "",
     logoUrl: market?.event?.logoUrl || "",
     startTime: market?.event?.startTime ? formatDateForInput(market.event.startTime) : "",
-    // Market fields
-    question: market?.question || "",
-    detailsMarkdown: market?.detailsMarkdown || "",
-    resolutionSourceUrl: market?.resolutionSourceUrl || "",
+    // Market fields - use initialCloneData if provided
+    question: initialCloneData?.question || market?.question || "",
+    detailsMarkdown: initialCloneData?.detailsMarkdown || market?.detailsMarkdown || "",
+    resolutionSourceUrl: initialCloneData?.resolutionSourceUrl || market?.resolutionSourceUrl || "",
     opensAt: market?.opensAt ? formatDateForInput(market.opensAt) : "",
     closesAt: market?.closesAt ? formatDateForInput(market.closesAt) : "",
-    feeBps: market?.feeBps?.toString() || "100",
-    seed0: market?.seed0?.toString() || "100000",
-    seed1: market?.seed1?.toString() || "100000",
-    outcome0Label: existingOutcomes[0] || "",
-    outcome1Label: existingOutcomes[1] || "",
+    feeBps: initialCloneData?.feeBps || market?.feeBps?.toString() || "100",
+    seed0: initialCloneData?.seed0 || market?.seed0?.toString() || "100000",
+    seed1: initialCloneData?.seed1 || market?.seed1?.toString() || "100000",
+    outcome0Label: initialCloneData?.outcome0Label || existingOutcomes[0] || "",
+    outcome1Label: initialCloneData?.outcome1Label || existingOutcomes[1] || "",
   });
 
   const createMutation = useMutation({

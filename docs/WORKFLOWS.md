@@ -717,7 +717,7 @@ After successful bet:
 
 ## 12. Admin Workflows
 
-### Create Market
+### Create Market (with Clone Option)
 
 ```
 ┌─────────────────┐
@@ -727,17 +727,31 @@ After successful bet:
          │ Click "New Event"
          ▼
 ┌─────────────────┐
-│  /admin/events/ │
-│  new            │
+│  Clone Selector │
+│  - Create Fresh │
+│  - Clone Existing│
 └────────┬────────┘
          │
-         ▼
+    ┌────┴────┐
+    │         │
+    ▼         ▼
+┌───────┐ ┌────────────────┐
+│Start  │ │Select Event    │
+│Fresh  │ │to Clone        │
+└───┬───┘ └───────┬────────┘
+    │             │
+    │             │ Pre-fill form
+    │             │ with cloned data
+    └──────┬──────┘
+           │
+           ▼
 ┌─────────────────┐
 │  Event Form     │
-│  - Title        │
+│  - Title (Copy) │
 │  - Category     │
 │  - Times        │
 │  - Banner/Logo  │
+│  - Tags         │
 └────────┬────────┘
          │
          │ Submit
@@ -757,6 +771,14 @@ After successful bet:
 │  Live on site   │
 └─────────────────┘
 ```
+
+**Clone Features:**
+- Select existing event/market to use as template
+- Pre-fills form with cloned data (title appended with "(Copy)")
+- Generates unique slug automatically
+- Tags and settings are copied
+- Dates are not copied (should be set fresh)
+- First market from event is also cloned
 
 ### Market Lifecycle
 
