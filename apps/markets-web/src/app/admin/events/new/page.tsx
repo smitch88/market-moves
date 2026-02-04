@@ -23,6 +23,7 @@ import {
 } from "@vault/ui";
 import { Loader2, X, Users } from "lucide-react";
 import { ImageUpload } from "@/components/admin";
+import { inputToUtcIso, formatUtcAsLocal } from "@/components/admin/datetime-utils";
 import type { Tag, MarketCategory } from "@vault/database";
 
 // KOL type for selector
@@ -112,24 +113,16 @@ export default function AdminNewEventPage() {
           category: data.category,
           bannerUrl: data.bannerUrl || undefined,
           logoUrl: data.logoUrl || undefined,
-          startTime: data.startTime
-            ? new Date(data.startTime).toISOString()
-            : undefined,
-          endTime: data.endTime
-            ? new Date(data.endTime).toISOString()
-            : undefined,
+          startTime: inputToUtcIso(data.startTime),
+          endTime: inputToUtcIso(data.endTime),
           tagIds: selectedTagIds.length > 0 ? selectedTagIds : undefined,
           createdByKolId: data.createdByKolId || undefined,
           markets: [
             {
               question: data.question || data.title,
               outcomes: [data.outcome0Label, data.outcome1Label],
-              opensAt: data.opensAt
-                ? new Date(data.opensAt).toISOString()
-                : undefined,
-              closesAt: data.closesAt
-                ? new Date(data.closesAt).toISOString()
-                : undefined,
+              opensAt: inputToUtcIso(data.opensAt),
+              closesAt: inputToUtcIso(data.closesAt),
               feeBps: parseInt(data.feeBps, 10),
               seed0: parseInt(data.seed0, 10),
               seed1: parseInt(data.seed1, 10),
@@ -257,7 +250,7 @@ export default function AdminNewEventPage() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="startTime">Event Start Time</Label>
+                <Label htmlFor="startTime">Event Start Time (UTC)</Label>
                 <Input
                   id="startTime"
                   name="startTime"
@@ -265,6 +258,11 @@ export default function AdminNewEventPage() {
                   value={formData.startTime}
                   onChange={handleChange}
                 />
+                {formData.startTime && (
+                  <p className="text-xs text-muted-foreground">
+                    Local: {formatUtcAsLocal(inputToUtcIso(formData.startTime))}
+                  </p>
+                )}
               </div>
             </div>
 
@@ -447,7 +445,7 @@ export default function AdminNewEventPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="opensAt">Opens At</Label>
+                <Label htmlFor="opensAt">Opens At (UTC)</Label>
                 <Input
                   id="opensAt"
                   name="opensAt"
@@ -455,9 +453,14 @@ export default function AdminNewEventPage() {
                   value={formData.opensAt}
                   onChange={handleChange}
                 />
+                {formData.opensAt && (
+                  <p className="text-xs text-muted-foreground">
+                    Local: {formatUtcAsLocal(inputToUtcIso(formData.opensAt))}
+                  </p>
+                )}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="closesAt">Closes At</Label>
+                <Label htmlFor="closesAt">Closes At (UTC)</Label>
                 <Input
                   id="closesAt"
                   name="closesAt"
@@ -465,6 +468,11 @@ export default function AdminNewEventPage() {
                   value={formData.closesAt}
                   onChange={handleChange}
                 />
+                {formData.closesAt && (
+                  <p className="text-xs text-muted-foreground">
+                    Local: {formatUtcAsLocal(inputToUtcIso(formData.closesAt))}
+                  </p>
+                )}
               </div>
             </div>
 

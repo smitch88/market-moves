@@ -53,6 +53,7 @@ import {
 } from "lucide-react";
 import type { Tag, MarketCategory, EventType } from "@vault/database";
 import { ImageUpload } from "@/components/admin";
+import { formatUtcForInput, inputToUtcIso, formatUtcAsLocal } from "@/components/admin/datetime-utils";
 
 interface MarketRequest {
   id: string;
@@ -302,12 +303,8 @@ export default function AdminRequestReviewPage({
         eventType: eventForm.eventType,
         bannerUrl: eventForm.bannerUrl || undefined,
         logoUrl: eventForm.logoUrl || undefined,
-        startTime: eventForm.startTime
-          ? new Date(eventForm.startTime).toISOString()
-          : undefined,
-        endTime: eventForm.endTime
-          ? new Date(eventForm.endTime).toISOString()
-          : undefined,
+        startTime: inputToUtcIso(eventForm.startTime),
+        endTime: inputToUtcIso(eventForm.endTime),
         tagIds: selectedTagIds.length > 0 ? selectedTagIds : undefined,
         newTags: newTags.length > 0 ? newTags : undefined,
       };
@@ -321,8 +318,8 @@ export default function AdminRequestReviewPage({
             outcomes: [m.outcome0Label, m.outcome1Label],
             detailsMarkdown: m.detailsMarkdown || undefined,
             resolutionSourceUrl: m.resolutionSourceUrl || undefined,
-            opensAt: m.opensAt ? new Date(m.opensAt).toISOString() : undefined,
-            closesAt: m.closesAt ? new Date(m.closesAt).toISOString() : undefined,
+            opensAt: inputToUtcIso(m.opensAt),
+            closesAt: inputToUtcIso(m.closesAt),
             feeBps: parseInt(m.feeBps, 10),
             seed0: parseInt(m.seed0, 10),
             seed1: parseInt(m.seed1, 10),
@@ -377,15 +374,7 @@ export default function AdminRequestReviewPage({
 
     const { event, markets: generatedMarkets, reasoning, summary, sources } = generated;
 
-    const formatDateForInput = (isoDate: string | null) => {
-      if (!isoDate) return "";
-      try {
-        const date = new Date(isoDate);
-        return date.toISOString().slice(0, 16);
-      } catch {
-        return "";
-      }
-    };
+    const formatDateForInput = formatUtcForInput;
 
     setEventForm({
       title: event?.title || request?.title || "",
@@ -1269,7 +1258,7 @@ export default function AdminRequestReviewPage({
                   <div className="space-y-2">
                     <Label htmlFor="startTime">
                       <Calendar className="h-3 w-3 inline mr-1" />
-                      Event Start Time
+                      Event Start Time (UTC)
                     </Label>
                     <Input
                       id="startTime"
@@ -1278,11 +1267,16 @@ export default function AdminRequestReviewPage({
                       value={eventForm.startTime}
                       onChange={handleEventChange}
                     />
+                    {eventForm.startTime && (
+                      <p className="text-xs text-muted-foreground">
+                        Local: {formatUtcAsLocal(inputToUtcIso(eventForm.startTime))}
+                      </p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="endTime">
                       <Calendar className="h-3 w-3 inline mr-1" />
-                      Event End Time
+                      Event End Time (UTC)
                     </Label>
                     <Input
                       id="endTime"
@@ -1291,6 +1285,11 @@ export default function AdminRequestReviewPage({
                       value={eventForm.endTime}
                       onChange={handleEventChange}
                     />
+                    {eventForm.endTime && (
+                      <p className="text-xs text-muted-foreground">
+                        Local: {formatUtcAsLocal(inputToUtcIso(eventForm.endTime))}
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -1521,7 +1520,7 @@ export default function AdminRequestReviewPage({
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label>Opens At</Label>
+                        <Label>Opens At (UTC)</Label>
                         <Input
                           type="datetime-local"
                           value={market.opensAt}
@@ -1529,9 +1528,14 @@ export default function AdminRequestReviewPage({
                             handleMarketChange(market.id, "opensAt", e.target.value)
                           }
                         />
+                        {market.opensAt && (
+                          <p className="text-xs text-muted-foreground">
+                            Local: {formatUtcAsLocal(inputToUtcIso(market.opensAt))}
+                          </p>
+                        )}
                       </div>
                       <div className="space-y-2">
-                        <Label>Closes At</Label>
+                        <Label>Closes At (UTC)</Label>
                         <Input
                           type="datetime-local"
                           value={market.closesAt}
@@ -1539,6 +1543,11 @@ export default function AdminRequestReviewPage({
                             handleMarketChange(market.id, "closesAt", e.target.value)
                           }
                         />
+                        {market.closesAt && (
+                          <p className="text-xs text-muted-foreground">
+                            Local: {formatUtcAsLocal(inputToUtcIso(market.closesAt))}
+                          </p>
+                        )}
                       </div>
                     </div>
 
