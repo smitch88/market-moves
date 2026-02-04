@@ -5,6 +5,10 @@ import { toast } from "@vault/ui";
 import { Clock, X } from "lucide-react";
 import { useTheme } from "next-themes";
 
+// Responsive wheel sizes
+const WHEEL_SIZE_SMALL = 280;
+const WHEEL_SIZE_LARGE = 560;
+
 interface SpinReward {
   amount: number;
   label: string;
@@ -68,10 +72,26 @@ export function DailySpinWheel({
   const [result, setResult] = useState<SpinReward | null>(null);
   const [showResult, setShowResult] = useState(false);
   const [countdown, setCountdown] = useState<string>("");
+  const [wheelSize, setWheelSize] = useState(WHEEL_SIZE_SMALL);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationRef = useRef<number>();
   const audioContextRef = useRef<AudioContext | null>(null);
   const lastSegmentRef = useRef<number>(-1);
+
+  // Update wheel size based on screen dimensions
+  useEffect(() => {
+    const updateWheelSize = () => {
+      // Use large wheel if viewport can fit it (with padding for modal chrome)
+      // Need at least 560 + ~100px for modal padding/borders = ~660px width
+      // and ~700px height for the full modal
+      const canFitLarge = window.innerWidth >= 700 && window.innerHeight >= 750;
+      setWheelSize(canFitLarge ? WHEEL_SIZE_LARGE : WHEEL_SIZE_SMALL);
+    };
+    
+    updateWheelSize();
+    window.addEventListener("resize", updateWheelSize);
+    return () => window.removeEventListener("resize", updateWheelSize);
+  }, []);
 
   useEffect(() => {
     if (isOpen) fetchSpinStatus();
@@ -124,7 +144,9 @@ export function DailySpinWheel({
     if (!ctx) return;
 
     const dpr = window.devicePixelRatio || 1;
-    const size = 280;
+    const size = wheelSize;
+    const scale = size / WHEEL_SIZE_SMALL; // Scale factor relative to base size
+    
     canvas.width = size * dpr;
     canvas.height = size * dpr;
     canvas.style.width = `${size}px`;
@@ -133,7 +155,7 @@ export function DailySpinWheel({
 
     const cx = size / 2;
     const cy = size / 2;
-    const r = size / 2 - 12;
+    const r = size / 2 - (12 * scale);
     const seg = (2 * Math.PI) / NUM_SEGMENTS;
 
     ctx.clearRect(0, 0, size, size);
@@ -142,8 +164,8 @@ export function DailySpinWheel({
     if (!isDark) {
       ctx.save();
       ctx.shadowColor = "rgba(0, 0, 0, 0.08)";
-      ctx.shadowBlur = 24;
-      ctx.shadowOffsetY = 4;
+      ctx.shadowBlur = 24 * scale;
+      ctx.shadowOffsetY = 4 * scale;
       ctx.beginPath();
       ctx.arc(cx, cy, r, 0, Math.PI * 2);
       ctx.fillStyle = "#ffffff";
@@ -155,7 +177,7 @@ export function DailySpinWheel({
     ctx.beginPath();
     ctx.arc(cx, cy, r + 1, 0, Math.PI * 2);
     ctx.strokeStyle = isDark ? "rgba(255,255,255,0.08)" : "#e4e4e7";
-    ctx.lineWidth = isDark ? 1 : 2;
+    ctx.lineWidth = (isDark ? 1 : 2) * scale;
     ctx.stroke();
 
     // Segments
@@ -176,15 +198,16 @@ export function DailySpinWheel({
       
       // Segment dividers
       ctx.strokeStyle = isDark ? "rgba(255,255,255,0.06)" : "#e4e4e7";
-      ctx.lineWidth = 1;
+      ctx.lineWidth = 1 * scale;
       ctx.stroke();
 
-      // Text
+      // Text - scale font size
       ctx.save();
       ctx.rotate(start + seg / 2 + Math.PI / 2);
       ctx.translate(0, -r * 0.65);
       ctx.fillStyle = s.textColor;
-      ctx.font = `600 ${s.amount >= 1000 ? 13 : 12}px system-ui, -apple-system, sans-serif`;
+      const baseFontSize = s.amount >= 1000 ? 13 : 12;
+      ctx.font = `600 ${baseFontSize * scale}px system-ui, -apple-system, sans-serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText(s.label, 0, 0);
@@ -201,7 +224,7 @@ export function DailySpinWheel({
       const py = cy + r * Math.sin(angle);
       
       ctx.beginPath();
-      ctx.arc(px, py, 3, 0, Math.PI * 2);
+      ctx.arc(px, py, 3 * scale, 0, Math.PI * 2);
       ctx.fillStyle = "#dc2626";
       ctx.fill();
     }
@@ -212,14 +235,14 @@ export function DailySpinWheel({
     ctx.fillStyle = isDark ? "#18181b" : "#ffffff";
     ctx.fill();
     ctx.strokeStyle = isDark ? "rgba(255,255,255,0.1)" : "#e4e4e7";
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 2 * scale;
     ctx.stroke();
 
-  }, [isDark, WHEEL_SEGMENTS]);
+  }, [isDark, WHEEL_SEGMENTS, wheelSize]);
 
   useEffect(() => {
     if (isOpen) drawWheel(rotation);
-  }, [isOpen, drawWheel, rotation, isDark]);
+  }, [isOpen, drawWheel, rotation, isDark, wheelSize]);
 
   // Helper to format amount as label
   const formatRewardLabel = (amount: number): string => {
@@ -316,34 +339,41 @@ export function DailySpinWheel({
 
   if (!isOpen) return null;
 
+  // Scale factor for responsive elements
+  const scale = wheelSize / WHEEL_SIZE_SMALL;
+  const isLarge = wheelSize === WHEEL_SIZE_LARGE;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40 dark:bg-black/80 backdrop-blur-sm" onClick={onClose} />
       
-      <div className="relative w-full max-w-sm bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-2xl shadow-xl overflow-hidden">
+      <div 
+        className="relative w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-2xl shadow-xl overflow-hidden"
+        style={{ maxWidth: isLarge ? 640 : 384 }}
+      >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 pt-5 pb-3">
+        <div className={`flex items-center justify-between ${isLarge ? 'px-8 pt-6 pb-4' : 'px-5 pt-5 pb-3'}`}>
           <div>
-            <h2 className="text-base font-semibold text-foreground">Daily Spin</h2>
-            <p className="text-xs text-muted-foreground">Win up to $20,000</p>
+            <h2 className={`${isLarge ? 'text-xl' : 'text-base'} font-semibold text-foreground`}>Daily Spin</h2>
+            <p className={`${isLarge ? 'text-sm' : 'text-xs'} text-muted-foreground`}>Win up to $20,000</p>
           </div>
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-muted transition-colors">
-            <X className="w-4 h-4 text-muted-foreground" />
+            <X className={`${isLarge ? 'w-5 h-5' : 'w-4 h-4'} text-muted-foreground`} />
           </button>
         </div>
 
         {/* Wheel */}
-        <div className="flex flex-col items-center px-5 pt-4 pb-4">
+        <div className={`flex flex-col items-center ${isLarge ? 'px-8 pt-4 pb-6' : 'px-5 pt-4 pb-4'}`}>
           {/* Canvas wrapper for overlay positioning */}
-          <div className="relative" style={{ width: 280, height: 280 }}>
-            {/* Pointer */}
+          <div className="relative" style={{ width: wheelSize, height: wheelSize }}>
+            {/* Pointer - scales with wheel */}
             <div 
               className="absolute left-1/2 -translate-x-1/2 z-20"
               style={{
                 top: 0,
-                borderLeft: "10px solid transparent",
-                borderRight: "10px solid transparent",
-                borderTop: "16px solid #dc2626",
+                borderLeft: `${10 * scale}px solid transparent`,
+                borderRight: `${10 * scale}px solid transparent`,
+                borderTop: `${16 * scale}px solid #dc2626`,
                 filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.2))",
               }}
             />
@@ -355,10 +385,10 @@ export function DailySpinWheel({
                 className="absolute inset-0 flex items-center justify-center rounded-full bg-background/95 backdrop-blur-sm"
               >
                 <div className="text-center">
-                <div className={`text-3xl font-semibold ${result.amount >= 5000 ? "text-amber-400" : "text-primary"}`}>
+                <div className={`${isLarge ? 'text-5xl' : 'text-3xl'} font-semibold ${result.amount >= 5000 ? "text-amber-400" : "text-primary"}`}>
                   {result.label}
                 </div>
-                <div className="text-sm text-muted-foreground mt-1">
+                <div className={`${isLarge ? 'text-base mt-2' : 'text-sm mt-1'} text-muted-foreground`}>
                   {spinStatus?.canSpin === false && !isSpinning ? "Today's reward" : "Added to balance"}
                 </div>
               </div>
@@ -368,22 +398,22 @@ export function DailySpinWheel({
         </div>
 
         {/* Actions */}
-        <div className="px-5 pb-5 space-y-2">
+        <div className={`${isLarge ? 'px-8 pb-8' : 'px-5 pb-5'} space-y-2`}>
           {spinStatus?.canSpin ? (
             <button
               onClick={handleSpin}
               disabled={isSpinning}
-              className="w-full h-11 rounded-lg font-medium text-sm bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className={`w-full ${isLarge ? 'h-14 text-base' : 'h-11 text-sm'} rounded-lg font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors`}
             >
               {isSpinning ? "Spinning..." : "Spin"}
             </button>
           ) : (
-            <div className="text-center py-2">
-              <div className="flex items-center justify-center gap-1.5 text-muted-foreground text-xs mb-1">
-                <Clock className="w-3.5 h-3.5" />
+            <div className={`text-center ${isLarge ? 'py-3' : 'py-2'}`}>
+              <div className={`flex items-center justify-center gap-1.5 text-muted-foreground ${isLarge ? 'text-sm' : 'text-xs'} mb-1`}>
+                <Clock className={`${isLarge ? 'w-4 h-4' : 'w-3.5 h-3.5'}`} />
                 <span>Next spin in</span>
               </div>
-              <div className="text-lg font-mono text-foreground">{countdown || "—"}</div>
+              <div className={`${isLarge ? 'text-2xl' : 'text-lg'} font-mono text-foreground`}>{countdown || "—"}</div>
             </div>
           )}
 
