@@ -75,8 +75,8 @@ export function MarketForm({ market }: MarketFormProps) {
     opensAt: market?.opensAt ? formatDateForInput(market.opensAt) : "",
     closesAt: market?.closesAt ? formatDateForInput(market.closesAt) : "",
     feeBps: market?.feeBps?.toString() || "100",
-    seed0: market?.seed0?.toString() || "1000",
-    seed1: market?.seed1?.toString() || "1000",
+    seed0: market?.seed0?.toString() || "100000",
+    seed1: market?.seed1?.toString() || "100000",
     outcome0Label: existingOutcomes[0] || "",
     outcome1Label: existingOutcomes[1] || "",
   });
@@ -469,7 +469,7 @@ export function MarketForm({ market }: MarketFormProps) {
                   min="100"
                   value={formData.seed0}
                   onChange={handleChange}
-                  placeholder="1000"
+                  placeholder="100000"
                 />
               </div>
               <div className="space-y-2">
@@ -483,7 +483,7 @@ export function MarketForm({ market }: MarketFormProps) {
                   min="100"
                   value={formData.seed1}
                   onChange={handleChange}
-                  placeholder="1000"
+                  placeholder="100000"
                 />
               </div>
             </div>

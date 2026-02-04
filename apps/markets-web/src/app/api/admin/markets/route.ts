@@ -6,7 +6,7 @@ import { z } from "zod";
 
 // Default liquidity for markets
 // This ensures the AMM has proper depth for pricing
-const DEFAULT_LIQUIDITY = 1000;
+const DEFAULT_LIQUIDITY = 100000;
 const MIN_LIQUIDITY = 100; // Minimum to ensure proper AMM depth
 
 const createMarketSchema = z.object({
