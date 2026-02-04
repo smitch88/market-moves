@@ -27,7 +27,7 @@ import {
   Gift,
   Flag,
 } from "lucide-react";
-import { useLogout } from "@privy-io/react-auth";
+import { signOut } from "@vault/auth/client";
 
 interface AdminSidebarProps {
   user: {
@@ -62,7 +62,7 @@ export function AdminSidebar({ user }: AdminSidebarProps) {
   const { theme, setTheme } = useTheme();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const { logout } = useLogout();
+  const handleLogout = () => signOut({ callbackUrl: "/" });
 
   // Close mobile menu on route change
   useEffect(() => {
@@ -289,7 +289,7 @@ export function AdminSidebar({ user }: AdminSidebarProps) {
             </div>
 
             <button
-              onClick={() => logout()}
+              onClick={handleLogout}
               className="mt-4 w-full flex items-center justify-center gap-2 text-xs text-red-500 hover:text-red-400 transition-colors py-2 rounded-lg hover:bg-red-500/10"
             >
               <LogOut className="h-3.5 w-3.5" />

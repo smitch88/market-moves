@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import Link from "next/link";
-import { usePrivy } from "@privy-io/react-auth";
+import { useSession, signIn } from "@vault/auth/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toPng } from "html-to-image";
 import { ChevronRight, ChevronDown, Wallet, X, TrendingUp, TrendingDown, ArrowUpDown, Crosshair } from "lucide-react";
@@ -57,7 +57,8 @@ export function SportsBettingSidebar({
   onToggle,
   compact = false,
 }: SportsBettingSidebarProps) {
-  const { login, authenticated } = usePrivy();
+  const { status } = useSession();
+  const authenticated = status === "authenticated";
   const queryClient = useQueryClient();
   const authFetch = useAuthFetch();
   const { queueXPGain, queueBalanceChange } = useXPAnimation();
@@ -256,7 +257,7 @@ export function SportsBettingSidebar({
   // Handlers
   const handlePlaceBet = () => {
     if (!authenticated) {
-      login();
+      signIn("twitter");
       return;
     }
     if (!amount || parseFloat(amount) <= 0) return;

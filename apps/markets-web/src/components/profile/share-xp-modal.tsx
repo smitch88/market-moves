@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback } from "react";
-import { usePrivy } from "@privy-io/react-auth";
+import { useSession } from "@vault/auth/client";
 import { Button, Dialog, DialogContent, Input, toast } from "@vault/ui";
 import { Loader2, Copy, Download, Check } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -62,7 +62,7 @@ function parseOutcomes(outcomes: string): string[] {
 }
 
 export function ShareXPModal({ open, onOpenChange, bet, profile }: ShareXPModalProps) {
-  const { user } = usePrivy();
+  const { status } = useSession();
   const queryClient = useQueryClient();
   const authFetch = useAuthFetch();
   const { queueXPGain, flushQueue } = useXPAnimation();
@@ -75,7 +75,8 @@ export function ShareXPModal({ open, onOpenChange, bet, profile }: ShareXPModalP
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const ticketRef = useRef<HTMLDivElement>(null);
 
-  const hasTwitter = !!user?.twitter;
+  // With NextAuth Twitter is always connected (it's the only auth method)
+  const hasTwitter = status === "authenticated";
   const outcomes = parseOutcomes(bet.market.outcomes);
   const outcomeLabel = outcomes[bet.outcomeIndex] || "Unknown";
 

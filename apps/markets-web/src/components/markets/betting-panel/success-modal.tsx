@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { usePrivy } from "@privy-io/react-auth";
+import { useSession } from "@vault/auth/client";
 import { Button, Dialog, DialogContent, Input, toast } from "@vault/ui";
 import { Loader2, Copy, Download, Check } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -49,7 +49,7 @@ export function SuccessModal({
   onDownload,
   onCopyLink,
 }: SuccessModalProps) {
-  const { user } = usePrivy();
+  const { status } = useSession();
   const queryClient = useQueryClient();
   const { flushQueue, queueXPGain } = useXPAnimation();
   const [xpClaimed, setXpClaimed] = useState(false);
@@ -57,7 +57,8 @@ export function SuccessModal({
   const [tweetUrl, setTweetUrl] = useState("");
   const [showManualEntry, setShowManualEntry] = useState(false);
 
-  const hasTwitter = !!user?.twitter;
+  // With NextAuth Twitter is always connected (it's the only auth method)
+  const hasTwitter = status === "authenticated";
 
   // Fetch share XP config
   const { data: shareConfig } = useQuery({

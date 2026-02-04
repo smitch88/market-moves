@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { usePrivy } from "@privy-io/react-auth";
+import { useSession, signIn } from "@vault/auth/client";
 import { useQuery } from "@tanstack/react-query";
 import { Button, Badge } from "@vault/ui";
 import { ProfileCard } from "./profile-card";
@@ -26,7 +26,9 @@ const navLinks = [
 
 export function Header() {
   const pathname = usePathname();
-  const { login, authenticated, ready } = usePrivy();
+  const { data: session, status } = useSession();
+  const authenticated = status === "authenticated";
+  const ready = status !== "loading";
   const [searchModalOpen, setSearchModalOpen] = useState(false);
   const [dailySpinOpen, setDailySpinOpen] = useState(false);
   const authFetch = useAuthFetch();
@@ -43,9 +45,9 @@ export function Header() {
   });
 
   const isImpersonating = isDev && impersonationData?.active;
-  // Only show ProfileCard if actually authenticated via Privy OR actively impersonating
+  // Only show ProfileCard if actually authenticated via NextAuth OR actively impersonating
   const hasSession = authenticated || isImpersonating;
-  // Wait for Privy to be ready before making authenticated requests
+  // Wait for NextAuth to be ready before making authenticated requests
   const canFetchAuthData = (ready && authenticated) || isImpersonating;
 
   // Fetch user profile for PnL
@@ -141,8 +143,12 @@ export function Header() {
       prevXpRef.current = xp;
     }
   }, [balance, xp, resetBalanceOffset, resetXPOffset, markXPServerUpdated, markBalanceServerUpdated]);
-  // Show loading state while Privy is initializing or data is loading
+  // Show loading state while NextAuth is initializing or data is loading
   const isLoadingUserData = !canFetchAuthData || profileLoading || xpLoading;
+
+  const handleLogin = () => {
+    signIn("twitter");
+  };
 
   return (
     <>
@@ -267,7 +273,7 @@ export function Header() {
             </div>
           )}
 
-          {/* Show ProfileCard if authenticated via Privy OR actively impersonating */}
+          {/* Show ProfileCard if authenticated via NextAuth OR actively impersonating */}
           <AnimatePresence mode="wait">
             {hasSession ? (
               <motion.div
@@ -280,7 +286,7 @@ export function Header() {
                 <ProfileCard />
               </motion.div>
             ) : (
-              /* Show Sign In button when Privy is ready */
+              /* Show Sign In button when NextAuth is ready */
               ready && (
                 <motion.div
                   key="signin"
@@ -289,7 +295,7 @@ export function Header() {
                   exit={{ opacity: 0, scale: 0.9 }}
                   transition={{ duration: 0.2 }}
                 >
-                  <Button onClick={login} size="sm" className="font-medium">
+                  <Button onClick={handleLogin} size="sm" className="font-medium">
                     Sign In
                   </Button>
                 </motion.div>

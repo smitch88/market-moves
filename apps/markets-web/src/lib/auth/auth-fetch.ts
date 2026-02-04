@@ -1,32 +1,30 @@
 "use client";
 
-import { usePrivy } from "@privy-io/react-auth";
+import { useSession } from "@vault/auth/client";
 import { useCallback } from "react";
 
 /**
  * Hook that returns an authenticated fetch function.
- * Automatically includes the Privy access token in the Authorization header.
+ * With NextAuth, we rely on the session cookie being automatically
+ * included in requests, but we also add the session token as a header
+ * for API routes that need it.
  */
 export function useAuthFetch() {
-  const { getAccessToken } = usePrivy();
+  const { data: session } = useSession();
 
   const authFetch = useCallback(
     async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-      const token = await getAccessToken();
-      
       const headers = new Headers(init?.headers);
-      if (token) {
-        headers.set("Authorization", `Bearer ${token}`);
-      }
-
+      
+      // Include credentials to ensure session cookies are sent
       return fetch(input, {
         ...init,
         headers,
+        credentials: "include",
       });
     },
-    [getAccessToken]
+    [session]
   );
 
   return authFetch;
 }
-

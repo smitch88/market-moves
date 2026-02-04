@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { usePrivy } from "@privy-io/react-auth";
+import { useSession } from "@vault/auth/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@vault/ui";
@@ -19,7 +19,9 @@ export function openWelcomeModal() {
 }
 
 export function WelcomeModal() {
-  const { authenticated, ready } = usePrivy();
+  const { status } = useSession();
+  const authenticated = status === "authenticated";
+  const ready = status !== "loading";
   const authFetch = useAuthFetch();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);

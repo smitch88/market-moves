@@ -2,14 +2,16 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { usePrivy } from "@privy-io/react-auth";
+import { useSession, signIn } from "@vault/auth/client";
 import { Trophy, TrendingUp, User } from "lucide-react";
 import { motion } from "framer-motion";
 import { cn } from "@vault/ui/lib/utils";
 
 export function MobileNav() {
   const pathname = usePathname();
-  const { login, authenticated, ready } = usePrivy();
+  const { data: session, status } = useSession();
+  const authenticated = status === "authenticated";
+  const ready = status !== "loading";
 
   // Don't show on admin pages
   if (pathname.startsWith("/admin")) {
@@ -22,7 +24,7 @@ export function MobileNav() {
 
   const handleProfileClick = () => {
     if (!authenticated && ready) {
-      login();
+      signIn("twitter");
     }
   };
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { usePrivy } from "@privy-io/react-auth";
+import { useSession, signIn } from "@vault/auth/client";
 import { useKOLNotifications, type KOLBetNotification } from "@/hooks/use-kol-notifications";
 import { KOLBetToastContainer } from "./kol-bet-toast";
 import { QuickBetModal, type MarketData } from "@/components/events/quick-bet-modal";
@@ -11,7 +11,8 @@ import { QuickBetModal, type MarketData } from "@/components/events/quick-bet-mo
  * Listens to the KOL bets SSE stream and displays toast notifications
  */
 export function KOLNotificationProvider({ children }: { children: React.ReactNode }) {
-  const { authenticated, login } = usePrivy();
+  const { status } = useSession();
+  const authenticated = status === "authenticated";
   const [quickBetOpen, setQuickBetOpen] = useState(false);
   const [copyTradeData, setCopyTradeData] = useState<{
     eventId: string;
@@ -26,7 +27,7 @@ export function KOLNotificationProvider({ children }: { children: React.ReactNod
 
   const handleCopyTrade = useCallback((notification: KOLBetNotification) => {
     if (!authenticated) {
-      login();
+      signIn("twitter");
       return;
     }
 
@@ -49,7 +50,7 @@ export function KOLNotificationProvider({ children }: { children: React.ReactNod
       outcomeIndex: notification.outcomeIndex,
     });
     setQuickBetOpen(true);
-  }, [authenticated, login]);
+  }, [authenticated]);
 
   return (
     <>

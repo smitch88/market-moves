@@ -1,4 +1,4 @@
-export { privyClient, verifyPrivyToken } from "./privy";
+export { authOptions } from "./auth";
 export {
   getSessionUser,
   requireUser,

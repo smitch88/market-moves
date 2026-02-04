@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { usePrivy } from "@privy-io/react-auth";
+import { useSession } from "@vault/auth/client";
 import { useAuthFetch } from "@/lib/auth/auth-fetch";
 
 // Heartbeat interval: 60 seconds
@@ -14,7 +14,9 @@ const HEARTBEAT_INTERVAL_MS = 60 * 1000;
  * - Tab is visible (using Page Visibility API)
  */
 export function useHeartbeat() {
-  const { authenticated, ready } = usePrivy();
+  const { status } = useSession();
+  const authenticated = status === "authenticated";
+  const ready = status !== "loading";
   const authFetch = useAuthFetch();
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const isVisibleRef = useRef(true);

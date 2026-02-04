@@ -11,7 +11,7 @@ const jetbrainsMono = JetBrains_Mono({
   variable: "--font-jetbrains-mono",
 });
 import { ThemeProvider } from "@/components/providers/theme-provider";
-import { PrivyProvider } from "@/components/providers/privy-provider";
+import { SessionProvider } from "@/components/providers/session-provider";
 import { QueryProvider } from "@/components/providers/query-provider";
 import { HeartbeatProvider } from "@/components/providers/heartbeat-provider";
 import { XPAnimationProvider } from "@/components/layout/xp-animation";
@@ -107,8 +107,9 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <QueryProvider>
-            <PrivyProvider>
-              <HeartbeatProvider>
+              
+            <SessionProvider>
+            <HeartbeatProvider>
               <XPAnimationProvider>
                 <KOLNotificationProvider>
                   <div className="pb-20 md:pb-0">
@@ -122,7 +123,7 @@ export default function RootLayout({
                 </KOLNotificationProvider>
               </XPAnimationProvider>
               </HeartbeatProvider>
-            </PrivyProvider>
+            </SessionProvider>
           </QueryProvider>
         </ThemeProvider>
       </body>

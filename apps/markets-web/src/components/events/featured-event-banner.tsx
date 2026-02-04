@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import Link from "next/link";
-import { usePrivy } from "@privy-io/react-auth";
+import { useSession, signIn } from "@vault/auth/client";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ChevronLeft,
@@ -183,7 +183,8 @@ export function FeaturedEventBanner({ events }: FeaturedEventBannerProps) {
   const [betModalOpen, setBetModalOpen] = useState(false);
   const [selectedOutcomeIndex, setSelectedOutcomeIndex] = useState<number | null>(null);
   
-  const { authenticated, login } = usePrivy();
+  const { status } = useSession();
+  const authenticated = status === "authenticated";
 
   const currentEvent = events[currentIndex];
 
@@ -281,7 +282,7 @@ export function FeaturedEventBanner({ events }: FeaturedEventBannerProps) {
     e.stopPropagation();
     
     if (!authenticated) {
-      login();
+      signIn("twitter");
       return;
     }
     

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { usePrivy } from "@privy-io/react-auth";
+import { useSession } from "@vault/auth/client";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "@vault/ui/lib/utils";
 import { CaptainSelector, CAPTAIN_ONBOARDING_DISMISS_KEY, CAPTAIN_ONBOARDING_DISMISS_MS } from "./captain-selector";
@@ -18,7 +18,9 @@ function shouldShowPromptFromLocalStorage(): boolean {
 }
 
 export function CaptainFloatingPrompt() {
-  const { authenticated, ready } = usePrivy();
+  const { status } = useSession();
+  const authenticated = status === "authenticated";
+  const ready = status !== "loading";
   const authFetch = useAuthFetch();
 
   // Ensure we only render on client after hydration

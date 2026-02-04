@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { usePrivy } from "@privy-io/react-auth";
+import { useSession, signIn } from "@vault/auth/client";
 import { Zap } from "lucide-react";
 import { cn } from "@vault/ui/lib/utils";
 import { QuickBetModal } from "./quick-bet-modal";
@@ -13,7 +13,8 @@ interface QuickBetButtonProps {
 }
 
 export function QuickBetButton({ eventId, eventTitle, className }: QuickBetButtonProps) {
-  const { authenticated, login } = usePrivy();
+  const { status } = useSession();
+  const authenticated = status === "authenticated";
   const [modalOpen, setModalOpen] = useState(false);
 
   const handleClick = (e: React.MouseEvent) => {
@@ -21,7 +22,7 @@ export function QuickBetButton({ eventId, eventTitle, className }: QuickBetButto
     e.stopPropagation();
     
     if (!authenticated) {
-      login();
+      signIn("twitter");
       return;
     }
     

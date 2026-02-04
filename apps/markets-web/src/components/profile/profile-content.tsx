@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { usePrivy } from "@privy-io/react-auth";
+import { useSession } from "@vault/auth/client";
 import {
   Tabs,
   TabsList,
@@ -64,7 +64,7 @@ interface PnLHistoryPoint {
 export function ProfileContent({ userId }: ProfileContentProps) {
   const searchParams = useSearchParams();
   const defaultTab = searchParams.get("tab") || "positions";
-  const { user } = usePrivy();
+  const { data: session } = useSession();
   const authFetch = useAuthFetch();
   const queryClient = useQueryClient();
   const [requestModalOpen, setRequestModalOpen] = useState(false);
@@ -163,11 +163,10 @@ export function ProfileContent({ userId }: ProfileContentProps) {
   const displayName =
     profile?.name ||
     profile?.handle ||
-    user?.twitter?.username ||
-    user?.email?.address?.split("@")[0] ||
+    session?.user?.name ||
     "User";
   const twitterHandle = profile?.handle;
-  const avatarUrl = profile?.profileImageUrl || user?.twitter?.profilePictureUrl;
+  const avatarUrl = profile?.profileImageUrl || session?.user?.image;
   const totalPnL = stats?.totalPnL || 0;
 
   return (

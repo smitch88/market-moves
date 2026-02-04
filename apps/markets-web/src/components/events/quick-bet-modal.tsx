@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
-import { usePrivy } from "@privy-io/react-auth";
+import { useSession, signIn } from "@vault/auth/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Dialog,
@@ -75,12 +75,14 @@ export function QuickBetModal({
   initialMarket = null,
   initialOutcome = null,
 }: QuickBetModalProps) {
-  const { authenticated, login, user } = usePrivy();
+  const { data: session, status } = useSession();
+  const authenticated = status === "authenticated";
   const queryClient = useQueryClient();
   const authFetch = useAuthFetch();
   const { flushQueue, queueXPGain, queueBalanceChange } = useXPAnimation();
   
-  const hasTwitter = !!user?.twitter;
+  // With NextAuth Twitter is always connected (it's the only auth method)
+  const hasTwitter = authenticated;
 
   // Determine initial step based on props
   const getInitialStep = useCallback((): BettingStep => {
@@ -321,7 +323,7 @@ export function QuickBetModal({
   const handleSelectMarketAndOutcome = (market: MarketData, outcomeIndex: number) => {
     // Require authentication before placing bet
     if (!authenticated) {
-      login();
+      signIn("twitter");
       return;
     }
     // Place bet immediately with the selected quick bet size
@@ -336,7 +338,7 @@ export function QuickBetModal({
   const handleSelectOutcome = (index: number) => {
     // Require authentication before placing bet
     if (!authenticated) {
-      login();
+      signIn("twitter");
       return;
     }
     if (!effectiveMarket) return;
@@ -352,7 +354,7 @@ export function QuickBetModal({
   const handlePlaceBet = () => {
     // Guard against unauthenticated users
     if (!authenticated) {
-      login();
+      signIn("twitter");
       return;
     }
     if (!selectedMarket || selectedOutcome === null) return;

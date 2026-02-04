@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { usePrivy } from "@privy-io/react-auth";
+import { useSession, signOut } from "@vault/auth/client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, Input, Label } from "@vault/ui";
 import { 
@@ -53,7 +53,7 @@ interface ReferralStats {
 }
 
 export function ProfileSettings({ profile, showReferrals = true, onlyReferrals = false }: ProfileSettingsProps) {
-  const { logout, linkTwitter, user } = usePrivy();
+  const { data: session } = useSession();
   const queryClient = useQueryClient();
   const [copied, setCopied] = useState(false);
   const authFetch = useAuthFetch();
@@ -196,7 +196,12 @@ export function ProfileSettings({ profile, showReferrals = true, onlyReferrals =
     );
   };
 
-  const hasTwitter = user?.twitter;
+  const handleLogout = () => {
+    signOut({ callbackUrl: "/" });
+  };
+
+  // Get Twitter username from session or profile
+  const twitterUsername = session?.user?.name || profile.handle;
   const friendsInvited = profile._count?.referralsGiven ?? 0;
 
   // Determine if save button should be enabled
@@ -554,31 +559,26 @@ export function ProfileSettings({ profile, showReferrals = true, onlyReferrals =
               />
             </div>
 
-            {/* Twitter */}
+            {/* Twitter - always connected since it's the only auth method */}
             <div className="space-y-2">
               <Label className="text-sm font-medium">X (Twitter)</Label>
-              {hasTwitter ? (
-                <div className="flex items-center gap-2">
-                  <Input
-                    value={`@${user.twitter?.username}`}
-                    disabled
-                    className="bg-card border-border flex-1"
-                  />
+              <div className="flex items-center gap-2">
+                <Input
+                  value={twitterUsername ? `@${twitterUsername}` : "Connected"}
+                  disabled
+                  className="bg-card border-border flex-1"
+                />
+                {twitterUsername && (
                   <a
-                    href={`https://x.com/${user.twitter?.username}`}
+                    href={`https://x.com/${twitterUsername}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center justify-center h-10 w-10 rounded-md border border-border hover:bg-muted transition-colors flex-shrink-0"
                   >
                     <ExternalLink className="h-4 w-4 text-muted-foreground" />
                   </a>
-                </div>
-              ) : (
-                <Button onClick={linkTwitter} variant="outline" className="w-full">
-                  <Twitter className="h-4 w-4 mr-2" />
-                  Connect X Account
-                </Button>
-              )}
+                )}
+              </div>
             </div>
           </div>
 
@@ -590,7 +590,7 @@ export function ProfileSettings({ profile, showReferrals = true, onlyReferrals =
           <div className="pt-4 border-t border-border">
             <Button 
               variant="ghost" 
-              onClick={logout} 
+              onClick={handleLogout} 
               className="text-red-500 hover:text-red-600 hover:bg-red-500/10 w-full justify-start"
             >
               <LogOut className="h-4 w-4 mr-2" />

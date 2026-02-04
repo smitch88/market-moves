@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { usePrivy } from "@privy-io/react-auth";
+import { useSession, signOut } from "@vault/auth/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTheme } from "next-themes";
 import Link from "next/link";
@@ -44,7 +44,7 @@ import { motion, AnimatePresence } from "framer-motion";
 const isDev = process.env.NODE_ENV === "development";
 
 export function ProfileCard() {
-  const { user, logout } = usePrivy();
+  const { data: session } = useSession();
   const queryClient = useQueryClient();
   const { theme, setTheme } = useTheme();
   const [copied, setCopied] = useState(false);
@@ -95,8 +95,8 @@ export function ProfileCard() {
 
   // Use profile data (works for both real auth and impersonation)
   const displayName = profile?.name || profile?.handle || 
-    user?.twitter?.username || user?.email?.address?.split("@")[0] || "User";
-  const avatarUrl = profile?.profileImageUrl || user?.twitter?.profilePictureUrl;
+    session?.user?.name || "User";
+  const avatarUrl = profile?.profileImageUrl || session?.user?.image;
 
   // Use handle for nicer referral links, fall back to referral code
   const referralLink = (profile?.handle || profile?.referralCode)
@@ -120,6 +120,10 @@ export function ProfileCard() {
       `Join me on Vault Markets! Make predictions on real-world events and compete with friends. 🎯\n\n${referralLink}`
     );
     window.open(`https://x.com/intent/tweet?text=${tweetText}`, "_blank");
+  };
+
+  const handleLogout = () => {
+    signOut({ callbackUrl: "/" });
   };
 
   const friendsInvited = profile?._count?.referralsGiven ?? 0;
@@ -238,7 +242,7 @@ export function ProfileCard() {
             Stop Impersonating
           </DropdownMenuItem>
         ) : (
-          <DropdownMenuItem onClick={logout} className="cursor-pointer text-[#df2421] focus:text-[#df2421]">
+          <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-[#df2421] focus:text-[#df2421]">
             <LogOut className="mr-2 h-4 w-4" />
             Sign Out
           </DropdownMenuItem>

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { usePrivy } from "@privy-io/react-auth";
+import { useSession, signIn } from "@vault/auth/client";
 import { motion } from "framer-motion";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
@@ -40,7 +40,9 @@ interface CaptainJoinProps {
 
 export function CaptainJoin({ kol }: CaptainJoinProps) {
   const router = useRouter();
-  const { login, authenticated, ready } = usePrivy();
+  const { status } = useSession();
+  const authenticated = status === "authenticated";
+  const ready = status !== "loading";
   const authFetch = useAuthFetch();
   const [claimed, setClaimed] = useState(false);
 
@@ -104,12 +106,12 @@ export function CaptainJoin({ kol }: CaptainJoinProps) {
   }, [authenticated, ready, captainLoading, currentCaptain, kol.id, claimed]);
 
   const handleLogin = () => {
-    login();
+    signIn("twitter");
   };
 
   const handleClaim = () => {
     if (!authenticated) {
-      login();
+      signIn("twitter");
       return;
     }
     claimMutation.mutate();

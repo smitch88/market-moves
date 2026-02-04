@@ -8,8 +8,10 @@
       "outputs": [".next/**", "!.next/cache/**", "dist/**"],
       "env": [
         "DATABASE_URL",
-        "PRIVY_APP_ID",
-        "PRIVY_APP_SECRET",
+        "NEXTAUTH_SECRET",
+        "NEXTAUTH_URL",
+        "TWITTER_CLIENT_ID",
+        "TWITTER_CLIENT_SECRET",
         "RAPID_API_KEY",
         "APP_URL",
         "ADMIN_TWITTER_IDS",

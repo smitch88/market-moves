@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
-import { usePrivy } from "@privy-io/react-auth";
+import { useSession, signIn } from "@vault/auth/client";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button, Avatar, AvatarImage, AvatarFallback, GlassCard } from "@vault/ui";
 import { TrendingUp, Users, Sparkles, ChevronRight, X, HelpCircle, CheckCircle, AlertCircle, ArrowRight } from "lucide-react";
@@ -23,7 +23,9 @@ type ClaimStatus = "idle" | "claiming" | "success" | "already_referred" | "self_
 
 export function ReferralJoin({ referrer, referralCode }: ReferralJoinProps) {
   const router = useRouter();
-  const { login, authenticated, ready } = usePrivy();
+  const { status } = useSession();
+  const authenticated = status === "authenticated";
+  const ready = status !== "loading";
   const [showCampaign, setShowCampaign] = useState(false);
   const [claimStatus, setClaimStatus] = useState<ClaimStatus>("idle");
   const [hasAttemptedClaim, setHasAttemptedClaim] = useState(false);
@@ -92,7 +94,7 @@ export function ReferralJoin({ referrer, referralCode }: ReferralJoinProps) {
   };
 
   const handleLogin = () => {
-    login();
+    signIn("twitter");
   };
 
   // Show different UI based on claim status for authenticated users

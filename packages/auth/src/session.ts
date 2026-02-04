@@ -1,12 +1,11 @@
-import { cookies, headers } from "next/headers";
+import { getServerSession } from "next-auth";
 import { prisma, UserRole } from "@vault/database";
-import { verifyPrivyToken, privyClient } from "./privy";
-import { provisionUser } from "./provision";
+import { authOptions } from "./auth";
 import { isAdmin as checkIsAdmin } from "./admin-allowlist";
 
 export interface SessionUser {
   id: string;
-  privyUserId: string;
+  privyUserId: string; // Keep for backwards compatibility, will be empty for new users
   email: string | null;
   twitterSubject: string | null;
   handle: string | null;
@@ -25,37 +24,23 @@ export interface SessionUser {
 }
 
 /**
- * Get the current session user from cookies/headers.
+ * Get the current session user from NextAuth session.
  * Returns null if not authenticated.
  */
 export async function getSessionUser(): Promise<SessionUser | null> {
   try {
-    // Try to get token from cookies first (Next.js sets this)
-    const cookieStore = await cookies();
-    let authToken = cookieStore.get("privy-token")?.value;
-
-    // Fallback to Authorization header
-    if (!authToken) {
-      const headersList = await headers();
-      const authHeader = headersList.get("authorization");
-      if (authHeader?.startsWith("Bearer ")) {
-        authToken = authHeader.slice(7);
-      }
-    }
-
-    if (!authToken) {
+    // Get NextAuth session
+    const session = await getServerSession(authOptions);
+    
+    if (!session?.user?.twitterSubject) {
       return null;
     }
 
-    // Verify the token
-    const claims = await verifyPrivyToken(authToken);
-    if (!claims) {
-      return null;
-    }
+    const twitterSubject = session.user.twitterSubject;
 
-    // Look up user in database
-    let user = await prisma.user.findUnique({
-      where: { privyUserId: claims.userId },
+    // Look up user in database by Twitter subject
+    let user = await prisma.user.findFirst({
+      where: { twitterSubject },
       select: {
         id: true,
         privyUserId: true,
@@ -77,8 +62,12 @@ export async function getSessionUser(): Promise<SessionUser | null> {
       },
     });
 
+    if (!user) {
+      return null;
+    }
+
     // If user exists, check if they should be admin but aren't yet
-    if (user && user.role !== UserRole.ADMIN) {
+    if (user.role !== UserRole.ADMIN) {
       const shouldBeAdmin = checkIsAdmin(user.twitterSubject, user.email);
       if (shouldBeAdmin) {
         // Update user to admin
@@ -109,77 +98,11 @@ export async function getSessionUser(): Promise<SessionUser | null> {
       }
     }
 
-    // If user doesn't exist, provision them
-    if (!user) {
-      // Get user details from Privy
-      const privyUser = await privyClient.getUser(claims.userId);
-      
-      const twitterAccount = privyUser.linkedAccounts?.find(
-        (account) => account.type === "twitter_oauth"
-      );
-      const emailAccount = privyUser.linkedAccounts?.find(
-        (account) => account.type === "email"
-      );
-
-      try {
-        const provisioned = await provisionUser({
-          privyUserId: claims.userId,
-          email: emailAccount && 'address' in emailAccount ? emailAccount.address : null,
-          twitterSubject: twitterAccount && 'subject' in twitterAccount ? twitterAccount.subject : null,
-          handle: twitterAccount && 'username' in twitterAccount ? twitterAccount.username : null,
-          name: twitterAccount && 'name' in twitterAccount ? (twitterAccount.name as string) : null,
-          profileImageUrl: twitterAccount && 'profilePictureUrl' in twitterAccount ? (twitterAccount.profilePictureUrl as string) : null,
-          // Note: Privy doesn't provide Twitter banner URL directly, will be null
-          bannerImageUrl: twitterAccount && 'profileBannerUrl' in twitterAccount ? (twitterAccount.profileBannerUrl as string) : null,
-        });
-        // Return directly since provisionUser already returns the correct type
-        return provisioned as SessionUser;
-      } catch (err) {
-        // Handle race condition: if another request created the user, fetch them
-        if (err && typeof err === 'object' && 'code' in err && err.code === 'P2002') {
-          const dbUser = await prisma.user.findUnique({
-            where: { privyUserId: claims.userId },
-            select: {
-              id: true,
-              privyUserId: true,
-              email: true,
-              twitterSubject: true,
-              handle: true,
-              name: true,
-              profileImageUrl: true,
-              bannerImageUrl: true,
-              role: true,
-              balance: true,
-              referralCode: true,
-              hasSeenWelcomeModal: true,
-              isKOL: true,
-              createdAt: true,
-              _count: {
-                select: { referralsGiven: true },
-              },
-            },
-          });
-          if (!dbUser) {
-            throw err; // Re-throw if still not found
-          }
-          return {
-            ...dbUser,
-            balance: Number(dbUser.balance),
-          } as SessionUser;
-        } else {
-          throw err;
-        }
-      }
-    }
-
     // Convert balance to number for SessionUser type
-    if (user) {
-      return {
-        ...user,
-        balance: typeof user.balance === 'number' ? user.balance : Number(user.balance),
-      } as SessionUser;
-    }
-    return null;
+    return {
+      ...user,
+      balance: typeof user.balance === 'number' ? user.balance : Number(user.balance),
+    } as SessionUser;
   } catch (error) {
     console.error("Error getting session user:", error);
     return null;

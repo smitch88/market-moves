@@ -1,6 +1,6 @@
 "use client";
 
-import { usePrivy } from "@privy-io/react-auth";
+import { useSession, signIn } from "@vault/auth/client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bookmark, BookmarkCheck } from "lucide-react";
 import { cn } from "@vault/ui/lib/utils";
@@ -13,7 +13,8 @@ interface BookmarkButtonProps {
 }
 
 export function BookmarkButton({ eventId, className }: BookmarkButtonProps) {
-  const { authenticated, login } = usePrivy();
+  const { status } = useSession();
+  const authenticated = status === "authenticated";
   const queryClient = useQueryClient();
   const authFetch = useAuthFetch();
 
@@ -101,7 +102,7 @@ export function BookmarkButton({ eventId, className }: BookmarkButtonProps) {
     e.stopPropagation();
 
     if (!authenticated) {
-      login();
+      signIn("twitter");
       return;
     }
 

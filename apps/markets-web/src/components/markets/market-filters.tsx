@@ -39,7 +39,7 @@ import {
   Circle,
   CheckCircle2,
 } from "lucide-react";
-import { usePrivy } from "@privy-io/react-auth";
+import { useSession, signIn } from "@vault/auth/client";
 
 const viewFilters = [
   { label: "Trending", value: "trending", icon: Flame },
@@ -99,7 +99,8 @@ export function MarketFilters() {
   const [viewMenuOpen, setViewMenuOpen] = useState(false);
   const [categoryMenuOpen, setCategoryMenuOpen] = useState(false);
   const [statusMenuOpen, setStatusMenuOpen] = useState(false);
-  const { authenticated, login } = usePrivy();
+  const { status } = useSession();
+  const authenticated = status === "authenticated";
 
   // Filter view options based on auth status
   const availableViewFilters = viewFilters.filter(
@@ -163,7 +164,7 @@ export function MarketFilters() {
   const handleViewFilter = (value: string) => {
     const filter = viewFilters.find((f) => f.value === value);
     if (filter?.requiresAuth && !authenticated) {
-      login();
+      signIn("twitter");
       return;
     }
     handleFilter("view", value);

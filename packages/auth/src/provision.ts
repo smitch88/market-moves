@@ -4,10 +4,9 @@ import { isAdmin as checkIsAdmin } from "./admin-allowlist";
 const INITIAL_BALANCE = 10000;
 
 export interface ProvisionUserInput {
-  privyUserId: string;
+  twitterSubject: string;
   email?: string | null;
   walletAddress?: string | null;
-  twitterSubject?: string | null;
   handle?: string | null;
   name?: string | null;
   profileImageUrl?: string | null;
@@ -35,10 +34,9 @@ export type ProvisionedUser = {
 
 export async function provisionUser(input: ProvisionUserInput): Promise<ProvisionedUser> {
   const {
-    privyUserId,
+    twitterSubject,
     email,
     walletAddress,
-    twitterSubject,
     handle,
     name,
     profileImageUrl,
@@ -46,15 +44,47 @@ export async function provisionUser(input: ProvisionUserInput): Promise<Provisio
     referralCode,
   } = input;
 
+  // Check if user already exists by twitterSubject
+  const existingUser = await prisma.user.findFirst({
+    where: { twitterSubject },
+    select: {
+      id: true,
+      privyUserId: true,
+      email: true,
+      twitterSubject: true,
+      handle: true,
+      name: true,
+      profileImageUrl: true,
+      bannerImageUrl: true,
+      role: true,
+      balance: true,
+      referralCode: true,
+      hasSeenWelcomeModal: true,
+      isKOL: true,
+      createdAt: true,
+      _count: {
+        select: { referralsGiven: true },
+      },
+    },
+  });
+
+  if (existingUser) {
+    // Return existing user
+    return {
+      ...existingUser,
+      balance: Number(existingUser.balance),
+    };
+  }
+
   // Determine role based on admin allowlist (checks both Twitter ID and email)
   const isAdmin = checkIsAdmin(twitterSubject, email);
 
   // Create user with initial balance
   const user = await prisma.$transaction(async (tx) => {
-    // Create the user
+    // Create the user - privyUserId is set to twitterSubject for backwards compatibility
     const newUser = await tx.user.create({
       data: {
-        privyUserId,
+        privyUserId: `twitter:${twitterSubject}`, // Legacy field, prefixed to differentiate
         email,
         walletAddress,
         twitterSubject,

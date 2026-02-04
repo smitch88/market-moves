@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import Link from "next/link";
-import { usePrivy } from "@privy-io/react-auth";
+import { useSession, signIn } from "@vault/auth/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import { toPng } from "html-to-image";
@@ -53,7 +53,8 @@ export function MobileBettingSheet({
   isOpen,
   onOpenChange,
 }: MobileBettingSheetProps) {
-  const { login, authenticated } = usePrivy();
+  const { status } = useSession();
+  const authenticated = status === "authenticated";
   const queryClient = useQueryClient();
   const authFetch = useAuthFetch();
   const { queueXPGain, queueBalanceChange } = useXPAnimation();
@@ -271,7 +272,7 @@ export function MobileBettingSheet({
 
   const handlePlaceBet = () => {
     if (!authenticated) {
-      login();
+      signIn("twitter");
       return;
     }
     if (!amount || parseFloat(amount) <= 0) return;

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback } from "react";
-import { usePrivy } from "@privy-io/react-auth";
+import { useSession, signIn } from "@vault/auth/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   GlassCard,
@@ -42,7 +42,8 @@ interface BettingPanelProps {
 type BettingStep = "select" | "amount";
 
 export function BettingPanel({ market, event, stats }: BettingPanelProps) {
-  const { login, authenticated } = usePrivy();
+  const { status } = useSession();
+  const authenticated = status === "authenticated";
   const queryClient = useQueryClient();
   const authFetch = useAuthFetch();
   const { queueXPGain, queueBalanceChange } = useXPAnimation();
@@ -138,7 +139,7 @@ export function BettingPanel({ market, event, stats }: BettingPanelProps) {
   // Handlers
   const handleSelectOutcome = (index: number) => {
     if (!authenticated) {
-      login();
+      signIn("twitter");
       return;
     }
     setSelectedOutcome(index);
@@ -148,6 +149,10 @@ export function BettingPanel({ market, event, stats }: BettingPanelProps) {
   const handlePlaceBet = () => {
     if (!amount || parseInt(amount, 10) <= 0) return;
     placeBetMutation.mutate();
+  };
+
+  const handleLogin = () => {
+    signIn("twitter");
   };
 
   const generateTicketImage = useCallback(async (): Promise<string | null> => {
@@ -278,7 +283,7 @@ export function BettingPanel({ market, event, stats }: BettingPanelProps) {
               stats={stats}
               authenticated={authenticated}
               onSelect={handleSelectOutcome}
-              onLogin={login}
+              onLogin={handleLogin}
             />
           ) : step === "amount" ? (
             <AmountStep

@@ -2,15 +2,13 @@
 
 import { Bookmark } from "lucide-react";
 import { Button } from "@vault/ui";
-import { usePrivy } from "@privy-io/react-auth";
+import { signIn } from "@vault/auth/client";
 
 interface BookmarksEmptyStateProps {
   requiresLogin?: boolean;
 }
 
 export function BookmarksEmptyState({ requiresLogin }: BookmarksEmptyStateProps) {
-  const { login } = usePrivy();
-
   if (requiresLogin) {
     return (
       <div className="flex flex-col items-center justify-center py-24 px-4">
@@ -21,7 +19,7 @@ export function BookmarksEmptyState({ requiresLogin }: BookmarksEmptyStateProps)
         <p className="text-sm text-muted-foreground mb-6 text-center max-w-md">
           Sign in to save your favorite events and access them quickly.
         </p>
-        <Button onClick={() => login()}>
+        <Button onClick={() => signIn("twitter")}>
           Sign In
         </Button>
       </div>
