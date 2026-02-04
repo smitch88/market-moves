@@ -435,42 +435,57 @@ export function MarketForm({ market }: MarketFormProps) {
           <h2 className="text-lg font-semibold">Economics</h2>
         </GlassCardHeader>
         <GlassCardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="feeBps">Fee (basis points)</Label>
-              <Input
-                id="feeBps"
-                name="feeBps"
-                type="number"
-                value={formData.feeBps}
-                onChange={handleChange}
-                placeholder="100"
-              />
-              <p className="text-xs text-muted-foreground">
-                100 = 1% fee
-              </p>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="seed0">Seed Liquidity 1</Label>
-              <Input
-                id="seed0"
-                name="seed0"
-                type="number"
-                value={formData.seed0}
-                onChange={handleChange}
-                placeholder="1000"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="seed1">Seed Liquidity 2</Label>
-              <Input
-                id="seed1"
-                name="seed1"
-                type="number"
-                value={formData.seed1}
-                onChange={handleChange}
-                placeholder="1000"
-              />
+          <div className="space-y-2">
+            <Label htmlFor="feeBps">Fee (basis points)</Label>
+            <Input
+              id="feeBps"
+              name="feeBps"
+              type="number"
+              value={formData.feeBps}
+              onChange={handleChange}
+              placeholder="100"
+              className="max-w-xs"
+            />
+            <p className="text-xs text-muted-foreground">
+              100 = 1% fee on winning payouts
+            </p>
+          </div>
+          
+          <div className="pt-4 border-t border-border/50">
+            <h3 className="text-sm font-medium mb-1">Initial Liquidity</h3>
+            <p className="text-xs text-muted-foreground mb-4">
+              Sets the AMM depth for price stability. Higher values = less price impact per trade. 
+              Equal values start at 50/50 odds. Minimum 100 required.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-md">
+              <div className="space-y-2">
+                <Label htmlFor="seed0">
+                  {formData.outcome0Label || "Outcome 1"} Liquidity
+                </Label>
+                <Input
+                  id="seed0"
+                  name="seed0"
+                  type="number"
+                  min="100"
+                  value={formData.seed0}
+                  onChange={handleChange}
+                  placeholder="1000"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="seed1">
+                  {formData.outcome1Label || "Outcome 2"} Liquidity
+                </Label>
+                <Input
+                  id="seed1"
+                  name="seed1"
+                  type="number"
+                  min="100"
+                  value={formData.seed1}
+                  onChange={handleChange}
+                  placeholder="1000"
+                />
+              </div>
             </div>
           </div>
         </GlassCardContent>

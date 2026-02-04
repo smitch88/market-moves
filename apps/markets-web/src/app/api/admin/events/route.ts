@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma, MarketStatus, AdminAction } from "@vault/database";
 import { requireAdmin } from "@vault/auth";
 import { z } from "zod";
+import { ConstantProductAMM } from "@/lib/services/pricing-engine";
 
 const createEventSchema = z.object({
   title: z.string().min(1),
@@ -30,8 +31,8 @@ const createEventSchema = z.object({
     opensAt: z.string().nullable().optional(),
     closesAt: z.string().nullable().optional(),
     feeBps: z.number().int().min(0).max(10000).default(100),
-    seed0: z.number().int().min(0).default(1000),
-    seed1: z.number().int().min(0).default(1000),
+    seed0: z.number().int().min(100).default(1000), // Minimum 100 to ensure proper AMM depth
+    seed1: z.number().int().min(100).default(1000), // Minimum 100 to ensure proper AMM depth
   })).optional().default([]),
 });
 
@@ -149,13 +150,27 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
       // Create markets for this event (if any provided)
       if (data.markets && data.markets.length > 0) {
+        const cpmm = new ConstantProductAMM();
+        
         for (const marketData of data.markets) {
+          // Set reserves to match seeds - this ensures proper AMM pricing depth
+          const reserve0 = marketData.seed0;
+          const reserve1 = marketData.seed1;
+          const k = ConstantProductAMM.calculateInitialK(reserve0, reserve1);
+          
+          // Calculate initial prices based on reserves (CPMM formula)
+          const prices = cpmm.calculatePrice(reserve0, reserve1);
+          const initialPrices = JSON.stringify([
+            prices.price0.toFixed(4),
+            prices.price1.toFixed(4),
+          ]);
+          
           await tx.market.create({
             data: {
               eventId: newEvent.id,
               question: marketData.question,
               outcomes: JSON.stringify(marketData.outcomes),
-              outcomePrices: JSON.stringify(["0.50", "0.50"]),
+              outcomePrices: initialPrices,
               detailsMarkdown: marketData.detailsMarkdown || null,
               resolutionSourceUrl: marketData.resolutionSourceUrl || null,
               opensAt: marketData.opensAt ? new Date(marketData.opensAt) : null,
@@ -163,6 +178,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
               feeBps: marketData.feeBps,
               seed0: marketData.seed0,
               seed1: marketData.seed1,
+              reserve0,  // Match seeds
+              reserve1,  // Match seeds
+              k,         // Calculate invariant
               status: MarketStatus.DRAFT,
             },
           });

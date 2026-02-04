@@ -4,6 +4,11 @@ import { requireAdmin } from "@vault/auth";
 import { ConstantProductAMM } from "@/lib/services/pricing-engine";
 import { z } from "zod";
 
+// Default liquidity for markets
+// This ensures the AMM has proper depth for pricing
+const DEFAULT_LIQUIDITY = 1000;
+const MIN_LIQUIDITY = 100; // Minimum to ensure proper AMM depth
+
 const createMarketSchema = z.object({
   eventId: z.string().min(1),
   question: z.string().min(1),
@@ -14,9 +19,14 @@ const createMarketSchema = z.object({
   opensAt: z.string().nullable().optional(),
   closesAt: z.string().nullable().optional(),
   feeBps: z.number().int().min(0).max(10000).default(100),
-  // Initial liquidity (reserves)
-  reserve0: z.number().min(0).optional().default(1000),
-  reserve1: z.number().min(0).optional().default(1000),
+  // Accept both seed and reserve naming for backwards compatibility
+  // seed0/seed1 - from admin form
+  // reserve0/reserve1 - alternative naming
+  // These set BOTH seeds and reserves to ensure proper AMM depth
+  seed0: z.number().min(MIN_LIQUIDITY).optional(),
+  seed1: z.number().min(MIN_LIQUIDITY).optional(),
+  reserve0: z.number().min(MIN_LIQUIDITY).optional(),
+  reserve1: z.number().min(MIN_LIQUIDITY).optional(),
 });
 
 export async function GET(request: NextRequest) {
@@ -80,14 +90,15 @@ export async function POST(request: NextRequest) {
     const market = await prisma.$transaction(async (tx) => {
       const cpmm = new ConstantProductAMM();
 
-      // Set up reserves for CPMM
-      const reserve0 = data.reserve0 ?? 1000;
-      const reserve1 = data.reserve1 ?? 1000;
+      // Accept seed0/seed1 OR reserve0/reserve1 (seed takes priority for form compatibility)
+      // Set BOTH seeds and reserves to the same value to ensure proper AMM pricing
+      const liquidity0 = data.seed0 ?? data.reserve0 ?? DEFAULT_LIQUIDITY;
+      const liquidity1 = data.seed1 ?? data.reserve1 ?? DEFAULT_LIQUIDITY;
       
-      const k = ConstantProductAMM.calculateInitialK(reserve0, reserve1);
+      const k = ConstantProductAMM.calculateInitialK(liquidity0, liquidity1);
 
       // Calculate initial prices (CPMM: price is based on reserve ratio)
-      const prices = cpmm.calculatePrice(reserve0, reserve1);
+      const prices = cpmm.calculatePrice(liquidity0, liquidity1);
       const initialPrice0 = prices.price0.toFixed(4);
       const initialPrice1 = prices.price1.toFixed(4);
 
@@ -102,9 +113,11 @@ export async function POST(request: NextRequest) {
           opensAt: data.opensAt ? new Date(data.opensAt) : null,
           closesAt: data.closesAt ? new Date(data.closesAt) : null,
           feeBps: data.feeBps,
-          // CPMM AMM fields
-          reserve0,
-          reserve1,
+          // Set BOTH seeds and reserves to the same value
+          seed0: liquidity0,
+          seed1: liquidity1,
+          reserve0: liquidity0,
+          reserve1: liquidity1,
           k,
           status: MarketStatus.DRAFT,
         },
@@ -119,8 +132,8 @@ export async function POST(request: NextRequest) {
           marketId: newMarket.id,
           price0: snapshotPrice0,
           price1: snapshotPrice1,
-          pool0: Math.floor(reserve0),
-          pool1: Math.floor(reserve1),
+          pool0: Math.floor(liquidity0),
+          pool1: Math.floor(liquidity1),
         },
       });
 
@@ -133,8 +146,8 @@ export async function POST(request: NextRequest) {
           metadata: { 
             eventId: data.eventId,
             question: data.question,
-            reserve0,
-            reserve1,
+            liquidity0,
+            liquidity1,
             k,
           },
         },
