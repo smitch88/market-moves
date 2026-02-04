@@ -85,6 +85,7 @@ vault-markets/
 | `/admin/requests` | Market request management |
 | `/admin/requests/[id]` | Full review page for market requests |
 | `/admin/xp` | XP system configuration |
+| `/admin/jobs` | Background job monitoring and manual triggers |
 | `/admin/resolution-sources` | Resolution source management |
 | `/admin/resolution-sources/[id]` | Resolution source detail - manage data points |
 
@@ -259,6 +260,43 @@ model PnLLedger {
   marketId      String?
   metadata      Json?
 }
+
+model UserPnLSnapshot {
+  id            String   @id @default(cuid())
+  userId        String
+  realizedPnL   Decimal  @db.Decimal(19, 4)
+  unrealizedPnL Decimal  @db.Decimal(19, 4)
+  totalVolume   Decimal  @db.Decimal(19, 2)
+  createdAt     DateTime @default(now())
+  
+  @@index([userId, createdAt])
+}
+```
+
+### Leaderboard Snapshots (Materialized View)
+```prisma
+// Pre-computed PnL leaderboard data (refreshed every 30 minutes via cron)
+model LeaderboardPnLSnapshot {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  realizedPnL   Decimal  @db.Decimal(19, 4)
+  unrealizedPnL Decimal  @db.Decimal(19, 4)
+  totalPnL      Decimal  @db.Decimal(19, 4)
+  totalVolume   Decimal  @db.Decimal(19, 2)
+  refreshedAt   DateTime @default(now())
+  
+  @@index([totalPnL(sort: Desc)])
+}
+
+// Singleton metadata for snapshot refresh status
+model LeaderboardSnapshotMeta {
+  id          String   @id @default("pnl_snapshot")
+  lastRefresh DateTime @default(now())
+  userCount   Int      @default(0)
+  durationMs  Int      @default(0)
+  status      String   @default("idle") // idle | running | completed | failed
+  error       String?
+}
 ```
 
 ### XP System
@@ -392,6 +430,9 @@ model MarketRequest {
 - Time periods: All Time, Monthly, Weekly
 - User search and pagination
 - Current user position always visible
+- PnL leaderboard uses pre-computed snapshot (refreshed every 30 minutes via cron)
+- Frontend shows "last updated" timestamp for PnL data
+- Automatic fallback to live calculation if snapshot unavailable
 
 ### Referral System
 - Unique referral codes per user

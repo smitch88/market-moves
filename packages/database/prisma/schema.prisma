@@ -164,6 +164,35 @@ model UserPnLSnapshot {
   @@index([userId, createdAt])
 }
 
+/// Materialized view snapshot for PnL leaderboard (refreshed via cron)
+/// Stores pre-computed total PnL (realized + unrealized) for faster leaderboard queries
+model LeaderboardPnLSnapshot {
+  id            String   @id @default(cuid())
+  userId        String   @unique // One snapshot per user
+  realizedPnL   Decimal  @db.Decimal(19, 4)
+  unrealizedPnL Decimal  @db.Decimal(19, 4)
+  totalPnL      Decimal  @db.Decimal(19, 4) // Pre-computed: realized + unrealized
+  totalVolume   Decimal  @db.Decimal(19, 2)
+  
+  // Metadata
+  refreshedAt   DateTime @default(now()) // When this snapshot was computed
+  
+  @@index([totalPnL(sort: Desc)]) // Index for leaderboard sorting
+  @@index([refreshedAt])
+}
+
+/// Metadata for leaderboard snapshot refresh operations
+model LeaderboardSnapshotMeta {
+  id          String   @id @default("pnl_snapshot") // Singleton record
+  lastRefresh DateTime @default(now())
+  userCount   Int      @default(0) // Number of users in snapshot
+  durationMs  Int      @default(0) // How long the refresh took
+  status      String   @default("idle") // "idle" | "running" | "completed" | "failed"
+  error       String?  // Error message if failed
+  
+  @@index([lastRefresh])
+}
+
 // ============================================================================
 // XP & GAMIFICATION
 // ============================================================================

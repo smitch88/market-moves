@@ -26,6 +26,7 @@ import {
   Sparkles,
   Gift,
   Flag,
+  Cog,
 } from "lucide-react";
 import { signOut } from "@vault/auth/client";
 
@@ -53,6 +54,7 @@ const navItems = [
   { href: "/admin/feature-flags", label: "Feature Flags", icon: Flag },
   { href: "/admin/xp", label: "MP Config", icon: Sparkles },
   { href: "/admin/requests", label: "Requests", icon: Lightbulb },
+  { href: "/admin/jobs", label: "Jobs", icon: Cog },
   { href: "/admin/social", label: "Social", icon: Share2 },
   { href: "/admin/tags", label: "Tags", icon: Tag },
 ];

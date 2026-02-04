@@ -68,6 +68,10 @@ interface LeaderboardResponse {
   totalPages: number;
   currentUserEntry: LeaderboardEntry | null;
   updatedAt: string;
+  /** For PnL leaderboard: timestamp when the snapshot was last refreshed */
+  snapshotRefreshedAt?: string;
+  /** Whether the PnL data came from the pre-computed snapshot or was calculated live */
+  fromSnapshot?: boolean;
 }
 
 type Metric = "xp" | "pnl" | "volume" | "creators" | "referrals";
@@ -128,6 +132,19 @@ function formatVolume(value: number): string {
   } else {
     return `$${value.toLocaleString()}`;
   }
+}
+
+function formatRelativeTime(dateString: string): string {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / (1000 * 60));
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+
+  if (diffMins < 1) return "just now";
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  return date.toLocaleDateString();
 }
 
 function getAvatarGradient(index: number): string {
@@ -595,6 +612,22 @@ export function LeaderboardContent() {
           </div>
         </div>
       </motion.div>
+
+      {/* PnL Snapshot Info Banner */}
+      {metric === "pnl" && period === "all" && data && !isLoading && data.snapshotRefreshedAt && (
+        <motion.div
+          initial={{ opacity: 0, y: -5 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex items-center gap-2 px-4 py-2 text-xs text-muted-foreground bg-muted/30 rounded-lg border border-border/30"
+        >
+          <Clock className="h-3.5 w-3.5" />
+          <span>
+            PnL data last updated {formatRelativeTime(data.snapshotRefreshedAt)}
+          </span>
+          <span className="text-muted-foreground/50">•</span>
+          <span className="text-muted-foreground/70">Updates every 30 minutes</span>
+        </motion.div>
+      )}
 
       {/* Loading State */}
       {isLoading && (

@@ -109,7 +109,7 @@ Fetch user leaderboard with multiple metrics.
 **Query Parameters:**
 | Param | Type | Description |
 |-------|------|-------------|
-| metric | string | `xp`, `pnl`, or `volume` |
+| metric | string | `xp`, `pnl`, `volume`, `creators`, or `referrals` |
 | period | string | `all`, `monthly`, or `weekly` |
 | page | number | Page number (default: 1) |
 | pageSize | number | Results per page (default: 25) |
@@ -133,9 +133,19 @@ Fetch user leaderboard with multiple metrics.
   "page": 1,
   "totalPages": 10,
   "totalUsers": 250,
-  "currentUserEntry": {...}
+  "currentUserEntry": {...},
+  "snapshotRefreshedAt": "2024-01-15T12:30:00.000Z",
+  "fromSnapshot": true
 }
 ```
+
+**PnL Snapshot Fields (for metric=pnl, period=all):**
+| Field | Type | Description |
+|-------|------|-------------|
+| snapshotRefreshedAt | string | ISO timestamp of last snapshot refresh |
+| fromSnapshot | boolean | Whether data came from pre-computed snapshot |
+
+Note: PnL leaderboard for "all" period uses a pre-computed snapshot that refreshes every 30 minutes. If no valid snapshot exists, the API falls back to live calculation. The frontend displays "last updated" timestamp when snapshot data is used.
 
 ---
 
@@ -910,6 +920,34 @@ Vercel Cron Job - runs daily at midnight UTC.
 
 ---
 
+### GET /api/cron/refresh-pnl-snapshot
+Vercel Cron Job - runs every 30 minutes.
+
+**Security:** Requires `CRON_SECRET` in Authorization header.
+
+**Actions:**
+1. Fetches all users with realized PnL or open positions
+2. Calculates total PnL (realized + unrealized) for each user
+3. Atomically refreshes the `LeaderboardPnLSnapshot` table
+4. Updates `LeaderboardSnapshotMeta` with refresh status
+
+**Purpose:** Pre-computes PnL leaderboard data to improve query performance at scale. The leaderboard API uses this snapshot for "all" period PnL rankings, with automatic fallback to live calculation if no valid snapshot exists.
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "PnL snapshot refreshed successfully",
+  "summary": {
+    "userCount": 1500,
+    "durationMs": 4532,
+    "refreshedAt": "2024-01-15T12:30:00.000Z"
+  }
+}
+```
+
+---
+
 ## Admin KOL Endpoints
 
 ### POST /api/admin/users/[id]/kol
@@ -952,6 +990,43 @@ Get recent competition history.
 | Param | Type | Description |
 |-------|------|-------------|
 | days | number | Number of days (default: 7) |
+
+---
+
+## Admin Jobs Endpoints
+
+### GET /api/admin/jobs/refresh-pnl-snapshot
+Get the current status of the PnL leaderboard snapshot.
+
+**Response:**
+```json
+{
+  "success": true,
+  "snapshot": {
+    "lastRefresh": "2024-01-15T12:30:00.000Z",
+    "userCount": 1500,
+    "durationMs": 4532,
+    "status": "completed",
+    "error": null
+  }
+}
+```
+
+---
+
+### POST /api/admin/jobs/refresh-pnl-snapshot
+Manually trigger a PnL snapshot refresh from the admin panel.
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "PnL snapshot refreshed successfully",
+  "userCount": 1500,
+  "durationMs": 4532,
+  "refreshedAt": "2024-01-15T12:30:00.000Z"
+}
+```
 
 ---
 

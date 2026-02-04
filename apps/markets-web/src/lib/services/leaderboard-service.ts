@@ -6,10 +6,19 @@
  * 
  * PnL includes both realized (from settled bets) and unrealized
  * (from current open positions) for a complete picture.
+ * 
+ * For "all" period PnL leaderboard, uses pre-computed materialized view
+ * that is refreshed every 30 minutes via cron job. Falls back to live
+ * calculation if no valid snapshot exists.
  */
 
 import { prisma, BetStatus } from "@vault/database";
 import { calculateLevel } from "./xp-service";
+import {
+  getPnLLeaderboardFromSnapshot,
+  getUserPnLFromSnapshot,
+  getSnapshotMetadata,
+} from "./pnl-snapshot-service";
 
 // ============================================================================
 // TYPES
@@ -37,6 +46,10 @@ export interface LeaderboardResult {
   totalUsers: number;
   totalPages: number;
   updatedAt: string;
+  /** For PnL leaderboard: timestamp when the snapshot was last refreshed */
+  snapshotRefreshedAt?: string;
+  /** Whether the PnL data came from the pre-computed snapshot or was calculated live */
+  fromSnapshot?: boolean;
 }
 
 export interface UserRankResult {
@@ -489,17 +502,56 @@ function calculatePositionUnrealizedPnL(position: {
 
 /**
  * Get PnL leaderboard with pagination
- * For "all" period: includes both realized and unrealized PnL
- * For weekly/monthly: only realized PnL from settled bets in that period
+ * For "all" period: uses pre-computed snapshot if available, with fallback to live calculation
+ * For weekly/monthly: only realized PnL from settled bets in that period (always live)
  */
 export async function getPnLLeaderboard(
   period: LeaderboardPeriod = "all",
   page: number = 1,
   pageSize: number = 25
-): Promise<{ entries: LeaderboardEntry[]; total: number }> {
+): Promise<{ entries: LeaderboardEntry[]; total: number; snapshotRefreshedAt?: Date; fromSnapshot?: boolean }> {
   const skip = (page - 1) * pageSize;
 
   if (period === "all") {
+    // Try to use the pre-computed snapshot first (much faster)
+    const snapshotResult = await getPnLLeaderboardFromSnapshot(page, pageSize);
+    
+    if (snapshotResult) {
+      // Get user details for the snapshot entries
+      const userIds = snapshotResult.entries.map((e) => e.userId);
+      const users = await prisma.user.findMany({
+        where: { id: { in: userIds } },
+        select: {
+          id: true,
+          handle: true,
+          name: true,
+          profileImageUrl: true,
+        },
+      });
+
+      const userMap = new Map(users.map((u) => [u.id, u]));
+
+      const entries = snapshotResult.entries.map((entry, index) => {
+        const user = userMap.get(entry.userId);
+        return {
+          rank: skip + index + 1,
+          userId: entry.userId,
+          handle: user?.handle ?? null,
+          name: user?.name ?? null,
+          profileImageUrl: user?.profileImageUrl ?? null,
+          value: Math.round(entry.totalPnL),
+        };
+      });
+
+      return {
+        entries,
+        total: snapshotResult.total,
+        snapshotRefreshedAt: snapshotResult.lastRefresh,
+        fromSnapshot: true,
+      };
+    }
+
+    // Fallback to live calculation if no valid snapshot exists
     // Get all users with positions or realized PnL
     const usersWithActivity = await prisma.user.findMany({
       where: {
@@ -579,7 +631,7 @@ export async function getPnLLeaderboard(
       value: user.value,
     }));
 
-    return { entries, total };
+    return { entries, total, fromSnapshot: false };
   }
 
   // Weekly/Monthly: Calculate PnL from settled bets only
@@ -657,6 +709,18 @@ export async function getUserPnLRank(
   period: LeaderboardPeriod = "all"
 ): Promise<UserRankResult | null> {
   if (period === "all") {
+    // Try to use the pre-computed snapshot first (much faster)
+    const snapshotResult = await getUserPnLFromSnapshot(userId);
+    
+    if (snapshotResult) {
+      return {
+        rank: snapshotResult.rank,
+        value: Math.round(snapshotResult.totalPnL),
+        totalUsers: snapshotResult.totalUsers,
+      };
+    }
+
+    // Fallback to live calculation if no valid snapshot exists
     // Get user's total PnL (realized + unrealized)
     const user = await prisma.user.findUnique({
       where: { id: userId },
@@ -818,7 +882,7 @@ export async function getLeaderboard(
   page: number = 1,
   pageSize: number = 25
 ): Promise<LeaderboardResult> {
-  let result: { entries: LeaderboardEntry[]; total: number };
+  let result: { entries: LeaderboardEntry[]; total: number; snapshotRefreshedAt?: Date; fromSnapshot?: boolean };
   
   if (metric === "xp") {
     result = await getXPLeaderboard(period, page, pageSize);
@@ -841,6 +905,13 @@ export async function getLeaderboard(
     totalUsers: result.total,
     totalPages: Math.ceil(result.total / pageSize),
     updatedAt: new Date().toISOString(),
+    // Include snapshot metadata for PnL leaderboard
+    ...(result.snapshotRefreshedAt && {
+      snapshotRefreshedAt: result.snapshotRefreshedAt.toISOString(),
+    }),
+    ...(result.fromSnapshot !== undefined && {
+      fromSnapshot: result.fromSnapshot,
+    }),
   };
 }
 
