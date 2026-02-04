@@ -148,6 +148,7 @@ export async function GET(
         market: {
           before: { reserve0: 0, reserve1: 0, k: null, price0: 0, price1: 0 },
           after: { reserve0: 0, reserve1: 0, k: 0, price0: 0, price1: 0 },
+          pools: { pool0: 0, pool1: 0, totalPool0: 0, totalPool1: 0 },
         },
         summary: {
           totalPositions: 0,

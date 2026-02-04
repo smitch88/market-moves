@@ -31,8 +31,8 @@ const createEventSchema = z.object({
     opensAt: z.string().nullable().optional(),
     closesAt: z.string().nullable().optional(),
     feeBps: z.number().int().min(0).max(10000).default(100),
-    seed0: z.number().int().min(100).default(1000), // Minimum 100 to ensure proper AMM depth
-    seed1: z.number().int().min(100).default(1000), // Minimum 100 to ensure proper AMM depth
+    seed0: z.number().int().min(100).default(100000), // Minimum 100 to ensure proper AMM depth
+    seed1: z.number().int().min(100).default(100000), // Minimum 100 to ensure proper AMM depth
   })).optional().default([]),
 });
 
