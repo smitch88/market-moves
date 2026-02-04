@@ -53,7 +53,7 @@ vault-markets/
 
 | Route | Description |
 |-------|-------------|
-| `/` | Home page - Event grid with Quick Bet, search, filters, bookmarks |
+| `/` | Home page - Featured (6 max, 3 cols), Ending Soon (markets closing <48hrs, 4-5 cols), Explore More (4-5 cols) sections with Quick Bet, search, filters, bookmarks |
 | `/m/[slug]` | Event detail page with betting panel and price chart |
 | `/leaderboard` | Rankings by XP (MP), PnL, Volume, and follower-based totals (Captains/Referrals) |
 | `/faq` | Frequently asked questions |

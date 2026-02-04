@@ -12,10 +12,15 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
 } from "@vault/ui";
-import { Plus, Eye, Pencil, Search, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { Plus, Eye, Pencil, Search, ArrowUpDown, ArrowUp, ArrowDown, Pin } from "lucide-react";
 import { getAdminEventUrl, getAdminEventEditUrl } from "@/lib/urls";
 import { PublishToggle } from "@/components/admin/publish-toggle";
+import { EventFlagToggle } from "@/components/admin/event-flag-toggle";
 
 // Force dynamic rendering - requires database access
 export const dynamic = "force-dynamic";
@@ -94,6 +99,8 @@ export default async function AdminEventsPage({ searchParams }: PageProps) {
       active: true,
       closed: true,
       isPublished: true,
+      pinned: true,
+      featured: true,
       startTime: true,
       createdAt: true,
       markets: {
@@ -262,45 +269,66 @@ export default async function AdminEventsPage({ searchParams }: PageProps) {
           {/* Mobile Card View */}
           <div className="sm:hidden p-4 space-y-3">
             {eventsWithStats.map((event) => (
-              <Link
+              <div
                 key={event.id}
-                href={getAdminEventUrl(event.id)}
-                className="block p-4 rounded-lg border border-border bg-card/50 hover:bg-card/80 transition-colors"
+                className="p-4 rounded-lg border border-border bg-card/50"
               >
-                <div className="flex items-start justify-between gap-3 mb-3">
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium line-clamp-1">{event.title}</p>
-                    <p className="text-xs text-muted-foreground line-clamp-1">
-                      {event.description || event.slug}
-                    </p>
+                {/* Header with actions */}
+                <div className="flex items-center justify-between gap-2 mb-3">
+                  <div className="flex items-center gap-1">
+                    <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
+                      <Link href={getAdminEventUrl(event.id)}>
+                        <Eye className="h-4 w-4" />
+                      </Link>
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
+                      <Link href={getAdminEventEditUrl(event.id)}>
+                        <Pencil className="h-4 w-4" />
+                      </Link>
+                    </Button>
                   </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <Badge
-                      variant={
-                        event.eventStatus === "active"
-                          ? "success"
-                          : event.eventStatus === "settled"
-                            ? "default"
-                            : event.eventStatus === "closed"
-                              ? "destructive"
-                              : "secondary"
-                      }
-                      className="text-xs"
-                    >
-                      {event.eventStatus === "active"
-                        ? "Active"
+                  <Badge
+                    variant={
+                      event.eventStatus === "active"
+                        ? "success"
                         : event.eventStatus === "settled"
-                          ? "Settled"
+                          ? "default"
                           : event.eventStatus === "closed"
-                            ? "Inactive"
-                            : "Draft"}
-                    </Badge>
+                            ? "destructive"
+                            : "secondary"
+                    }
+                    className="text-xs"
+                  >
+                    {event.eventStatus === "active"
+                      ? "Active"
+                      : event.eventStatus === "settled"
+                        ? "Settled"
+                        : event.eventStatus === "closed"
+                          ? "Inactive"
+                          : "Draft"}
+                  </Badge>
+                </div>
+
+                {/* Title */}
+                <Link href={getAdminEventUrl(event.id)} className="block mb-3 hover:text-primary transition-colors">
+                  <p className="font-medium line-clamp-1">{event.title}</p>
+                  <p className="text-xs text-muted-foreground line-clamp-1">
+                    {event.description || event.slug}
+                  </p>
+                </Link>
+
+                {/* Toggles and category row */}
+                <div className="flex items-center gap-3 mb-3 pb-3 border-b border-border/50">
+                  <div className="flex items-center gap-2">
+                    <Pin className="h-3.5 w-3.5 text-muted-foreground" />
+                    <EventFlagToggle eventId={event.id} flag="pinned" value={event.pinned} />
                   </div>
-                </div>
-                <div className="flex items-center gap-2 mb-3">
                   <Badge variant="secondary" className="text-xs">{event.category}</Badge>
+                  <PublishToggle id={event.id} type="event" isPublished={event.isPublished} showLabel />
                 </div>
-                <div className="grid grid-cols-4 gap-2 pt-3 border-t border-border/50 text-center">
+
+                {/* Stats */}
+                <div className="grid grid-cols-3 gap-2 text-center">
                   <div>
                     <p className="text-xs text-muted-foreground">Markets</p>
                     <p className="text-sm font-medium">{event._count.markets}</p>
@@ -313,12 +341,8 @@ export default async function AdminEventsPage({ searchParams }: PageProps) {
                     <p className="text-xs text-muted-foreground">Bets</p>
                     <p className="text-sm font-medium">{event.totalBets}</p>
                   </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Published</p>
-                    <p className="text-sm font-medium">{event.isPublished ? "Yes" : "No"}</p>
-                  </div>
                 </div>
-              </Link>
+              </div>
             ))}
             {eventsWithStats.length === 0 && (
               <p className="p-8 text-center text-muted-foreground">
@@ -328,140 +352,158 @@ export default async function AdminEventsPage({ searchParams }: PageProps) {
           </div>
 
           {/* Desktop Table View */}
-          <div className="hidden sm:block overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-border">
-                  <th className="text-left p-4 font-medium text-muted-foreground">
-                    <Link href={buildSortUrl("title")} className="flex items-center hover:text-foreground">
-                      Event
-                      <SortIcon column="title" />
-                    </Link>
-                  </th>
-                  <th className="text-left p-4 font-medium text-muted-foreground">
-                    Category
-                  </th>
-                  <th className="text-left p-4 font-medium text-muted-foreground">
-                    <Link href={buildSortUrl("markets")} className="flex items-center hover:text-foreground">
-                      Markets
-                      <SortIcon column="markets" />
-                    </Link>
-                  </th>
-                  <th className="text-right p-4 font-medium text-muted-foreground">
-                    <Link href={buildSortUrl("volume")} className="flex items-center justify-end hover:text-foreground">
-                      Volume
-                      <SortIcon column="volume" />
-                    </Link>
-                  </th>
-                  <th className="text-right p-4 font-medium text-muted-foreground">
-                    <Link href={buildSortUrl("bets")} className="flex items-center justify-end hover:text-foreground">
-                      Bets
-                      <SortIcon column="bets" />
-                    </Link>
-                  </th>
-                  <th className="text-left p-4 font-medium text-muted-foreground">
-                    Published
-                  </th>
-                  <th className="text-left p-4 font-medium text-muted-foreground">
-                    Status
-                  </th>
-                  <th className="text-left p-4 font-medium text-muted-foreground">
-                    <Link href={buildSortUrl("startTime")} className="flex items-center hover:text-foreground">
-                      Start Time
-                      <SortIcon column="startTime" />
-                    </Link>
-                  </th>
-                  <th className="text-right p-4 font-medium text-muted-foreground sticky right-0 bg-card">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {eventsWithStats.map((event) => (
-                  <tr
-                    key={event.id}
-                    className="border-b border-border/50 hover:bg-muted/50 transition-colors group"
-                  >
-                    <td className="p-4">
-                      <div>
-                        <p className="font-medium">{event.title}</p>
-                        <p className="text-sm text-muted-foreground truncate max-w-xs">
-                          {event.description || event.slug}
-                        </p>
-                      </div>
-                    </td>
-                    <td className="p-4">
-                      <Badge variant="secondary">{event.category}</Badge>
-                    </td>
-                    <td className="p-4">{event._count.markets}</td>
-                    <td className="p-4 text-right font-mono text-sm">
-                      ${event.totalVolume.toLocaleString()}
-                    </td>
-                    <td className="p-4 text-right">{event.totalBets}</td>
-                    <td className="p-4">
-                      <PublishToggle
-                        id={event.id}
-                        type="event"
-                        isPublished={event.isPublished}
-                      />
-                    </td>
-                    <td className="p-4">
-                      <Badge
-                        variant={
-                          event.eventStatus === "active"
-                            ? "success"
-                            : event.eventStatus === "settled"
-                              ? "default"
-                              : event.eventStatus === "closed"
-                                ? "destructive"
-                                : "secondary"
-                        }
-                      >
-                        {event.eventStatus === "active"
-                          ? "Active"
-                          : event.eventStatus === "settled"
-                            ? "Settled"
-                            : event.eventStatus === "closed"
-                              ? "Inactive"
-                              : "Draft"}
-                      </Badge>
-                    </td>
-                    <td className="p-4 text-sm text-muted-foreground">
-                      {event.startTime
-                        ? format(new Date(event.startTime), "MMM d, yyyy")
-                        : "-"}
-                    </td>
-                    <td className="p-4 text-right sticky right-0 bg-card group-hover:bg-muted/50 transition-colors">
-                      <div className="flex items-center justify-end gap-1">
-                        <Button variant="ghost" size="sm" asChild>
-                          <Link href={getAdminEventUrl(event.id)}>
-                            <Eye className="h-4 w-4 mr-1" />
-                            View
-                          </Link>
-                        </Button>
-                        <Button variant="ghost" size="sm" asChild>
-                          <Link href={getAdminEventEditUrl(event.id)}>
-                            <Pencil className="h-4 w-4 mr-1" />
-                            Edit
-                          </Link>
-                        </Button>
-                      </div>
-                    </td>
+          <TooltipProvider>
+            <div className="hidden sm:block overflow-x-auto">
+              <table className="w-full min-w-[1000px]">
+                <thead>
+                  <tr className="border-b border-border">
+                    <th className="p-3 font-medium text-muted-foreground sticky left-0 bg-card z-10 w-[80px]">
+                    </th>
+                    <th className="text-center p-3 font-medium text-muted-foreground w-[70px]">
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div className="flex items-center justify-center gap-1 cursor-help">
+                            <Pin className="h-3.5 w-3.5" />
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p className="text-xs max-w-[200px]">Pin to &quot;Featured&quot; section on home page</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </th>
+                    <th className="text-left p-3 font-medium text-muted-foreground">
+                      <Link href={buildSortUrl("title")} className="flex items-center hover:text-foreground">
+                        Event
+                        <SortIcon column="title" />
+                      </Link>
+                    </th>
+                    <th className="text-left p-3 font-medium text-muted-foreground">
+                      Category
+                    </th>
+                    <th className="text-left p-3 font-medium text-muted-foreground">
+                      <Link href={buildSortUrl("markets")} className="flex items-center hover:text-foreground">
+                        Markets
+                        <SortIcon column="markets" />
+                      </Link>
+                    </th>
+                    <th className="text-right p-3 font-medium text-muted-foreground">
+                      <Link href={buildSortUrl("volume")} className="flex items-center justify-end hover:text-foreground">
+                        Volume
+                        <SortIcon column="volume" />
+                      </Link>
+                    </th>
+                    <th className="text-right p-3 font-medium text-muted-foreground">
+                      <Link href={buildSortUrl("bets")} className="flex items-center justify-end hover:text-foreground">
+                        Bets
+                        <SortIcon column="bets" />
+                      </Link>
+                    </th>
+                    <th className="text-left p-3 font-medium text-muted-foreground">
+                      Published
+                    </th>
+                    <th className="text-left p-3 font-medium text-muted-foreground">
+                      Status
+                    </th>
+                    <th className="text-left p-3 font-medium text-muted-foreground">
+                      <Link href={buildSortUrl("startTime")} className="flex items-center hover:text-foreground">
+                        Start Time
+                        <SortIcon column="startTime" />
+                      </Link>
+                    </th>
                   </tr>
-                ))}
-                {eventsWithStats.length === 0 && (
-                  <tr>
-                    <td
-                      colSpan={9}
-                      className="p-8 text-center text-muted-foreground"
+                </thead>
+                <tbody>
+                  {eventsWithStats.map((event) => (
+                    <tr
+                      key={event.id}
+                      className="border-b border-border/50 hover:bg-muted/50 transition-colors group"
                     >
-                      No events found. Try adjusting your filters.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+                      <td className="p-2 sticky left-0 bg-card group-hover:bg-muted/50 transition-colors z-10">
+                        <div className="flex items-center gap-0.5">
+                          <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
+                            <Link href={getAdminEventUrl(event.id)}>
+                              <Eye className="h-4 w-4" />
+                            </Link>
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
+                            <Link href={getAdminEventEditUrl(event.id)}>
+                              <Pencil className="h-4 w-4" />
+                            </Link>
+                          </Button>
+                        </div>
+                      </td>
+                      <td className="p-3">
+                        <EventFlagToggle
+                          eventId={event.id}
+                          flag="pinned"
+                          value={event.pinned}
+                        />
+                      </td>
+                      <td className="p-3">
+                        <div>
+                          <p className="font-medium">{event.title}</p>
+                          <p className="text-sm text-muted-foreground truncate max-w-xs">
+                            {event.description || event.slug}
+                          </p>
+                        </div>
+                      </td>
+                      <td className="p-3">
+                        <Badge variant="secondary">{event.category}</Badge>
+                      </td>
+                      <td className="p-3">{event._count.markets}</td>
+                      <td className="p-3 text-right font-mono text-sm">
+                        ${event.totalVolume.toLocaleString()}
+                      </td>
+                      <td className="p-3 text-right">{event.totalBets}</td>
+                      <td className="p-3">
+                        <PublishToggle
+                          id={event.id}
+                          type="event"
+                          isPublished={event.isPublished}
+                        />
+                      </td>
+                      <td className="p-3">
+                        <Badge
+                          variant={
+                            event.eventStatus === "active"
+                              ? "success"
+                              : event.eventStatus === "settled"
+                                ? "default"
+                                : event.eventStatus === "closed"
+                                  ? "destructive"
+                                  : "secondary"
+                          }
+                        >
+                          {event.eventStatus === "active"
+                            ? "Active"
+                            : event.eventStatus === "settled"
+                              ? "Settled"
+                              : event.eventStatus === "closed"
+                                ? "Inactive"
+                                : "Draft"}
+                        </Badge>
+                      </td>
+                      <td className="p-3 text-sm text-muted-foreground whitespace-nowrap">
+                        {event.startTime
+                          ? format(new Date(event.startTime), "MMM d, yyyy")
+                          : "-"}
+                      </td>
+                    </tr>
+                  ))}
+                  {eventsWithStats.length === 0 && (
+                    <tr>
+                      <td
+                        colSpan={10}
+                        className="p-8 text-center text-muted-foreground"
+                      >
+                        No events found. Try adjusting your filters.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </TooltipProvider>
         </GlassCardContent>
       </GlassCard>
     </div>

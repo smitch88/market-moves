@@ -67,22 +67,30 @@ This document describes all user journeys and workflows in the Vault Markets app
 │  Home Page (/)  │
 └────────┬────────┘
          │
-    ┌────┴────┬────────┐
-    │         │        │
-    ▼         ▼        ▼
-┌───────┐ ┌───────┐ ┌────────┐
-│ Sort  │ │Category│ │Bookmarks│
-│Options│ │Filter │ │Filter  │
-└───┬───┘ └───┬───┘ └───┬────┘
-    │         │         │
-    └────┬────┴─────────┘
-         │
          ▼
 ┌─────────────────┐
-│  Filtered Grid  │
-│  Event Cards    │
-└─────────────────┘
+│  Filter Bar     │
+│  (Status, View, │
+│  Category, Sort)│
+└────────┬────────┘
+         │
+    ┌────┼────────────┐
+    │    │            │
+    ▼    ▼            ▼
+┌────────┐ ┌─────────┐ ┌─────────────┐
+│Featured│ │Ending   │ │Explore More │
+│(6 max) │ │Soon     │ │             │
+│3 cols  │ │(<48hrs) │ │ Remaining   │
+│desktop │ │4-5 cols │ │ 4-5 cols    │
+└────────┘ └─────────┘ └─────────────┘
 ```
+
+**Home Page Layout:**
+1. **Featured Section** (top): Up to 6 events in full-size cards, 3 columns on desktop
+2. **Ending Soon Section** (middle): Markets closing within 48 hours, compact cards, 4-5 columns
+3. **Explore More Section** (bottom): Remaining events in compact cards, 4-5 columns
+
+**Note:** Sections only appear if they have events to display
 
 **Sort Options:**
 - Trending (most activity)

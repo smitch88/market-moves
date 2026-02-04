@@ -1,8 +1,13 @@
 export { EventCard } from "./event-card";
+export { EventCardCompact } from "./event-card-compact";
 export { EventGrid } from "./event-grid";
 export { EventGridSkeleton } from "./event-grid-skeleton";
 export { FeaturedEventBanner } from "./featured-event-banner";
 export { FeaturedEvents, FeaturedEventsSkeleton } from "./featured-events";
+export { FeaturedGrid, FeaturedGridSkeleton } from "./featured-grid";
+export { ExploreGrid, ExploreGridSkeleton } from "./explore-grid";
+export { ExploreSection, MarketSection } from "./explore-section";
+export { MarketSections, MarketSectionsSkeleton } from "./market-sections";
 export { QuickBetModal } from "./quick-bet-modal";
 export { EventActivityPanel } from "./event-activity-panel";
 export { EventKOLsPanel } from "./event-kols-panel";

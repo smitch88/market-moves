@@ -14,6 +14,8 @@ const createEventSchema = z.object({
   logoUrl: z.string().url().optional().or(z.literal("")),
   startTime: z.string().nullable().optional(),
   endTime: z.string().nullable().optional(),
+  featured: z.boolean().optional().default(false), // Show in top banner carousel
+  pinned: z.boolean().optional().default(false), // Show in "Featured" section grid
   tagIds: z.array(z.string()).optional(),
   createdByKolId: z.string().nullable().optional(), // KOL/Captain attribution
   // New tags to create and associate with the event
@@ -141,6 +143,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           logoUrl: data.logoUrl || null,
           startTime: data.startTime ? new Date(data.startTime) : null,
           endTime: data.endTime ? new Date(data.endTime) : null,
+          featured: data.featured,
+          pinned: data.pinned,
           createdByKolId: data.createdByKolId || null,
           ...(allTagIds.length > 0 && {
             tags: { connect: allTagIds.map((id) => ({ id })) },

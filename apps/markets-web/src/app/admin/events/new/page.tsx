@@ -20,6 +20,7 @@ import {
   Avatar,
   AvatarImage,
   AvatarFallback,
+  Switch,
 } from "@vault/ui";
 import { Loader2, X, Users, Copy } from "lucide-react";
 import { ImageUpload, CloneSelector, type EventForClone } from "@/components/admin";
@@ -85,6 +86,8 @@ export default function AdminNewEventPage() {
     logoUrl: "",
     startTime: "",
     endTime: "",
+    featured: false,
+    pinned: false,
     createdByKolId: "",
     // First market
     question: "",
@@ -118,6 +121,8 @@ export default function AdminNewEventPage() {
         logoUrl: data.logoUrl || "",
         startTime: "", // Don't copy dates - they should be new
         endTime: "",
+        featured: false, // Don't copy - should be explicitly set
+        pinned: false, // Don't copy - should be explicitly set
         createdByKolId: data.createdByKolId || "",
         // First market from cloned event
         question: firstMarket?.question || "",
@@ -173,6 +178,8 @@ export default function AdminNewEventPage() {
           logoUrl: data.logoUrl || undefined,
           startTime: inputToUtcIso(data.startTime),
           endTime: inputToUtcIso(data.endTime),
+          featured: data.featured,
+          pinned: data.pinned,
           tagIds: selectedTagIds.length > 0 ? selectedTagIds : undefined,
           createdByKolId: data.createdByKolId || undefined,
           markets: [
@@ -479,6 +486,46 @@ export default function AdminNewEventPage() {
                 No Captains available. Designate users as Captains in the Users section.
               </p>
             )}
+          </GlassCardContent>
+        </GlassCard>
+
+        {/* Visibility & Promotion */}
+        <GlassCard variant="solid">
+          <GlassCardHeader>
+            <h2 className="text-lg font-semibold">Visibility & Promotion</h2>
+            <p className="text-sm text-muted-foreground">
+              Control how this event appears on the home page
+            </p>
+          </GlassCardHeader>
+          <GlassCardContent className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <Label>Featured</Label>
+                <p className="text-sm text-muted-foreground">
+                  Show in the <span className="font-medium text-foreground">top banner carousel</span> on the home page. Only one event should be featured at a time.
+                </p>
+              </div>
+              <Switch
+                checked={formData.featured}
+                onCheckedChange={(checked) =>
+                  setFormData((prev) => ({ ...prev, featured: checked }))
+                }
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <div>
+                <Label>Pinned</Label>
+                <p className="text-sm text-muted-foreground">
+                  Show in the <span className="font-medium text-foreground">&quot;Featured&quot; section</span> grid below the banner. Up to 6 pinned events are displayed.
+                </p>
+              </div>
+              <Switch
+                checked={formData.pinned}
+                onCheckedChange={(checked) =>
+                  setFormData((prev) => ({ ...prev, pinned: checked }))
+                }
+              />
+            </div>
           </GlassCardContent>
         </GlassCard>
 

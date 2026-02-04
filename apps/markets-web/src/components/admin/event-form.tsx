@@ -128,6 +128,8 @@ export function EventForm({ event }: EventFormProps) {
     endTime: event?.endTime ? formatDateForInput(event.endTime) : "",
     active: event?.active ?? true,
     closed: event?.closed ?? false,
+    featured: event?.featured ?? false,
+    pinned: event?.pinned ?? false,
     createdByKolId: event?.createdByKolId || "",
   });
 
@@ -174,6 +176,8 @@ export function EventForm({ event }: EventFormProps) {
           endTime: data.endTime ? inputToUTCISO(data.endTime) : null,
           active: data.active,
           closed: data.closed,
+          featured: data.featured,
+          pinned: data.pinned,
           tagIds: selectedTagIds,
           createdByKolId: data.createdByKolId || null,
         }),
@@ -474,6 +478,46 @@ export function EventForm({ event }: EventFormProps) {
               No Captains available. Designate users as Captains in the Users section.
             </p>
           )}
+        </GlassCardContent>
+      </GlassCard>
+
+      {/* Visibility & Promotion */}
+      <GlassCard>
+        <GlassCardHeader>
+          <h2 className="text-lg font-semibold">Visibility & Promotion</h2>
+          <p className="text-sm text-muted-foreground">
+            Control how this event appears on the home page
+          </p>
+        </GlassCardHeader>
+        <GlassCardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <Label>Featured</Label>
+              <p className="text-sm text-muted-foreground">
+                Show in the <span className="font-medium text-foreground">top banner carousel</span> on the home page. Only one event should be featured at a time.
+              </p>
+            </div>
+            <Switch
+              checked={formData.featured}
+              onCheckedChange={(checked) =>
+                setFormData((prev) => ({ ...prev, featured: checked }))
+              }
+            />
+          </div>
+          <div className="flex items-center justify-between">
+            <div>
+              <Label>Pinned</Label>
+              <p className="text-sm text-muted-foreground">
+                Show in the <span className="font-medium text-foreground">&quot;Featured&quot; section</span> grid below the banner. Up to 6 pinned events are displayed.
+              </p>
+            </div>
+            <Switch
+              checked={formData.pinned}
+              onCheckedChange={(checked) =>
+                setFormData((prev) => ({ ...prev, pinned: checked }))
+              }
+            />
+          </div>
         </GlassCardContent>
       </GlassCard>
 

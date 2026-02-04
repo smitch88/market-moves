@@ -1,9 +1,9 @@
 import { Suspense } from "react";
 import {
-  EventGrid,
-  EventGridSkeleton,
   FeaturedEvents,
   FeaturedEventsSkeleton,
+  MarketSections,
+  MarketSectionsSkeleton,
 } from "@/components/events";
 import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
@@ -38,9 +38,9 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           <MarketFilters />
         </Suspense>
 
-        {/* Events Grid */}
-        <Suspense fallback={<EventGridSkeleton />}>
-          <EventGrid 
+        {/* Market Sections: Featured, Ending Soon, Explore More */}
+        <Suspense fallback={<MarketSectionsSkeleton />}>
+          <MarketSections 
             view={view} 
             category={category} 
             query={q} 

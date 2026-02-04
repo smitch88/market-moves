@@ -14,7 +14,6 @@ import { cn } from "@vault/ui/lib/utils";
 import { motion } from "framer-motion";
 import { 
   Flame, 
-  Clock, 
   Sparkles, 
   Trophy, 
   Tv, 
@@ -43,7 +42,6 @@ import { useSession, signIn } from "@vault/auth/client";
 
 const viewFilters = [
   { label: "Trending", value: "trending", icon: Flame },
-  { label: "Ending Soon", value: "ending", icon: Clock },
   { label: "New", value: "new", icon: Sparkles },
   { label: "Captain Created", value: "kol-created", icon: Star },
   { label: "Bookmarks", value: "bookmarks", icon: Bookmark, requiresAuth: true },

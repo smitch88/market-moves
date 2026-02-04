@@ -13,6 +13,8 @@ const updateEventSchema = z.object({
   endTime: z.string().nullable().optional(),
   active: z.boolean().optional(),
   closed: z.boolean().optional(),
+  featured: z.boolean().optional(), // Show in top banner carousel
+  pinned: z.boolean().optional(), // Show in "Featured" section grid
   tagIds: z.array(z.string()).optional(),
   createdByKolId: z.string().nullable().optional(), // KOL/Captain attribution
 });
@@ -109,6 +111,8 @@ export async function PATCH(
           ...(data.endTime !== undefined && { endTime: data.endTime ? new Date(data.endTime) : null }),
           ...(data.active !== undefined && { active: data.active }),
           ...(data.closed !== undefined && { closed: data.closed }),
+          ...(data.featured !== undefined && { featured: data.featured }),
+          ...(data.pinned !== undefined && { pinned: data.pinned }),
           ...(data.tagIds && { tags: { set: data.tagIds.map((tagId) => ({ id: tagId })) } }),
           ...(data.createdByKolId !== undefined && { createdByKolId: data.createdByKolId || null }),
         },
