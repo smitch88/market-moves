@@ -34,6 +34,7 @@ When working with OpenAI models in this project:
 | `WORKFLOWS.md` | User journey documentation with step-by-step flows |
 | `API.md` | API endpoint reference |
 | `COMPONENTS.md` | Shared component documentation |
+| `CONTRACTS_ARCHITECTURE.md` | Smart contract design, interfaces, and deployment strategy |
 
 ### Documentation Standards
 
@@ -52,3 +53,15 @@ Before completing any task that modifies the application:
 - [ ] Have I added/modified an API endpoint? → Update API.md
 - [ ] Have I changed the database schema? → Update SOLUTION.md
 - [ ] Have I added new UI components to vault-ui? → Update COMPONENTS.md
+- [ ] Have I added/modified smart contracts? → Update CONTRACTS_ARCHITECTURE.md and ensure NatSpec is complete
+
+## Smart Contract Development
+
+When working with the `packages/contracts` workspace, follow the rules in `packages/contracts/CLAUDE.md`. Key requirements:
+
+- **Solidity 0.8.33** with EVM version `osaka`
+- **NatSpec**: Full documentation on interfaces, `@inheritdoc` on implementations
+- **Interfaces**: Single source of truth for errors, events, structs
+- **Reads > Writes**: Comprehensive view methods, minimal state-changing methods
+- **Solady-first**: Use optimized primitives from [Solady](https://github.com/Vectorized/solady)
+- **Transient storage**: Use `tstore`/`tload` for reentrancy guards
