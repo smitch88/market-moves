@@ -41,11 +41,12 @@ export async function GET(request: NextRequest) {
       take: limit,
     });
 
-    // Transform bets to include outcome labels
+    // Transform bets to include outcome labels and trade type
     const transformedBets = recentBets.map((bet) => {
       const outcomes = JSON.parse(bet.market.outcomes) as string[];
       return {
         ...bet,
+        tradeType: bet.tradeType, // BUY or SELL
         outcomeLabel: outcomes[bet.outcomeIndex],
       };
     });

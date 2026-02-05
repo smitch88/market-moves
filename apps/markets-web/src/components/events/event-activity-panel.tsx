@@ -26,6 +26,7 @@ interface ActivityBet {
     id: string;
     question: string;
   };
+  tradeType: "BUY" | "SELL";
   amount: number;
   outcomeIndex: number;
   outcomeLabel: string;
@@ -227,11 +228,22 @@ export function EventActivityPanel({
                         )}
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
-                        Bet{" "}
-                        <span className="text-emerald-400 font-medium">
-                          {formatAmount(bet.amount)}
-                        </span>{" "}
-                        on{" "}
+                        {bet.tradeType === "SELL" ? (
+                          <>
+                            <span className="text-rose-400 font-medium">Sold</span>{" "}
+                            <span className="text-rose-400 font-medium">
+                              {formatAmount(bet.amount)}
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="text-emerald-400 font-medium">Bought</span>{" "}
+                            <span className="text-emerald-400 font-medium">
+                              {formatAmount(bet.amount)}
+                            </span>
+                          </>
+                        )}{" "}
+                        of{" "}
                         <span className="text-foreground/80">
                           {bet.outcomeLabel}
                         </span>

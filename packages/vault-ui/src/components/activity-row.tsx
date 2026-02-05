@@ -9,7 +9,7 @@ interface ActivityRowProps {
     name?: string | null;
     profileImageUrl?: string | null;
   };
-  action: "bet" | "win" | "loss";
+  action: "bet" | "bought" | "sold" | "win" | "loss";
   amount: number;
   outcome: {
     label: string;
@@ -37,12 +37,16 @@ export function ActivityRow({
 
   const actionText = {
     bet: "placed bet on",
+    bought: "bought",
+    sold: "sold",
     win: "won on",
     loss: "lost on",
   };
 
   const actionColor = {
     bet: "text-foreground",
+    bought: "text-chart-2",
+    sold: "text-rose-400",
     win: "text-chart-2",
     loss: "text-destructive",
   };

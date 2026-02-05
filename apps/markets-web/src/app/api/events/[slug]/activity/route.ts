@@ -40,11 +40,10 @@ export async function GET(
 
     const eventId = event.id;
 
-    // Build where clause
+    // Build where clause - include both BUY and SELL trades
     const whereClause: Prisma.BetWhereInput = {
       market: { eventId },
       status: BetStatus.CONFIRMED,
-      tradeType: "BUY",
     };
 
     if (marketId) {
@@ -103,6 +102,7 @@ export async function GET(
           id: bet.market.id,
           question: bet.market.question,
         },
+        tradeType: bet.tradeType, // BUY or SELL
         amount: Number(bet.amount),
         outcomeIndex: bet.outcomeIndex,
         outcomeLabel,

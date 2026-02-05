@@ -65,6 +65,7 @@ export function RecentActivity({ limit = 5 }: RecentActivityProps) {
             amount: number;
             outcomeIndex: number;
             outcomeLabel?: string;
+            tradeType?: "BUY" | "SELL";
             createdAt: string;
             user: { handle?: string; name?: string; profileImageUrl?: string };
             market: { 
@@ -78,6 +79,9 @@ export function RecentActivity({ limit = 5 }: RecentActivityProps) {
           const outcomes = parseOutcomes(bet.market?.outcomes);
           const outcomeLabel = bet.outcomeLabel || outcomes[bet.outcomeIndex] || "Unknown";
           const eventSlug = bet.market?.event?.slug || bet.market?.slug;
+          
+          // Determine action based on trade type
+          const betAction = bet.tradeType === "BUY" ? "bought" : bet.tradeType === "SELL" ? "sold" : "bet";
           
           return (
             <UserHoverCard
@@ -98,7 +102,7 @@ export function RecentActivity({ limit = 5 }: RecentActivityProps) {
                     name: bet.user.name,
                     profileImageUrl: bet.user.profileImageUrl,
                   }}
-                  action="bet"
+                  action={betAction}
                   amount={bet.amount}
                   outcome={{
                     label: outcomeLabel,
