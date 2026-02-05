@@ -1049,3 +1049,92 @@ All error responses follow this format:
 - `404` - Not Found
 - `409` - Conflict (e.g., duplicate)
 - `500` - Internal Server Error
+
+---
+
+## Predictor Signal Endpoints (markets-web → markets-arena)
+
+These endpoints serve off-chain prediction data from `markets-web` as signals for market makers and admins configuring on-chain markets in `markets-arena`.
+
+### GET /api/signals/market/:id/price-discovery
+
+Returns current off-chain CPMM prices with confidence metrics.
+
+**Response:**
+```json
+{
+  "marketId": "clx...",
+  "prices": [0.65, 0.35],
+  "outcomes": ["Yes", "No"],
+  "uniqueBettors": 127,
+  "totalVolume": 85000.00,
+  "confidenceScore": 0.82,
+  "lastTradeAt": "2026-02-05T12:00:00Z"
+}
+```
+
+### GET /api/signals/market/:id/volume-heatmap
+
+Returns volume distribution by price bucket (0.05 increments) for CLMM band configuration.
+
+**Response:**
+```json
+{
+  "marketId": "clx...",
+  "outcome": 0,
+  "buckets": [
+    { "priceMin": 0.55, "priceMax": 0.60, "volume": 12500.00, "tradeCount": 45 },
+    { "priceMin": 0.60, "priceMax": 0.65, "volume": 28000.00, "tradeCount": 89 },
+    { "priceMin": 0.65, "priceMax": 0.70, "volume": 19000.00, "tradeCount": 62 }
+  ]
+}
+```
+
+### GET /api/signals/market/:id/graduation-readiness
+
+Returns composite graduation readiness score with per-criterion breakdown.
+
+**Response:**
+```json
+{
+  "marketId": "clx...",
+  "readinessScore": 87,
+  "criteria": {
+    "virtualVolume": { "value": 72000, "threshold": 50000, "met": true },
+    "uniqueBettors": { "value": 89, "threshold": 50, "met": true },
+    "priceStability": { "value": 0.08, "threshold": 0.20, "met": true },
+    "adminApproval": { "value": false, "threshold": true, "met": false }
+  },
+  "suggestedParams": {
+    "initialPrices": [0.64, 0.36],
+    "suggestedLiquidity": 5000,
+    "suggestedClmmRange": { "lower": 0.50, "upper": 0.80 }
+  }
+}
+```
+
+### GET /api/signals/markets/candidates
+
+Returns all markets meeting graduation criteria, sorted by readiness.
+
+**Query Parameters:**
+| Param | Type | Description |
+|-------|------|-------------|
+| minScore | number | Minimum readiness score (default: 70) |
+| limit | number | Max results (default: 20) |
+
+**Response:**
+```json
+{
+  "candidates": [
+    {
+      "marketId": "clx...",
+      "question": "Will BTC hit $100k by Q2 2026?",
+      "readinessScore": 92,
+      "virtualVolume": 120000,
+      "uniqueBettors": 203,
+      "currentPrices": [0.72, 0.28]
+    }
+  ]
+}
+```

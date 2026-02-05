@@ -513,6 +513,31 @@ pnpm db:studio     # Open Prisma Studio
 
 ---
 
+## Two-App Architecture
+
+Vault Markets operates as two frontend applications sharing a common backend:
+
+### markets-web (Predictor / Free-to-Play)
+- Current application — virtual balance, gamification, social features
+- Acts as a **market incubator and demand oracle**
+- Off-chain CPMM trades, XP, streaks, KOL competition
+- Prediction data feeds market making signals for the real-money app
+
+### markets-arena (Real Money / On-Chain)
+- On-chain prediction market with USDC collateral on Arbitrum
+- Smart contract settlement (FPMM/CLMM/CLOB via VaultMarket contracts)
+- Wallet-based trading (Privy embedded wallets + future AA/session keys)
+- Receives graduated markets from markets-web
+
+### Graduation Pipeline
+- **Market graduation**: Markets prove demand in free-to-play (volume, unique bettors, price stability), then deploy on-chain for real-money trading
+- **User graduation**: Users build reputation in markets-web (XP, streaks), then connect a wallet to access markets-arena. Reputation carries over; virtual balance does not.
+- **Signal pipeline**: Off-chain prediction data (prices, volume heatmaps, bet distributions) serves as a dashboard/API for market makers configuring CLMM liquidity bands
+
+See `CONTRACTS_ARCHITECTURE.md` for full technical details on the graduation system, predictor signal pipeline, and on-chain/off-chain boundary.
+
+---
+
 ## Deployment
 
 The application is designed for deployment on Vercel with:

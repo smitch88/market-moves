@@ -979,3 +979,87 @@ DRAFT → PUBLISHED → OPEN → CLOSED → RESOLVED → SETTLED
 - Amber "Impersonating" badge in header
 - All API calls use impersonated user
 - "Stop Impersonating" in profile dropdown
+
+---
+
+## Market Graduation Workflow
+
+Markets graduate from `markets-web` (free-to-play) to `markets-arena` (real money on-chain).
+
+```
+┌──────────────────────────────────────────────────────────┐
+│  MARKETS-WEB (Free-to-Play)                              │
+│                                                          │
+│  1. Admin creates market (DRAFT → PUBLISHED → OPEN)      │
+│  2. Users trade with virtual balance                     │
+│  3. Volume, unique bettors, price stability tracked      │
+│  4. Market hits graduation criteria:                     │
+│     - $50k+ virtual volume                               │
+│     - 50+ unique bettors                                 │
+│     - Price stability (< 20% swing in 24h)               │
+│  5. Flagged as graduation candidate                      │
+└──────────────────────┬───────────────────────────────────┘
+                       │ Admin reviews / approves
+                       ▼
+┌──────────────────────────────────────────────────────────┐
+│  GRADUATION (Backend)                                    │
+│                                                          │
+│  1. Reads off-chain CPMM prices + volume data            │
+│  2. Calls VaultMarket.createEvent() (if new event)       │
+│  3. Calls VaultMarket.createMarket() with:               │
+│     - initialPrices seeded from off-chain CPMM prices    │
+│     - initialLiquidity from protocol vault / creator credit│
+│     - OracleConfig if applicable                         │
+│  4. Market is now Active on-chain                        │
+└──────────────────────┬───────────────────────────────────┘
+                       │
+                       ▼
+┌──────────────────────────────────────────────────────────┐
+│  MARKETS-ARENA (Real Money)                              │
+│                                                          │
+│  - Market appears for real-money USDC trading            │
+│  - FPMM / CLMM / CLOB venues available                  │
+│  - Off-chain market optionally stays live as predictor   │
+└──────────────────────────────────────────────────────────┘
+```
+
+---
+
+## User Graduation Workflow
+
+Users graduate from free-to-play to real-money trading.
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  MARKETS-WEB USER                                       │
+│                                                         │
+│  1. Signs up with Twitter OAuth (Privy)                 │
+│  2. Gets $10,000 virtual balance                        │
+│  3. Trades, earns XP, builds streaks                    │
+│  4. Builds reputation (KOL status, referrals)           │
+└──────────────────────┬──────────────────────────────────┘
+                       │ User clicks "Go Real" / connects wallet
+                       ▼
+┌─────────────────────────────────────────────────────────┐
+│  WALLET ONBOARDING                                      │
+│                                                         │
+│  1. Privy creates embedded wallet (or user connects     │
+│     external wallet like MetaMask)                      │
+│  2. VaultCredit.registerProfile() creates on-chain      │
+│     identity (same Privy userId links both accounts)    │
+│  3. Off-chain XP/streak/KOL status informs on-chain     │
+│     ProfileStatus tier (affects credit limits)          │
+│  4. Virtual balance does NOT carry over                 │
+│  5. User must deposit USDC for real trading             │
+└──────────────────────┬──────────────────────────────────┘
+                       │
+                       ▼
+┌─────────────────────────────────────────────────────────┐
+│  MARKETS-ARENA USER                                     │
+│                                                         │
+│  - Trades with real USDC on-chain                       │
+│  - Positions are ERC-1155 outcome tokens                │
+│  - PnL is real                                          │
+│  - Can still use markets-web for free-to-play           │
+└─────────────────────────────────────────────────────────┘
+```

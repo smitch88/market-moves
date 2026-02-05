@@ -333,6 +333,8 @@ Libraries (pure/view)
 | `MIN_CREATOR_FEE` | 50 bps (0.5%) | Minimum creator fee to prevent sybil evasion |
 | `MAX_OUTCOMES` | 8 | Maximum outcomes per market to bound FPMM gas costs |
 | `DISPUTE_PERIOD` | 86400 (24 hours) | Time after resolution before `processEarnings` is callable |
+| `DEFAULT_GRACE_PERIOD` | 172800 (48 hours) | Max delay after `resolutionTime` before admin fallback is allowed for oracle markets |
+| `DEFAULT_STALE_TOLERANCE` | 3600 (1 hour) | Max oracle data age for `resolveByOracle` |
 
 **Read Methods (view/pure):**
 
@@ -377,6 +379,10 @@ Libraries (pure/view)
 | `claimCreatorFees(uint256 marketId)` | Creator | Withdraw accrued fees |
 | `pauseMarket(uint256 marketId)` | Admin | Emergency pause |
 | `unpauseMarket(uint256 marketId)` | Admin | Resume trading |
+| `closeMarket(uint256 marketId)` | Permissionless | Transition to Closed when `block.timestamp >= resolutionTime` |
+| `resolveByOracle(uint256 marketId)` | Permissionless | Resolve via configured oracle (state must be Closed, resolver != ADMIN) |
+| `cancelMarket(uint256 marketId)` | Admin | Cancel market (Active/Paused/Closed → Cancelled). Enables pull-based refunds. |
+| `claimRefund(uint256 marketId)` | User | Claim proportional USDC refund after market cancellation |
 
 > **Swap Direction & Deadlines**: `SwapParams` includes `isBuy` (buy vs sell) and `deadline` to prevent stale execution. `Swap` events emit `fee` and `newPrice` for indexers and analytics.
 
@@ -398,10 +404,16 @@ Libraries (pure/view)
 > ```
 > Active → Paused    (pauseMarket)
 > Paused → Active    (unpauseMarket)
-> Active → Resolved  (resolve)
-> Paused → Resolved  (resolve — allows resolving paused markets)
+> Active → Closed    (closeMarket / lazy on block.timestamp >= resolutionTime)
+> Paused → Closed    (closeMarket)
+> Closed → Resolved  (resolve / resolveByOracle)
+> Active → Resolved  (resolve — admin fast-path, skips Closed)
+> Paused → Resolved  (resolve — admin fast-path)
+> Active/Paused/Closed → Cancelled  (cancelMarket — admin only)
 > ```
-> Resolved is terminal — no transition back. `createMarket` initializes to Active. Any other transition MUST revert with `InvalidStateTransition(currentState, targetState)`.
+> **Closed** = trading disabled, awaiting resolution. **Resolved** and **Cancelled** are terminal — no transition back. `createMarket` initializes to Active. Any other transition MUST revert with `InvalidStateTransition(currentState, targetState)`.
+>
+> **Lazy Close:** Any write call (`swap`, `split`, `addLiquidity`) SHOULD check `block.timestamp >= market.resolutionTime` and auto-transition to Closed if still Active. Alternatively, `closeMarket(marketId)` is permissionless and callable by anyone/keepers when `block.timestamp >= resolutionTime`.
 
 > **Event Modeling**: Each market belongs to an `eventId`. Event metadata is kept minimal on-chain (for grouping/filtering) and points to rich off-chain metadata via `metadataURI`.
 
@@ -424,14 +436,28 @@ struct Event {
 **Market Struct (excerpt):**
 
 ```solidity
+enum MarketState { Active, Paused, Closed, Resolved }
+
+enum ResolverType { ADMIN, CHAINLINK_FEED, CUSTOM_ADAPTER }
+
+struct OracleConfig {
+    ResolverType resolverType;
+    address oracle;            // e.g., Chainlink AggregatorV3Interface
+    bytes32 oracleData;        // encoded thresholds / ranges / outcome mapping
+    uint64 staleTolerance;     // max seconds since last oracle update
+    uint64 gracePeriod;        // max delay after resolutionTime before fallback
+}
+
 struct Market {
     uint256 eventId;
     uint8 outcomes;
     MarketState state;
-    uint64 createdAt;     // block.timestamp at creation
-    uint64 disputeDeadline; // resolvedAt + DISPUTE_PERIOD; 0 if unresolved
-    uint64 updatedAt;     // last state change
-    uint64 resolvedAt;    // 0 if unresolved
+    uint64 createdAt;         // block.timestamp at creation
+    uint64 resolutionTime;    // when market closes for resolution
+    uint64 disputeDeadline;   // resolvedAt + DISPUTE_PERIOD; 0 if unresolved
+    uint64 updatedAt;         // last state change
+    uint64 resolvedAt;        // 0 if unresolved
+    OracleConfig oracleConfig; // optional; resolverType == ADMIN if no oracle
     // ... other fields
 }
 ```
@@ -444,6 +470,137 @@ struct Market {
 > Maintain active ID lists with swap-and-pop on state changes (pause/resolve/endTime) to keep enumeration cheap and deterministic.
 >
 > **Decentralized Resolution (Future)**: The end state should allow fully on-chain resolution via an oracle + keeper system. Keepers can monitor **closed but unresolved** markets and trigger settlement or dispute flows. Indexers remain optional for low latency/UX, but all critical reads and resolution paths should be possible directly on-chain. The only intentionally hybrid component is the CLOB due to latency/MEV constraints.
+
+---
+
+### Oracle-Based Resolution (V1.6.1)
+
+Markets may optionally be configured with an on-chain oracle resolver. When configured, markets transition to `Closed` at `resolutionTime` and may be resolved permissionlessly via `resolveByOracle(marketId)`.
+
+**Resolver Types:**
+
+| Type | Use Case | Resolution Actor |
+|------|----------|-----------------|
+| `ADMIN` | Subjective markets (politics, sports outcomes) | Admin/multisig only |
+| `CHAINLINK_FEED` | Objectively machine-verifiable (price thresholds) | Permissionless via oracle read |
+| `CUSTOM_ADAPTER` | Complex conditions (multi-feed, off-chain proof) | Permissionless via adapter contract |
+
+**`resolveByOracle(marketId)` Logic:**
+
+```solidity
+function resolveByOracle(uint256 marketId) external {
+    Market storage m = markets[marketId];
+    if (m.state != MarketState.Closed) revert MarketNotClosed(marketId);
+    if (m.oracleConfig.resolverType == ResolverType.ADMIN) revert AdminResolutionOnly();
+
+    // Read oracle
+    (int256 answer, uint256 updatedAt) = _readOracle(m.oracleConfig);
+
+    // Staleness check
+    if (block.timestamp - updatedAt > m.oracleConfig.staleTolerance)
+        revert OracleDataStale(updatedAt, m.oracleConfig.staleTolerance);
+
+    // Snapshot time: oracle must have updated after resolutionTime
+    if (updatedAt < m.resolutionTime)
+        revert OracleNotYetUpdated(updatedAt, m.resolutionTime);
+
+    // Grace period: cannot resolve too late (forces fallback to admin)
+    if (block.timestamp > m.resolutionTime + m.oracleConfig.gracePeriod)
+        revert GracePeriodExpired(m.resolutionTime, m.oracleConfig.gracePeriod);
+
+    // Determine winner from oracle data + market thresholds
+    uint8 winner = _computeWinner(m.oracleConfig, answer);
+
+    // Resolve
+    _resolve(marketId, winner, "oracle");
+}
+```
+
+> **Permissionless Is a Feature:** Keepers provide liveness guarantees, but **anyone** can call `resolveByOracle` if oracle conditions are met. This eliminates single-point liveness failure. Gas cost is bounded and predictable (single oracle read + state update).
+
+> **Oracle Staleness & Snapshot Semantics:** For price-based markets, the market question is defined as: *"Using the first oracle update on or after `resolutionTime`."* This prevents resolving on stale data, resolving too early, and avoids ambiguous "which timestamp counts?" disputes. The `staleTolerance` and `gracePeriod` provide bounded windows.
+
+**Fallback Resolution:**
+
+If oracle resolution fails (stale feed, adapter revert, grace period expired), the market remains `Closed` and falls back to admin resolution:
+
+```
+Closed → (oracle available) → resolveByOracle() → Resolved
+Closed → (grace period expired, oracle unavailable) → resolve() by Admin → Resolved
+```
+
+> **Fallback Rule:** After `resolutionTime + gracePeriod`, admin `resolve()` is unlocked for oracle-configured markets. Before that deadline, only `resolveByOracle()` is permitted (prevents admin front-running the oracle). This preserves decentralization guarantees during the oracle window while ensuring markets always eventually resolve.
+
+---
+
+### VaultAutomationResolver (Chainlink Automation)
+
+A lightweight 7th contract (holds no funds, minimal audit surface) that implements Chainlink Automation's `checkUpkeep` / `performUpkeep` interface to provide resolution liveness.
+
+```solidity
+/// @title Vault Automation Resolver
+/// @notice Chainlink Automation-compatible contract that polls for
+///         resolvable markets and triggers oracle resolution.
+/// @dev Holds no funds. Only calls VaultMarket.resolveByOracle().
+contract VaultAutomationResolver is AutomationCompatibleInterface {
+    IVaultMarket public immutable vaultMarket;
+    uint256 public nextMarketToCheck;   // cursor to avoid O(n) scans
+    uint256 public constant MAX_CHECK = 20;  // max markets per checkUpkeep
+    uint256 public constant MAX_RESOLVE = 3; // max resolutions per performUpkeep
+
+    function checkUpkeep(bytes calldata)
+        external view override
+        returns (bool upkeepNeeded, bytes memory performData)
+    {
+        uint256 total = vaultMarket.getMarketCount();
+        uint256[] memory resolvable = new uint256[](MAX_RESOLVE);
+        uint256 found;
+        uint256 cursor = nextMarketToCheck;
+
+        for (uint256 i; i < MAX_CHECK && found < MAX_RESOLVE; i++) {
+            uint256 mid = (cursor + i) % total;
+            if (mid == 0) continue; // marketId 0 unused
+            if (_isResolvable(mid)) {
+                resolvable[found++] = mid;
+            }
+        }
+
+        if (found > 0) {
+            // trim array
+            assembly { mstore(resolvable, found) }
+            return (true, abi.encode(resolvable));
+        }
+        return (false, "");
+    }
+
+    function performUpkeep(bytes calldata performData) external override {
+        uint256[] memory marketIds = abi.decode(performData, (uint256[]));
+        for (uint256 i; i < marketIds.length; i++) {
+            // try/catch so one failure doesn't block others
+            try vaultMarket.resolveByOracle(marketIds[i]) {} catch {}
+        }
+        nextMarketToCheck = (nextMarketToCheck + MAX_CHECK)
+            % vaultMarket.getMarketCount();
+    }
+
+    function _isResolvable(uint256 marketId) internal view returns (bool) {
+        MarketState state = vaultMarket.getMarketState(marketId);
+        if (state != MarketState.Closed) return false;
+        Market memory m = vaultMarket.getMarket(marketId);
+        if (m.oracleConfig.resolverType == ResolverType.ADMIN) return false;
+        // Check grace period hasn't expired
+        if (block.timestamp > m.resolutionTime + m.oracleConfig.gracePeriod)
+            return false;
+        return true;
+    }
+}
+```
+
+> **Gas Bounds:** `performUpkeep` resolves at most `MAX_RESOLVE` (3) markets per call to stay within Chainlink Automation's upkeep gas limit. `checkUpkeep` scans at most `MAX_CHECK` (20) markets per call using a rotating cursor. No unbounded loops.
+>
+> **Chainlink Automation on Arbitrum:** Automation is supported on Arbitrum One via registry v2.1+. Configure upkeeps with a gas price threshold to avoid execution during extreme L2 congestion.
+>
+> **Supplementary Contract:** This is a justified exception to the "6 contracts" principle. VaultAutomationResolver holds no funds, has no privileged access (calls only permissionless `resolveByOracle`), and is a ~50-line contract with minimal audit surface.
 
 ---
 
@@ -652,6 +809,8 @@ enum FeeSource { FPMM, CLOB, CLMM }
 > **Dispute Window Enforcement (On-Chain):** `processEarnings()` MUST revert with `DisputeWindowActive(marketId, disputeDeadline)` if `block.timestamp < market.disputeDeadline`. This ensures the dispute period is enforced at the contract level, not just cosmetically in the UI. `redeem()` is callable immediately after resolution since users are redeeming their own shares.
 
 > **Wallet Link Authorization:** `linkWallet()` requires an EIP-712 signature from the wallet being linked, preventing unauthorized profile association. Without this, an attacker could link a victim's wallet to their own profile and subject the victim's earnings to the attacker's debt-first waterfall. `unlinkWallet()` is callable by either the profile owner or the wallet itself (so a wallet can always remove itself).
+
+> **Wallet Array Gas Safety:** Profile wallets are stored for enumeration, but all state-changing functions MUST use mapping-based membership checks (`isWalletLinked[address] => profileId`), never iterate the array. On-chain enumeration is view-only via `getProfileWallets()`. Consider capping wallets per profile (e.g., `MAX_WALLETS_PER_PROFILE = 10`) to bound view-function gas.
 
 > **Credit Line Scope:** `recordDebt()` is restricted to VaultMarket only. Credit is intentionally scoped to FPMM market creation / initial liquidity seeding. If credit is ever extended to CLMM LP seeding or CLOB margin, the ACL and debt accounting must be expanded accordingly.
 
@@ -1985,6 +2144,243 @@ The on-chain app must preserve **current markets-web UX** (select outcome → en
 
 ---
 
+## Two-App Architecture & Graduation System
+
+### App Topology
+
+Vault Markets operates as **two distinct frontend applications** sharing a common backend, connected by a market and user graduation pipeline:
+
+| | markets-web (Predictor) | markets-arena (Real Money) |
+|---|---|---|
+| **Purpose** | Free-to-play predictor, market incubator, demand oracle | Real-money prediction market with on-chain settlement |
+| **Balance** | Virtual ($10k starting credit) | USDC (on-chain, user's wallet) |
+| **Auth** | Twitter OAuth via Privy | Privy embedded wallet + optional external wallet |
+| **Trading** | Off-chain CPMM (DB transactions) | On-chain FPMM / CLMM / CLOB |
+| **Positions** | DB `Position` table | ERC-1155 `VaultToken.balanceOf` |
+| **Settlement** | Admin settle + user redeem (DB) | Pull-based `redeem()` on-chain |
+| **Gamification** | XP, streaks, badges, KOL competition, referrals, daily spins | Real PnL, leaderboard (from indexer) |
+| **Shared** | Backend API, Postgres DB, event/market metadata, resolution sources | Backend API, Postgres DB, subgraph/indexer |
+
+> **Predictor as Market Intelligence:** `markets-web` is not just a game — it is a **demand oracle and price discovery engine**. Off-chain prediction data provides: (1) market viability signals (volume + unique bettors prove demand), (2) initial price discovery (crowd sentiment before real money is at stake), (3) CLMM band intelligence (where users cluster bets informs concentrated liquidity ranges), and (4) volume forecasting (off-chain trading rate predicts on-chain surge fee levels).
+
+### Market Graduation System
+
+Markets start in `markets-web` (free-to-play) and graduate to `markets-arena` (real money) when they prove demand.
+
+**Graduation Criteria:**
+
+| Criterion | Threshold | Notes |
+|---|---|---|
+| Virtual volume | $50k+ | Proves genuine interest |
+| Unique bettors | 50+ | Prevents single-user inflation |
+| Price stability | < 20% swing in 24h | Market has found equilibrium |
+| Liquidity threshold | `graduationThreshold` USDC met | From ONCHAIN_REQUIREMENTS (default: 1,000 USDC) |
+| Admin approval | Required (or auto-graduate) | Final gate |
+
+**Graduation Flow:**
+
+```
+markets-web (off-chain)                     markets-arena (on-chain)
+┌─────────────────────┐                    ┌──────────────────────┐
+│ 1. Market created   │                    │                      │
+│    (DRAFT → OPEN)   │                    │                      │
+│                     │                    │                      │
+│ 2. Users trade      │                    │                      │
+│    (virtual $)      │                    │                      │
+│                     │                    │                      │
+│ 3. Hits graduation  │   createMarket()   │ 4. Market deployed   │
+│    criteria ────────┼───────────────────►│    (Active)          │
+│                     │   params seeded    │                      │
+│ 5. Stays live as    │   from off-chain   │ 6. Real-money        │
+│    predictor (opt.) │   price/volume     │    trading begins    │
+└─────────────────────┘                    └──────────────────────┘
+```
+
+**Contract Integration:** `CreateMarketParams` already includes `initialLiquidity` and `initialPrices`. Graduation is a backend/admin operation that calls `VaultMarket.createMarket()` with parameters derived from off-chain data. No new contract changes required — the graduation logic lives in the backend.
+
+**Post-Graduation:** The off-chain market can optionally stay live as a parallel free-to-play predictor (useful for continued signal generation) or be closed. Both versions share the same `eventId` for metadata linkage.
+
+### User Graduation Path
+
+Users graduate from free-to-play to real-money trading:
+
+1. **Start in markets-web:** User signs up with Twitter OAuth, gets $10k virtual balance, earns XP, builds streaks.
+2. **Graduation trigger:** User connects a wallet (Privy creates an embedded wallet on first on-chain action, or user connects MetaMask/external wallet).
+3. **On-chain profile:** `VaultCredit.registerProfile()` creates an on-chain identity. Same Privy `userId` links both accounts.
+4. **Reputation carries over:** Off-chain XP, streak length, and KOL status inform the on-chain `ProfileStatus` tier (Creator, TrustedKOL). This affects credit limits.
+5. **Balance does NOT carry over:** Virtual balance stays in `markets-web`. Real USDC must be deposited via `VaultToken.split()` or direct wallet funding.
+
+### Predictor Signal Pipeline
+
+`markets-web` prediction data feeds market making decisions in `markets-arena` via a backend signal API (dashboard for market makers and admins, not auto-seeded):
+
+| Signal | Source | Use |
+|---|---|---|
+| Price discovery | Off-chain CPMM prices + confidence | Initial FPMM reserve ratios for graduated markets |
+| Volume heatmap | Volume by price bucket (e.g., bets clustered at 0.60–0.70) | Informs CLMM tick range configuration |
+| Bet distribution | Outcome split (e.g., 65/35 Yes/No) | Initial FPMM seed prices |
+| Volume velocity | Off-chain trading rate (bets/hour) | Predicts on-chain surge fee levels |
+| Market health score | Composite (volume, unique users, price stability) | Graduation readiness indicator |
+
+**Signal API endpoints** (backend, read by market makers / admin dashboard):
+
+| Endpoint | Returns |
+|---|---|
+| `GET /api/signals/market/:id/price-discovery` | Current off-chain prices, confidence interval, unique bettor count |
+| `GET /api/signals/market/:id/volume-heatmap` | Volume by price bucket (0.05 increments) |
+| `GET /api/signals/market/:id/graduation-readiness` | Composite score (0–100) with per-criterion breakdown |
+| `GET /api/signals/markets/candidates` | All markets meeting graduation criteria, sorted by readiness |
+
+---
+
+## On-Chain / Off-Chain / Indexer Boundary
+
+| Data | Where It Lives | Source |
+|---|---|---|
+| Market metadata (question, outcomes) | On-chain (`VaultMarket.getMarket`) + DB | Admin creates in DB, deploys to chain at graduation |
+| Event metadata | On-chain (`VaultMarket.getEvent`) + DB | Same |
+| FPMM reserves / prices | On-chain (`getReserves`, `getAllPrices`) | Contract state |
+| User balance (USDC) | On-chain (ERC-20 `balanceOf`) | User's wallet |
+| User shares | On-chain (ERC-1155 `balanceOf`) | VaultToken |
+| Trade history | Indexer/Subgraph (from `Swap` events) | On-chain events |
+| Avg cost basis | Indexer (computed from `Swap` events) | NOT on-chain |
+| Realized PnL | Indexer (from `Swap` + `Redeemed` events) | Computed |
+| Unrealized PnL | Indexer (current price - avg cost) | Computed |
+| Volume (per user/market) | Indexer (aggregated from events) | Computed |
+| Price history | Indexer (from `Swap.newPrice` field) | On-chain events |
+| Win rate | Indexer (from `Redeemed` events) | Computed |
+| XP / Streaks / Badges | Backend DB only | Off-chain gamification |
+| KOL competition | Backend DB only | Off-chain |
+| Referrals / Daily spins | Backend DB only | Off-chain |
+| Bookmarks | Backend DB only | Off-chain |
+| Credit limits / Debt | On-chain (`VaultCredit`) | Contract state |
+| Profile / Wallets | On-chain (`VaultCredit`) + DB | Both |
+| Resolution sources | Backend DB (research trail) + On-chain (`OracleConfig`) | Both |
+| Off-chain prediction data | Backend DB (`markets-web`) | Predictor signals |
+
+---
+
+## Market Lifecycle Mapping (Off-Chain to On-Chain)
+
+The off-chain system has 7 market states. The on-chain system has 5. The mapping:
+
+```
+OFF-CHAIN (markets-web)               ON-CHAIN (markets-arena)
+──────────────────────                ─────────────────────────
+DRAFT (admin CMS)          ─┐
+PUBLISHED (visible)         │─── Pre-chain (DB only)
+OPEN (free-to-play trading)─┘
+                             ├── Graduation ──► Active (on-chain trading)
+                             │                  Paused (emergency)
+CLOSED (awaiting resolution) │                  Closed (awaiting resolution)
+RESOLVED (winner set)        │                  Resolved (winner set, pull-based redeem)
+SETTLED (payouts distributed)│                  (implicit — users call redeem())
+CANCELLED (voided)           │                  Cancelled (admin refund, pull-based)
+```
+
+**Key differences:**
+- **DRAFT / PUBLISHED** are admin CMS states. Markets exist only in the database until graduation deploys them on-chain.
+- **SETTLED** has no on-chain equivalent. Settlement is implicit — users call `redeem()` (pull pattern). The indexer tracks who has redeemed.
+- **CANCELLED** is a new on-chain terminal state (see below).
+
+---
+
+## Stats & Metrics Preservation
+
+Every metric currently tracked in the off-chain system, mapped to its on-chain event source and indexer computation:
+
+| Current Metric | On-Chain Event Source | Indexer Computation |
+|---|---|---|
+| User balance | `USDC.balanceOf(user)` | Direct read |
+| Shares per outcome | `VaultToken.balanceOf(user, tokenId)` | Direct read |
+| Avg cost per share | `Swap` events (`amountIn`, `sharesOut`) | Weighted average from trade history (FIFO or weighted) |
+| Realized PnL | `Swap` (sells) + `Redeemed` events | `sum(proceeds - costBasis)` |
+| Unrealized PnL | Current price vs avg cost | `(currentPrice * shares) - (avgCost * shares)` per position |
+| Total volume | `Swap.amountIn` + `OrderFilled.filledAmount` | Sum per user / per market |
+| Price history | `Swap.newPrice` field | Time series indexed by block timestamp |
+| Win rate | `Redeemed` events (winning count / total positions) | Aggregated per user |
+| Trade count | `Swap` + `OrderFilled` event count | Count per user |
+| Largest win | `Redeemed.usdcReceived` - cost basis | Max per user |
+| Market liquidity | `getReserves()` + CLMM `getLiquidityInRange()` | Direct read + aggregation |
+| Fee revenue | `FeesDeposited` events | Sum per market / per source |
+
+> **Leaderboard computation** moves from the cron-refreshed `LeaderboardPnLSnapshot` materialized view to an indexer-computed entity. The subgraph maintains `UserStats` entities updated on every `Swap` and `Redeemed` event, providing real-time leaderboard data without cron jobs.
+
+---
+
+## Admin CRUD Parity
+
+Every admin operation in the off-chain system, mapped to its on-chain equivalent:
+
+| Off-Chain Admin Action | On-Chain Equivalent | Notes |
+|---|---|---|
+| Create Event | `VaultMarket.createEvent()` | On-chain at graduation time |
+| Update Event | `VaultMarket.updateEvent()` | Metadata/flags |
+| Create Market (DRAFT) | Backend DB only | Pre-chain CMS state |
+| Publish Market (OPEN) | `VaultMarket.createMarket()` | On-chain deployment IS "publish" |
+| Close Market | `closeMarket()` or lazy close | Permissionless at `resolutionTime` |
+| Resolve Market | `resolve()` or `resolveByOracle()` | Admin or oracle path |
+| Settle Market | N/A — pull-based `redeem()` | No explicit settle step on-chain |
+| Cancel Market | `cancelMarket()` **(NEW)** | Admin-only, pull-based refund |
+| Cancel Bet (admin) | N/A — trades are atomic on-chain | Cannot undo a swap |
+| Adjust Balance | N/A — USDC is user's wallet | Off-chain only for virtual balance |
+| Adjust XP | Backend DB only | Off-chain gamification |
+| Grant/Revoke KOL | `VaultCredit.setProfileStatus()` | On-chain profile tier |
+| Set Credit Limit | `VaultCredit.setCreditLimit()` | On-chain |
+| Recalibrate AMM | N/A — deterministic on-chain | Not needed |
+| Resolution Sources | Backend DB + on-chain `OracleConfig` | Research trail stays in DB; oracle is authoritative |
+| AI Generate Market | Backend only | Creates DRAFT in DB |
+| Upload Assets | Backend only | IPFS / Vercel Blob |
+| Feature Flags | Backend DB only | Off-chain |
+| Tag Management | Backend DB only | Off-chain (events use `metadataURI` on-chain) |
+
+---
+
+## Resolution Source Integration
+
+The existing off-chain resolution source system integrates with the on-chain oracle system:
+
+- **`ResolutionSource` / `ResolutionDataPoint` tables** stay in the backend DB as the admin's research and verification trail. This workflow is unchanged.
+- **On-chain `OracleConfig`** is set per market for automated (Chainlink) resolution. The oracle is the authoritative source on-chain.
+- **Admin resolution** (`resolve()`) works exactly like today: admin selects the winning outcome and provides an evidence URL. The `evidence` string parameter replaces `resolutionSourceUrl`.
+- **For oracle markets:** Admin resolution is blocked until `gracePeriod` expires (prevents admin front-running the oracle). After grace period, admin fallback unlocks.
+- **Verification flow preserved:** Admins still create data points, verify them, and use them as research. The on-chain oracle is a separate, automated path for machine-verifiable markets.
+
+---
+
+## Wallet Strategy
+
+| Phase | Auth | Wallet | Trading UX |
+|---|---|---|---|
+| **Current (markets-web)** | Twitter OAuth (Privy) | None | Instant (DB transaction) |
+| **V1 Launch (markets-arena)** | Twitter OAuth (Privy) | Privy embedded wallet (created on first on-chain action) | Tx signing per trade (Privy popup) |
+| **V2 (markets-arena)** | Same | ERC-4337 smart account + session keys | Approve session once, then trades execute without popups (bounded by time + amount) |
+
+> **Privy Embedded Wallets:** Users authenticate with Twitter (same flow as today). Privy creates an embedded wallet behind the scenes on first on-chain interaction. No MetaMask or browser extension required. The wallet is recoverable via Privy's social recovery.
+
+> **Session Keys (V2):** Using ERC-4337 smart accounts, users approve a "trading session" (e.g., 24 hours, max $1000 notional). During the session, the frontend signs and submits transactions via the session key without wallet popups. This restores the instant-trade UX of the off-chain system.
+
+> **Gas Sponsorship:** Consider a paymaster on Arbitrum to cover gas fees. Arbitrum gas is already low (~$0.01-0.05 per tx), but zero-gas UX eliminates the last friction point. Cost: ~$0.01-0.05 per trade, absorbable in the 3% trading fee.
+
+---
+
+## Fee Model Transition
+
+| | Off-Chain (markets-web) | On-Chain (markets-arena) |
+|---|---|---|
+| **Fee structure** | Fixed `feeBps` per market (default 100 = 1%) | Dynamic via VaultRisk (300 bps base + surge + skew) |
+| **Fee range** | Always 1% | 3%–15% depending on conditions |
+| **Fee preview** | N/A (fixed, known) | `previewEffectiveFee()` returns exact fee before execution |
+| **Fee split** | Protocol only | Protocol + creator (via VaultCredit debt-first waterfall) |
+
+**UI implications for markets-arena:**
+- Show effective fee prominently before trade confirmation
+- Display surge indicator when fees are elevated above baseline
+- Show fee breakdown (base + surge + skew components) in advanced view
+- `quoteSwapIn` / `quoteSell` already return fee amounts for display
+
+---
+
 ## Modern Solidity Patterns
 
 ### Compiler Configuration
@@ -2327,6 +2723,7 @@ packages/contracts/
 │   ├── VaultCLOB.sol
 │   ├── VaultRisk.sol
 │   ├── VaultCredit.sol
+│   ├── VaultAutomationResolver.sol  # Chainlink Automation keeper (no funds, ~50 LOC)
 │   ├── lib/
 │   │   ├── MathLib.sol        # Fixed-point ops, mulDiv, sqrt
 │   │   ├── LUTLib.sol         # Interpolated lookup tables
@@ -2461,7 +2858,10 @@ pnpm contracts:mine:salt -- --pattern 777 --type hexPrefix --chain sepolia
 | `VaultMarket` | `createMarket` | Admin | `onlyOwner` |
 | `VaultMarket` | `createEvent` | Admin | `onlyOwner` |
 | `VaultMarket` | `updateEvent` | Admin | `onlyOwner` |
-| `VaultMarket` | `resolve` | Admin | `onlyOwner` |
+| `VaultMarket` | `resolve` | Admin | `onlyOwner` (oracle markets: only after gracePeriod) |
+| `VaultMarket` | `cancelMarket` | Admin | `onlyOwner` (Active/Paused/Closed → Cancelled) |
+| `VaultMarket` | `resolveByOracle` | Permissionless | Requires state == Closed, resolver != ADMIN |
+| `VaultMarket` | `closeMarket` | Permissionless | Requires `block.timestamp >= resolutionTime` |
 | `VaultToken` | `settle` | VaultMarket | `onlyMarket` |
 
 **Whitelisted Caller Pattern:**
@@ -2598,7 +2998,14 @@ function setFeeCollector(address caller, bool allowed) external onlyOwner {
 - [ ] `VaultCredit.linkWallet`: Require EIP-712 consent signature from wallet being linked
 - [ ] `VaultToken.split`/`merge`: Revert on `amount == 0`
 - [ ] `VaultMarket.redeem`: Revert with `NothingToRedeem` if user has zero winning shares
-- [ ] `VaultMarket`: Enforce state machine — Resolved is terminal; only valid transitions allowed
+- [ ] `VaultMarket`: Enforce state machine — Active/Paused/Closed/Resolved/Cancelled; Resolved and Cancelled are terminal
+- [ ] `VaultMarket.cancelMarket`: Admin-only; state → Cancelled; snapshot collateral for pro-rata refunds
+- [ ] `VaultMarket.claimRefund`: Pull-based; user reclaims proportional USDC from cancelled market; revert if already claimed
+- [ ] `VaultMarket.closeMarket`: Permissionless; require `block.timestamp >= resolutionTime`
+- [ ] `VaultMarket.resolveByOracle`: Require Closed + oracle staleness/snapshot/grace checks
+- [ ] `VaultMarket.resolve` (admin): For oracle markets, block until `resolutionTime + gracePeriod` expired
+- [ ] `VaultMarket.swap`/`split`: Auto-close if `block.timestamp >= resolutionTime` (lazy transition)
+- [ ] `VaultCredit.linkWallet`: Use mapping-based membership; cap `MAX_WALLETS_PER_PROFILE`
 - [ ] `VaultToken.encodeTokenId`: Validate `marketId < 2^248` to prevent bit-packing collision
 - [ ] `nonReentrant` on ALL external functions: `swap`, `addLiquidity`, `removeLiquidity`, `settleBatch`, `split`, `merge`, `redeem`
 - [ ] `LUTLib.interpSurge`: Use `mulDiv(t, LUT[i+1] - LUT[i], 1e18)` for WAD precision
@@ -2656,8 +3063,8 @@ function setFeeCollector(address caller, bool allowed) external onlyOwner {
 
 ### Audit Surface
 
-- 6 contracts + 9 libraries
-- ~32 write methods (minimal)
+- 6 core contracts + 1 automation resolver + 9 libraries
+- ~35 write methods (minimal)
 - ~68 read methods (comprehensive but view-only)
 - No proxies (simpler to verify)
 - Immutable contracts (no upgrade vectors)
@@ -2717,6 +3124,8 @@ Architecture-level audit (pre-implementation). Severity rubric: Critical (total 
 | MEDIUM-16 | `split(0)`/`merge(0)` not guarded | Zero-amount calls revert |
 | MEDIUM-17 | Double redemption not explicitly guarded | `redeem` reads balance atomically; second call reverts `NothingToRedeem` |
 | MEDIUM-18 | `getPositionsByOwner` unbounded return | Paginated variant added |
+| MEDIUM-19 | Wallet linking creates unbounded arrays (gas bomb) | Mapping-based membership; view-only enumeration; `MAX_WALLETS_PER_PROFILE` cap |
+| MEDIUM-20 | No `Closed` state; resolution timing ambiguous | Added `Closed` state with lazy transition at `resolutionTime`; formal state machine |
 
 ### Positive Design Elements
 
@@ -2728,6 +3137,10 @@ Architecture-level audit (pre-implementation). Severity rubric: Critical (total 
 - Zero-amount guards on all token operations
 - EIP-712 consent on wallet linking
 - Global velocity covers all venues (FPMM + CLMM + CLOB)
+- Permissionless oracle resolution with admin fallback
+- Chainlink Automation for resolution liveness (bounded gas, no funds held)
+- Explicit Closed state separates trading cessation from resolution
+- Oracle staleness + snapshot semantics prevent stale/ambiguous resolutions
 
 ---
 
