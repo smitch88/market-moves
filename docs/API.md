@@ -507,7 +507,6 @@ Create a new market request.
 **Validation:**
 - Title: 5-200 characters
 - Description: 20-2000 characters
-- Max 5 pending requests per user
 
 ---
 

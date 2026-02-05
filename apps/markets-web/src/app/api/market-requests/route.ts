@@ -46,21 +46,6 @@ export async function POST(request: NextRequest) {
 
     const { title, description, sourceUrl } = validation.data;
 
-    // Check if user already has pending requests (limit to prevent spam)
-    const pendingCount = await prisma.marketRequest.count({
-      where: {
-        userId: user.id,
-        status: "PENDING",
-      },
-    });
-
-    if (pendingCount >= 5) {
-      return NextResponse.json(
-        { error: "You have too many pending requests. Please wait for some to be reviewed." },
-        { status: 429 }
-      );
-    }
-
     // Create the market request
     const marketRequest = await prisma.marketRequest.create({
       data: {
