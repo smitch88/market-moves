@@ -36,6 +36,7 @@ function serializeMarket(market: any) {
     reserve0: Number(market.reserve0),
     reserve1: Number(market.reserve1),
     openingPrice: market.openingPrice != null ? Number(market.openingPrice) : null,
+    autoMarketConfigId: market.autoMarketConfigId ?? null,
     publishedAt: market.publishedAt?.toISOString() ?? null,
     opensAt: market.opensAt?.toISOString() ?? null,
     closesAt: market.closesAt?.toISOString() ?? null,

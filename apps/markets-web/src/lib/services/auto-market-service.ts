@@ -6,7 +6,6 @@ import {
   BalanceReason,
   AdminAction,
   RaffleReason,
-  MarketCategory,
 } from "@vault/database";
 import { ConstantProductAMM } from "@/lib/services/pricing-engine";
 import { getPrice } from "@/lib/services/coingecko-service";
@@ -106,7 +105,7 @@ export async function createScheduledMarkets(): Promise<CreateScheduledMarketsRe
             title: `${config.tokenSymbol} ${config.timeframeLabel}`,
             slug,
             description: `Price prediction: will ${config.tokenName} be higher or lower in ${config.timeframeLabel}?`,
-            category: MarketCategory.CRYPTO,
+            category: config.category,
             eventType: "PROP",
             isPublished: true,
             startTime: now,

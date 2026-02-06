@@ -3,13 +3,14 @@
 import Image from "next/image";
 import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
-import { Calendar, TrendingUp, Zap, Clock, ChevronDown } from "lucide-react";
+import { Calendar, TrendingUp, Zap, Clock, ChevronDown, Lock } from "lucide-react";
 import type { Event, Market } from "@vault/database";
 import { Badge, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@vault/ui";
+import { ViewLatestMarketLink } from "@/components/markets/view-latest-market-link";
 
 interface PropEventHeaderProps {
   event: Event & {
-    markets: Market[];
+    markets: (Market & { autoMarketConfigId?: string | null })[];
     tags?: { id: string; slug: string; label: string }[];
   };
 }
@@ -127,6 +128,7 @@ function useCountdown(targetDate: Date | null) {
 export function PropEventHeader({ event }: PropEventHeaderProps) {
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   const [isDescriptionTruncated, setIsDescriptionTruncated] = useState(false);
+  const [countdownJustEnded, setCountdownJustEnded] = useState(false);
   const descriptionRef = useRef<HTMLParagraphElement>(null);
 
   // Calculate total volume
@@ -139,6 +141,20 @@ export function PropEventHeader({ event }: PropEventHeaderProps) {
   
   // Countdown to resolution
   const timeLeft = useCountdown(eventDate ? new Date(eventDate) : null);
+  
+  // Get auto-market config from first market (auto-markets have single market per event)
+  const autoMarketConfigId = event.markets[0]?.autoMarketConfigId;
+  const firstMarketId = event.markets[0]?.id;
+  
+  // Track when countdown ends to trigger auto-retry
+  const prevTimeLeft = useRef(timeLeft);
+  useEffect(() => {
+    // If we had time left before but now it's null, countdown just ended
+    if (prevTimeLeft.current !== null && timeLeft === null) {
+      setCountdownJustEnded(true);
+    }
+    prevTimeLeft.current = timeLeft;
+  }, [timeLeft]);
 
   // Check if description is truncated
   useEffect(() => {
@@ -253,7 +269,7 @@ export function PropEventHeader({ event }: PropEventHeaderProps) {
         </motion.div>
 
         {/* Countdown timer - prominent display */}
-        {timeLeft && (
+        {timeLeft ? (
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -304,7 +320,27 @@ export function PropEventHeader({ event }: PropEventHeaderProps) {
               </div>
             </div>
           </motion.div>
-        )}
+        ) : autoMarketConfigId && firstMarketId ? (
+          /* Show "View latest" link when countdown ended for auto-markets */
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.15 }}
+            className="mt-4 sm:mt-6 p-3 sm:p-4 rounded-xl bg-muted/50 border border-border/50"
+          >
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div className="flex items-center gap-2">
+                <Lock className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground" />
+                <span className="text-xs sm:text-sm text-muted-foreground">Market closed</span>
+              </div>
+              <ViewLatestMarketLink
+                autoMarketConfigId={autoMarketConfigId}
+                currentMarketId={firstMarketId}
+                autoRetry={countdownJustEnded}
+              />
+            </div>
+          </motion.div>
+        ) : null}
 
         {/* Stats row */}
         <motion.div

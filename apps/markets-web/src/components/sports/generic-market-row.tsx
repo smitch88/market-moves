@@ -6,7 +6,7 @@ import { cn } from "@vault/ui/lib/utils";
 import { MarketCard, OutcomeButton } from "./sports-market-row";
 import { MarketChart } from "./market-chart";
 import { MarketInfoModal } from "@/components/markets/market-info-modal";
-import { Lock, Info } from "lucide-react";
+import { Lock } from "lucide-react";
 import {
   parseOutcomes,
   parseOutcomePrices,
@@ -48,7 +48,7 @@ function getResolvedInfo(market: Market): { label: string; index: number; isSett
 // =============================================================================
 
 export interface GenericMarketRowProps {
-  market: Market & { displayLabel?: string | null; sortOrder?: number | null };
+  market: Market & { displayLabel?: string | null; sortOrder?: number | null; autoMarketConfigId?: string | null };
   selectedMarketId?: string;
   selectedOutcome?: number | null;
   onSelectOutcome: (marketId: string, outcomeIndex: number) => void;
