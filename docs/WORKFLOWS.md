@@ -986,7 +986,7 @@ DRAFT → PUBLISHED → OPEN → CLOSED → RESOLVED → SETTLED
 
 Crypto price markets (Over/Under the opening price) are created and fully resolved by crons. No manual steps are required after config is set.
 
-**Setup (admin):** Create one or more `AutoMarketConfig` entries via `POST /api/admin/auto-market-configs` (token symbol, CoinGecko id, timeframe: 1 / 5 / 15 / 60 / 360 minutes, optional chain label, fee/liquidity). Configs can be toggled with `PATCH .../auto-market-configs/[id]` (e.g. `isActive: false`).
+**Setup (admin):** Create one or more `AutoMarketConfig` entries via `POST /api/admin/auto-market-configs` (token symbol, CoinGecko id, timeframe: 1m / 5m / 15m / 1hr / 6hr / 1 day / 1 week / 1 month, optional chain label, fee/liquidity). Configs can be toggled with `PATCH .../auto-market-configs/[id]` (e.g. `isActive: false`).
 
 **Create cron (every 5 min):** For each active config whose timeframe window is due, the cron fetches the current token price from CoinGecko, creates an event and a binary market (Over/Under the opening price; outcomes are e.g. "Over $97,500" / "Under $97,500"), stores the opening price on the market, and publishes the market (OPEN). Event slug is unique per token/timeframe/window (e.g. `btc-15min-2026-02-06-1445`).
 

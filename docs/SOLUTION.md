@@ -280,7 +280,7 @@ model UserPnLSnapshot {
 Markets created by the create-auto-markets cron are linked to a config and store the opening price for resolution.
 
 - **Market** has optional `autoMarketConfigId`, `openingPrice` (price at creation).
-- **AutoMarketConfig**: `name`, `isActive`, `tokenSymbol`, `tokenName`, `coingeckoId`, `chain?`, `timeframeMinutes` (1/5/15/60/360), `timeframeLabel`, `feeBps`, `seed0`/`seed1`, `category` (default CRYPTO), `cronExpression?`, `lastCreatedAt?`. Unique on `(tokenSymbol, timeframeMinutes)`.
+- **AutoMarketConfig**: `name`, `isActive`, `tokenSymbol`, `tokenName`, `coingeckoId`, `chain?`, `timeframeMinutes` (1/5/15/60/360/1440/10080/43200 for 1m to 1 month), `timeframeLabel`, `feeBps`, `seed0`/`seed1`, `category` (default CRYPTO), `cronExpression?`, `lastCreatedAt?`. Unique on `(tokenSymbol, timeframeMinutes)`.
 
 ---
 
@@ -448,7 +448,7 @@ model MarketRequest {
 ### Automated crypto markets (cron)
 - **Create cron** (every 5 min): Reads active `AutoMarketConfig` entries; for each config whose timeframe window is due, fetches current price from CoinGecko, creates event + market (Over/Under the opening price; outcome titles include threshold e.g. "Over $97,500" / "Under $97,500"), stores opening price, publishes market (OPEN).
 - **Process cron** (every minute): Finds OPEN auto-markets whose `closesAt` has passed; for each, fetches closing price from CoinGecko, closes market (refunds pending bets), resolves (Over wins if closing price ≥ opening price, else Under wins), settles (WON/LOST, raffle entries, referral bonuses). Full lifecycle is fully automated.
-- Config is stored in `AutoMarketConfig` (token, chain label, timeframe 1/5/15/60/360 min, fee/liquidity). At least one admin user must exist for cron-originated audit logs.
+- Config is stored in `AutoMarketConfig` (token, chain label, timeframe 1m to 1 month, fee/liquidity). At least one admin user must exist for cron-originated audit logs.
 
 ### Referral System
 - Unique referral codes per user

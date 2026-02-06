@@ -45,6 +45,9 @@ const TIMEFRAME_OPTIONS = [
   { value: 15, label: "15 minutes" },
   { value: 60, label: "1 hour" },
   { value: 360, label: "6 hours" },
+  { value: 1440, label: "1 day" },
+  { value: 10080, label: "1 week" },
+  { value: 43200, label: "1 month" },
 ];
 
 const CATEGORY_OPTIONS = [
@@ -277,7 +280,7 @@ export default function AdminAutoMarketsPage() {
       <GlassCard variant="solid">
         <GlassCardContent className="p-4">
           <p className="text-sm text-muted-foreground">
-            Create configs per token and timeframe (1m, 5m, 15m, 1hr, 6hr). Cron creates markets every 5 min and processes expired ones every minute. Use &quot;Run create now&quot; / &quot;Run process now&quot; to trigger manually.
+            Create configs per token and timeframe (1m to monthly). Cron creates markets every 5 min and processes expired ones every minute. Use &quot;Run create now&quot; / &quot;Run process now&quot; to trigger manually.
           </p>
         </GlassCardContent>
       </GlassCard>
