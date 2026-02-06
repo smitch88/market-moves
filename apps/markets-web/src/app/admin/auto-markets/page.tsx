@@ -184,6 +184,26 @@ export default function AdminAutoMarketsPage() {
     onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
   });
 
+  const toggleActiveMutation = useMutation({
+    mutationFn: async ({ id, isActive }: { id: string; isActive: boolean }) => {
+      const res = await fetch(`/api/admin/auto-market-configs/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isActive }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to update");
+      }
+      return res.json();
+    },
+    onSuccess: (_, variables) => {
+      toast.success(variables.isActive ? "Config activated" : "Config deactivated");
+      queryClient.invalidateQueries({ queryKey: ["adminAutoMarketConfigs"] });
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
+  });
+
   function resetForm() {
     setForm({
       name: "",
@@ -284,26 +304,17 @@ export default function AdminAutoMarketsPage() {
           ) : (
             <div className="space-y-3">
               {configs.map((c) => (
-                <Link
+                <div
                   key={c.id}
-                  href={`/admin/auto-markets/${c.id}`}
-                  className="block p-4 rounded-lg border border-border bg-card/50 hover:bg-muted/50 transition-colors"
+                  className="p-4 rounded-lg border border-border bg-card/50 hover:bg-muted/50 transition-colors"
                 >
                   <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1 min-w-0">
+                    <Link
+                      href={`/admin/auto-markets/${c.id}`}
+                      className="flex-1 min-w-0"
+                    >
                       <div className="flex items-center gap-2 mb-1 flex-wrap">
                         <h3 className="font-semibold">{c.name}</h3>
-                        {c.isActive ? (
-                          <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/20">
-                            <CheckCircle className="h-3 w-3 mr-1" />
-                            Active
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline" className="bg-red-500/10 text-red-500 border-red-500/20">
-                            <XCircle className="h-3 w-3 mr-1" />
-                            Inactive
-                          </Badge>
-                        )}
                         {c.chain && (
                           <Badge variant="outline" className="text-muted-foreground">
                             {c.chain}
@@ -313,7 +324,7 @@ export default function AdminAutoMarketsPage() {
                       <p className="text-sm text-muted-foreground">
                         {c.tokenName} ({c.tokenSymbol}) · {c.timeframeLabel}
                       </p>
-                      <p className="text-xs text-muted-foreground mt-2 flex items-center gap-3">
+                      <p className="text-xs text-muted-foreground mt-2 flex items-center gap-3 flex-wrap">
                         <span>CoinGecko: <code className="bg-muted px-1 py-0.5 rounded">{c.coingeckoId}</code></span>
                         <span>{c._count.markets} markets</span>
                         {c.lastCreatedAt && (
@@ -323,10 +334,29 @@ export default function AdminAutoMarketsPage() {
                           </span>
                         )}
                       </p>
+                    </Link>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <div
+                        className="flex items-center gap-2"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Switch
+                          checked={c.isActive}
+                          onCheckedChange={(checked) =>
+                            toggleActiveMutation.mutate({ id: c.id, isActive: checked })
+                          }
+                          disabled={toggleActiveMutation.isPending}
+                        />
+                        <span className={`text-xs font-medium ${c.isActive ? "text-green-500" : "text-muted-foreground"}`}>
+                          {c.isActive ? "Active" : "Inactive"}
+                        </span>
+                      </div>
+                      <Link href={`/admin/auto-markets/${c.id}`}>
+                        <Settings className="h-4 w-4 text-muted-foreground hover:text-foreground transition-colors" />
+                      </Link>
                     </div>
-                    <Settings className="h-4 w-4 text-muted-foreground" />
                   </div>
-                </Link>
+                </div>
               ))}
             </div>
           )}
