@@ -11,7 +11,7 @@
     },
     {
       "path": "/api/cron/create-auto-markets",
-      "schedule": "*/5 * * * *"
+      "schedule": "* * * * *"
     },
     {
       "path": "/api/cron/process-auto-markets",
