@@ -89,7 +89,7 @@ Use [Solady](https://github.com/Vectorized/solady) optimized primitives wherever
 **Custody source of truth:**
 
 - `VaultToken` is the **collateral custody** contract and holds the USDC that backs complete sets.
-- `VaultMarket.redeem(marketId)` burns winning shares and **releases USDC from VaultToken custody** under resolution rules.
+- `VaultMarket.redeem(marketId)` burns **winning** shares and releases USDC from VaultToken custody. Losing shares are intentionally left inert on-chain (zero cost, zero harm at scale). Losers never need to transact.
 
 **Per-market invariants (must hold after every write call):**
 
@@ -174,11 +174,11 @@ Use [Solady](https://github.com/Vectorized/solady) optimized primitives wherever
 │           ▼                                                         │
 │  ┌─────────────────────────────────────────────────────────────┐   │
 │  │                      VaultCredit                             │   │
-│  │  • registerProfile()                                         │   │
+│  │  • _ensureProfile() (lazy, internal)                         │   │
 │  │  • setCreditLimit(profileId, limit)                          │   │
 │  │  • recordDebt(profileId, amount)                             │   │
 │  │  • depositFees(marketId, amount, source)                     │   │
-│  │  • processEarnings(profileId, marketId)                      │   │
+│  │  • withdrawEarnings() (auto-processes + pulls)               │   │
 │  │  • withdrawEarnings()                                        │   │
 │  └─────────────────────────────────────────────────────────────┘   │
 │                                                                     │
@@ -391,7 +391,7 @@ Libraries (pure/view)
 | `updateEvent(UpdateEventParams params)`                    | Admin          | Update event metadata/flags                                                   |
 | `swap(SwapParams params)`                                  | User           | Execute FPMM trade                                                            |
 | `resolve(uint256 marketId, uint8 winner, string evidence)` | Admin          | Set winning outcome                                                           |
-| `redeem(uint256 marketId)`                                 | User           | Claim USDC for winning shares                                                 |
+| `redeem(uint256 marketId)`                                 | User           | Burn winning shares → USDC payout. Losing shares left inert (scale design).   |
 | `claimCreatorFees(uint256 marketId)`                       | Creator        | Withdraw accrued fees                                                         |
 | `pauseMarket(uint256 marketId)`                            | Admin          | Emergency pause                                                               |
 | `unpauseMarket(uint256 marketId)`                          | Admin          | Resume trading                                                                |
@@ -405,18 +405,56 @@ Libraries (pure/view)
 
 > **Sybil Resistance**: `createMarket` enforces `creatorFeeRate >= MIN_CREATOR_FEE` and requires the fee recipient to be a registered ProfileID. This prevents attackers from creating markets with 0% creator fee to bypass the recourse debt system.
 
-> **Redemption Path**: `redeem(marketId)` calls `VaultToken.settle(marketId, user, winningShares)` to burn winning shares and release collateral from VaultToken custody. `redeem` reads the caller's winning share balance atomically — a second call sees zero balance and reverts with `NothingToRedeem`. Losing shares are not burned on redemption (users may burn them manually or leave them).
+> **Redemption Path**: `redeem(marketId)` burns the caller's **winning** shares only via `VaultToken.settle(marketId, user, winningShares)`, releases USDC from custody, and returns `usdcReceived`. If the caller has zero winning shares, it reverts with `NothingToRedeem`. **Losing shares are intentionally NOT burned** — they remain on-chain as inert ERC-1155 balances with zero economic value. This is a deliberate scale decision (see below).
+>
+> A second `redeem()` call by the same user sees zero winning balance and reverts.
+
+> **Losing Shares: Why They Are Never Burned (Scale Design)**
+>
+> At 100K–1M+ users per market, burning losing shares would be pure overhead with zero economic benefit:
+>
+> | Approach | Gas cost at 1M losers | Benefit | Verdict |
+> | --- | --- | --- | --- |
+> | Push-burn (protocol iterates all losers) | ~5,100 gas × 1M = **5.1B gas** (impossible in one tx) | Clean supply | **Rejected** — requires unbounded iteration or batch infra |
+> | Pull-burn (each loser calls burn) | ~5,100 gas per user × optional | Clean wallet | **Rejected** — spending gas to burn a $0 token is anti-UX |
+> | Do nothing (leave inert balances) | **0 gas** | None needed | **Accepted** — zero cost, zero harm |
+>
+> **Why inert losing shares are safe:**
+>
+> - **No solvency impact**: USDC backing is determined by `collateralLocked[marketId]` and `completeSetsOutstanding[marketId]`, not by losing share `totalSupply`. The collateral for losing shares was already released to winning share holders via `settle()`.
+> - **No gas impact on others**: ERC-1155 uses per-user mappings (`balances[user][tokenId]`). Dead tokens in user A's wallet cost zero gas for user B's operations. No unbounded arrays, no iteration.
+> - **No enumeration risk**: There is no on-chain enumeration of all holders. `balanceOf` is O(1). The `totalSupply` counter for losing outcomes becomes a historical artifact — harmless.
+> - **Supply parity invariant relaxed post-resolution**: The equal-supply-per-outcome invariant governs active/closed markets only. After resolution, winning shares are burned via `settle()` while losing shares remain — this asymmetry is expected and does not affect any solvency check.
+> - **Precedent**: Gnosis Conditional Tokens (CTF), the standard used by Polymarket, also leave losing conditional tokens in wallets. This is the established pattern for prediction market protocols at scale.
+
+> **Redemption UX (Frontend):**
+>
+> | User state | Frontend behavior | On-chain action |
+> | --- | --- | --- |
+> | Holds winning shares (± losing) | Show "Redeem $X" button with payout preview | `redeem()` → burns winning shares, pays USDC |
+> | Holds only losing shares | Show "Market Lost" badge, **no action button** | **No tx needed** — shares are inert |
+> | Already redeemed / no shares | Show resolved status, no action | No tx possible |
+>
+> **Key principle:** Users who lost should **never** be prompted or required to submit a transaction. Their shares are inert on-chain — the frontend reads the resolved market's `winningOutcome` and filters display accordingly. No gas is ever spent on $0-value operations.
+>
+> **Implementation:** The frontend determines display state via:
+> ```
+> redeemable = getRedemptionAmount(marketId, user)   // view call, no gas
+> if (redeemable > 0) → show "Redeem" button
+> if (redeemable == 0 && hasAnyShares) → show "Market Lost" (no action)
+> if (redeemable == 0 && !hasAnyShares) → show "Resolved" (already redeemed or never participated)
+> ```
 
 > **Post-Resolution Pool Recovery (FPMM):** After resolution, the FPMM pool holds complementary outcome shares as inventory. The protocol MUST recover this value:
 >
 > 1. For winning shares held by the pool: call `VaultToken.settle()` to convert to USDC and route to VaultCredit (protocol treasury).
-> 2. For losing shares held by the pool: worthless, can be burned or left.
+> 2. For losing shares held by the pool: leave inert (zero value, zero cost). No burning needed — the pool's losing share balances are harmless storage slots.
 > 3. Implementation: `resolve()` should trigger pool inventory accounting or expose `reclaimPoolInventory(marketId)` callable by admin after resolution.
 >
 > **Post-Resolution CLMM LP Positions:** When a market resolves, CLMM LP positions still hold outcome tokens:
 >
 > 1. LPs MUST be able to call `removeLiquidity()` on resolved markets to withdraw their tokens.
-> 2. LPs then call `redeem()` for winning shares or `merge()` if they hold complete sets.
+> 2. LPs then call `redeem()` to burn winning shares and collect USDC, or `merge()` if they hold complete sets. Losing shares remain inert in the LP's wallet.
 > 3. `removeLiquidity()` MUST NOT revert on resolved markets — only `addLiquidity()` and `swap()` should be gated by market state.
 
 > **Market State Machine:** Valid transitions are strictly enforced:
@@ -434,7 +472,7 @@ Libraries (pure/view)
 >
 > **Closed** = trading disabled, awaiting resolution. **Resolved** and **Cancelled** are terminal — no transition back. `createMarket` initializes to Active. Any other transition MUST revert with `InvalidStateTransition(currentState, targetState)`.
 >
-> **Lazy Close:** Any write call (`swap`, `split`, `addLiquidity`) SHOULD check `block.timestamp >= market.resolutionTime` and auto-transition to Closed if still Active. Alternatively, `closeMarket(marketId)` is permissionless and callable by anyone/keepers when `block.timestamp >= resolutionTime`.
+> **Lazy Close:** Any write call (`swap`, `split`, `addLiquidity`) SHOULD check `block.timestamp >= market.resolutionTime` and auto-transition to Closed if still Active. Alternatively, `closeMarket(marketId)` is permissionless and callable by anyone — including the CRE resolution workflow — when `block.timestamp >= resolutionTime`.
 
 > **Event Modeling**: Each market belongs to an `eventId`. Event metadata is kept minimal on-chain (for grouping/filtering) and points to rich off-chain metadata via `metadataURI`.
 
@@ -491,7 +529,7 @@ struct Market {
 >
 > Maintain active ID lists with swap-and-pop on state changes (pause/resolve/endTime) to keep enumeration cheap and deterministic.
 >
-> **Decentralized Resolution (Future)**: The end state should allow fully on-chain resolution via an oracle + keeper system. Keepers can monitor **closed but unresolved** markets and trigger settlement or dispute flows. Indexers remain optional for low latency/UX, but all critical reads and resolution paths should be possible directly on-chain. The only intentionally hybrid component is the CLOB due to latency/MEV constraints.
+> **Decentralized Resolution:** Fully on-chain resolution is achieved via an oracle + CRE workflow system. A Chainlink CRE Workflow (TypeScript, running on a DON) monitors **closed but unresolved** markets and triggers settlement via `VaultResolutionConsumer`. The workflow also auto-closes expired markets. All scanning logic runs off-chain with BFT consensus on reads and writes. Indexers remain optional for low latency/UX, but all critical reads and resolution paths are possible directly on-chain. The only intentionally hybrid component is the CLOB due to latency/MEV constraints.
 
 ---
 
@@ -542,7 +580,7 @@ function resolveByOracle(uint256 marketId) external {
 }
 ```
 
-> **Permissionless Is a Feature:** Keepers provide liveness guarantees, but **anyone** can call `resolveByOracle` if oracle conditions are met. This eliminates single-point liveness failure. Gas cost is bounded and predictable (single oracle read + state update).
+> **Permissionless Is a Feature:** The CRE resolution workflow provides liveness guarantees, but **anyone** can call `resolveByOracle` if oracle conditions are met. This eliminates single-point liveness failure. Gas cost is bounded and predictable (single oracle read + state update). The CRE workflow is a convenience for automated liveness, not a gatekeeper.
 
 > **Oracle Staleness & Snapshot Semantics:** For price-based markets, the market question is defined as: *"Using the first oracle update on or after `resolutionTime`."* This prevents resolving on stale data, resolving too early, and avoids ambiguous "which timestamp counts?" disputes. The `staleTolerance` and `gracePeriod` provide bounded windows.
 
@@ -566,74 +604,292 @@ Closed → (grace period expired, oracle unavailable) → resolve() by Admin →
 
 ---
 
-### VaultAutomationResolver (Chainlink Automation)
+### CRE Workflows (Chainlink Runtime Environment)
 
-A lightweight 7th contract (holds no funds, minimal audit surface) that implements Chainlink Automation's `checkUpkeep` / `performUpkeep` interface to provide resolution liveness.
+Market resolution liveness is provided by **Chainlink CRE (Chainlink Runtime Environment) Workflows** instead of the legacy Chainlink Automation (Keepers) pattern. CRE is Chainlink's orchestration layer that runs TypeScript workflows across a Decentralized Oracle Network (DON), providing built-in BFT consensus on every operation.
+
+**Why CRE over Keepers:**
+
+| Aspect | Keepers (Legacy) | CRE Workflows |
+| --- | --- | --- |
+| Scanning logic | On-chain (`checkUpkeep`), gas-limited cursor | Off-chain in TypeScript, unbounded |
+| Resolution batching | `MAX_RESOLVE` = 3 per call (gas ceiling) | No artificial limit; batch size is configurable |
+| Language | Solidity-only | TypeScript (compiled to WASM) |
+| Observability | Event logs only | CRE UI: logs, execution traces, metrics |
+| Trigger model | Time-based polling only | Cron, HTTP webhook, EVM Log (event-driven) |
+| Consensus | N/A (single tx sender) | BFT consensus on reads + writes across DON |
+| Upgradability | Redeploy contract + re-register upkeep | Update workflow code, redeploy WASM binary |
+
+#### VaultResolutionConsumer (CRE Consumer Contract)
+
+A lightweight 7th contract (holds no funds, minimal audit surface) that implements the CRE `IReceiver` interface to receive resolution commands from the CRE workflow via the `KeystoneForwarder`.
 
 ```solidity
-/// @title Vault Automation Resolver
-/// @notice Chainlink Automation-compatible contract that polls for
-///         resolvable markets and triggers oracle resolution.
-/// @dev Holds no funds. Only calls VaultMarket.resolveByOracle().
-contract VaultAutomationResolver is AutomationCompatibleInterface {
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.33;
+
+import {ReceiverTemplate} from "@chainlink/cre/ReceiverTemplate.sol";
+import {IVaultMarket} from "./interfaces/IVaultMarket.sol";
+
+/// @title Vault Resolution Consumer
+/// @notice CRE consumer contract that receives market resolution commands
+///         from a Chainlink CRE Workflow via the KeystoneForwarder.
+/// @dev Holds no funds. Only calls VaultMarket.resolveByOracle() and
+///      VaultMarket.closeMarket(). Inherits ReceiverTemplate for
+///      forwarder validation, workflow ID checks, and ERC165 support.
+contract VaultResolutionConsumer is ReceiverTemplate {
     IVaultMarket public immutable vaultMarket;
-    uint256 public nextMarketToCheck;   // cursor to avoid O(n) scans
-    uint256 public constant MAX_CHECK = 20;  // max markets per checkUpkeep
-    uint256 public constant MAX_RESOLVE = 3; // max resolutions per performUpkeep
 
-    function checkUpkeep(bytes calldata)
-        external view override
-        returns (bool upkeepNeeded, bytes memory performData)
-    {
-        uint256 total = vaultMarket.getMarketCount();
-        uint256[] memory resolvable = new uint256[](MAX_RESOLVE);
-        uint256 found;
-        uint256 cursor = nextMarketToCheck;
+    /// @notice Max markets per onReport call to bound gas
+    uint256 public constant MAX_MARKETS_PER_REPORT = 10;
 
-        for (uint256 i; i < MAX_CHECK && found < MAX_RESOLVE; i++) {
-            uint256 mid = (cursor + i) % total;
-            if (mid == 0) continue; // marketId 0 unused
-            if (_isResolvable(mid)) {
-                resolvable[found++] = mid;
+    /// @notice Action types the CRE workflow can request
+    enum Action { RESOLVE, CLOSE }
+
+    /// @notice Emitted when a resolution attempt succeeds
+    event MarketResolved(uint256 indexed marketId);
+
+    /// @notice Emitted when a close attempt succeeds
+    event MarketClosed(uint256 indexed marketId);
+
+    /// @notice Emitted when an action fails (try/catch, non-blocking)
+    event ActionFailed(uint256 indexed marketId, Action action, bytes reason);
+
+    error InvalidAction(uint8 action);
+    error BatchTooLarge(uint256 length, uint256 max);
+
+    constructor(
+        address _forwarder,
+        address _vaultMarket
+    ) ReceiverTemplate(_forwarder) {
+        vaultMarket = IVaultMarket(_vaultMarket);
+    }
+
+    /// @inheritdoc ReceiverTemplate
+    /// @dev Decodes a batch of (action, marketId) pairs and executes each.
+    ///      try/catch ensures one failure does not block others.
+    function _processReport(bytes calldata report) internal override {
+        (uint8 action, uint256[] memory marketIds) =
+            abi.decode(report, (uint8, uint256[]));
+
+        if (marketIds.length > MAX_MARKETS_PER_REPORT)
+            revert BatchTooLarge(marketIds.length, MAX_MARKETS_PER_REPORT);
+
+        for (uint256 i; i < marketIds.length; i++) {
+            if (Action(action) == Action.RESOLVE) {
+                try vaultMarket.resolveByOracle(marketIds[i]) {
+                    emit MarketResolved(marketIds[i]);
+                } catch (bytes memory reason) {
+                    emit ActionFailed(marketIds[i], Action.RESOLVE, reason);
+                }
+            } else if (Action(action) == Action.CLOSE) {
+                try vaultMarket.closeMarket(marketIds[i]) {
+                    emit MarketClosed(marketIds[i]);
+                } catch (bytes memory reason) {
+                    emit ActionFailed(marketIds[i], Action.CLOSE, reason);
+                }
+            } else {
+                revert InvalidAction(action);
             }
         }
-
-        if (found > 0) {
-            // trim array
-            assembly { mstore(resolvable, found) }
-            return (true, abi.encode(resolvable));
-        }
-        return (false, "");
-    }
-
-    function performUpkeep(bytes calldata performData) external override {
-        uint256[] memory marketIds = abi.decode(performData, (uint256[]));
-        for (uint256 i; i < marketIds.length; i++) {
-            // try/catch so one failure doesn't block others
-            try vaultMarket.resolveByOracle(marketIds[i]) {} catch {}
-        }
-        nextMarketToCheck = (nextMarketToCheck + MAX_CHECK)
-            % vaultMarket.getMarketCount();
-    }
-
-    function _isResolvable(uint256 marketId) internal view returns (bool) {
-        MarketState state = vaultMarket.getMarketState(marketId);
-        if (state != MarketState.Closed) return false;
-        Market memory m = vaultMarket.getMarket(marketId);
-        if (m.oracleConfig.resolverType == ResolverType.ADMIN) return false;
-        // Check grace period hasn't expired
-        if (block.timestamp > m.resolutionTime + m.oracleConfig.gracePeriod)
-            return false;
-        return true;
     }
 }
 ```
 
-> **Gas Bounds:** `performUpkeep` resolves at most `MAX_RESOLVE` (3) markets per call to stay within Chainlink Automation's upkeep gas limit. `checkUpkeep` scans at most `MAX_CHECK` (20) markets per call using a rotating cursor. No unbounded loops.
+> **Supplementary Contract:** This is a justified exception to the "6 contracts" principle. `VaultResolutionConsumer` holds no funds, has no privileged access (calls only permissionless `resolveByOracle` and `closeMarket`), and is a ~60-line contract with minimal audit surface. It replaces the old `VaultAutomationResolver` with a cleaner separation of concerns — all scanning/decision logic lives in the off-chain CRE workflow.
+
+#### CRE Workflow: Market Resolution (TypeScript)
+
+The resolution workflow runs as a WASM binary on a Chainlink DON. It uses a Cron trigger to periodically scan for resolvable markets, then writes resolution commands to the consumer contract via the `KeystoneForwarder`.
+
+```typescript
+// workflows/resolution/index.ts
+import {
+  CronCapability, EVMClient, handler, Runner,
+  type Runtime, type CronPayload,
+  getNetwork, encodeCallMsg, prepareReportRequest,
+  LAST_FINALIZED_BLOCK_NUMBER, bytesToHex,
+} from "@chainlink/cre-sdk"
+import {
+  encodeFunctionData, decodeFunctionResult, zeroAddress,
+  encodeAbiParameters, parseAbiParameters,
+} from "viem"
+import { z } from "zod"
+import { VaultMarketABI } from "../contracts/abi"
+
+// --- Config schema (validated at startup) ---
+const configSchema = z.object({
+  schedule:             z.string(),  // cron expression, e.g. "0 */5 * * * *"
+  chainSelectorName:    z.string(),  // e.g. "ethereum-testnet-sepolia-arbitrum-1"
+  isTestnet:            z.boolean(),
+  vaultMarketAddress:   z.string(),  // VaultMarket contract address
+  consumerAddress:      z.string(),  // VaultResolutionConsumer address
+  maxResolvePerRun:     z.number().default(10),
+  maxClosePerRun:       z.number().default(20),
+})
+type Config = z.infer<typeof configSchema>
+
+// --- Action enum (matches Solidity) ---
+const Action = { RESOLVE: 0, CLOSE: 1 } as const
+
+// --- Callback: fires every cron tick ---
+const onCronTrigger = (runtime: Runtime<Config>, _payload: CronPayload): string => {
+  const config = runtime.config
+  const network = getNetwork({
+    chainFamily: "evm",
+    chainSelectorName: config.chainSelectorName,
+    isTestnet: config.isTestnet,
+  })
+  if (!network) throw new Error(`Network not found: ${config.chainSelectorName}`)
+
+  const evmClient = new EVMClient(network.chainSelector.selector)
+
+  // 1. Scan ONLY active markets via paginated view (O(activeMarkets), not O(totalMarkets))
+  //    Resolved/cancelled markets are excluded from the active list (swap-and-pop),
+  //    so this scales with live markets regardless of total historical market count.
+  const resolvable: bigint[] = []
+  const closeable: bigint[] = []
+  const PAGE_SIZE = 50n
+  let cursor = 0n
+
+  while (resolvable.length < config.maxResolvePerRun || closeable.length < config.maxClosePerRun) {
+    const pageResult = evmClient.callContract(runtime, {
+      call: encodeCallMsg({
+        from: zeroAddress,
+        to: config.vaultMarketAddress,
+        data: encodeFunctionData({
+          abi: VaultMarketABI,
+          functionName: "getActiveMarketIds",
+          args: [cursor, PAGE_SIZE],
+        }),
+      }),
+      blockNumber: LAST_FINALIZED_BLOCK_NUMBER,
+    }).result()
+
+    const activeIds = decodeFunctionResult({
+      abi: VaultMarketABI,
+      functionName: "getActiveMarketIds",
+      data: bytesToHex(pageResult.data),
+    }) as bigint[]
+
+    if (activeIds.length === 0) break // no more active markets
+
+    for (const id of activeIds) {
+      const marketResult = evmClient.callContract(runtime, {
+        call: encodeCallMsg({
+          from: zeroAddress,
+          to: config.vaultMarketAddress,
+          data: encodeFunctionData({
+            abi: VaultMarketABI,
+            functionName: "getMarket",
+            args: [id],
+          }),
+        }),
+        blockNumber: LAST_FINALIZED_BLOCK_NUMBER,
+      }).result()
+
+      const market = decodeFunctionResult({
+        abi: VaultMarketABI,
+        functionName: "getMarket",
+        data: bytesToHex(marketResult.data),
+      })
+
+      const now = BigInt(Math.floor(Date.now() / 1000))
+
+      // Check if market needs closing (Active + past resolutionTime)
+      if (market.state === 0 /* Active */ && now >= market.resolutionTime) {
+        closeable.push(id)
+      }
+
+      // Check if market is resolvable (Closed + oracle-based + within grace period)
+      if (market.state === 2 /* Closed */ &&
+          market.oracleConfig.resolverType !== 0 /* not ADMIN */ &&
+          now <= market.resolutionTime + market.oracleConfig.gracePeriod) {
+        resolvable.push(id)
+      }
+    }
+
+    cursor += PAGE_SIZE
+  }
+
+  // 3. Submit close commands
+  if (closeable.length > 0) {
+    const closePayload = encodeAbiParameters(
+      parseAbiParameters("uint8, uint256[]"),
+      [Action.CLOSE, closeable],
+    )
+    const closeReport = runtime.report(prepareReportRequest(closePayload)).result()
+    evmClient.writeReport(runtime, {
+      receiver: config.consumerAddress,
+      report: closeReport,
+    }).result()
+    runtime.log(`Closed ${closeable.length} markets: ${closeable.join(", ")}`)
+  }
+
+  // 4. Submit resolution commands
+  if (resolvable.length > 0) {
+    const resolvePayload = encodeAbiParameters(
+      parseAbiParameters("uint8, uint256[]"),
+      [Action.RESOLVE, resolvable],
+    )
+    const resolveReport = runtime.report(prepareReportRequest(resolvePayload)).result()
+    evmClient.writeReport(runtime, {
+      receiver: config.consumerAddress,
+      report: resolveReport,
+    }).result()
+    runtime.log(`Resolved ${resolvable.length} markets: ${resolvable.join(", ")}`)
+  }
+
+  return `close=${closeable.length}, resolve=${resolvable.length}`
+}
+
+// --- Workflow entry points ---
+const initWorkflow = (config: Config) => {
+  const cron = new CronCapability()
+  return [handler(cron.trigger({ schedule: config.schedule }), onCronTrigger)]
+}
+
+export async function main() {
+  const runner = await Runner.newRunner<Config>({ configSchema })
+  await runner.run(initWorkflow)
+}
+```
+
+**Workflow Configuration (`config.staging.json`):**
+
+```json
+{
+  "schedule": "0 */5 * * * *",
+  "chainSelectorName": "ethereum-testnet-sepolia-arbitrum-1",
+  "isTestnet": true,
+  "vaultMarketAddress": "0x...",
+  "consumerAddress": "0x...",
+  "maxResolvePerRun": 10,
+  "maxClosePerRun": 20
+}
+```
+
+#### CRE Workflow Capabilities Used
+
+| Capability | Purpose | Trigger |
+| --- | --- | --- |
+| **Cron Trigger** | Fire resolution scan every 5 minutes | `0 */5 * * * *` |
+| **EVM Read** (`callContract`) | Read market count, market state, oracle config | Per-market |
+| **EVM Write** (`writeReport`) | Submit batch close/resolve via consumer contract | Per batch |
+
+> **Event-Driven Enhancement (Future):** Add an EVM Log trigger on `MarketClosed(uint256 indexed marketId)` to attempt resolution immediately when a market transitions to Closed, rather than waiting for the next cron tick. This provides sub-minute resolution latency for oracle-configured markets.
+
+> **No On-Chain Gas Limits:** Unlike the legacy Keeper pattern (which was constrained by `checkUpkeep`/`performUpkeep` gas limits to scan 20 markets and resolve 3 per call), the CRE workflow performs all scanning logic off-chain in TypeScript. The only on-chain gas cost is the `writeReport` transaction, which is a single call to the consumer contract with pre-computed market IDs. `maxResolvePerRun` and `maxClosePerRun` are soft config limits for workflow execution time, not gas ceilings.
+
+> **CRE on Arbitrum:** CRE supports Arbitrum One and Arbitrum Sepolia via chain selectors `ethereum-mainnet-arbitrum-1` (4949039107694359620) and `ethereum-testnet-sepolia-arbitrum-1` (3478487238524512106). The consumer contract requires the Chainlink `KeystoneForwarder` address for the target chain — see the [CRE Forwarder Directory](https://docs.chain.link/cre/guides/workflow/using-evm-client/forwarder-directory) for current addresses.
+
+> **Deployment Lifecycle:**
 >
-> **Chainlink Automation on Arbitrum:** Automation is supported on Arbitrum One via registry v2.1+. Configure upkeeps with a gas price threshold to avoid execution during extreme L2 congestion.
->
-> **Supplementary Contract:** This is a justified exception to the "6 contracts" principle. VaultAutomationResolver holds no funds, has no privileged access (calls only permissionless `resolveByOracle`), and is a ~50-line contract with minimal audit surface.
+> 1. Deploy `VaultResolutionConsumer` with the `KeystoneForwarder` address and `VaultMarket` address
+> 2. Configure consumer permissions: `setExpectedWorkflowId()` and `setExpectedAuthor()` for production security
+> 3. Build workflow: `cre workflow simulate` for local testing (uses `MockKeystoneForwarder`)
+> 4. Deploy workflow: `cre workflow deploy` (Early Access) to run on a Chainlink DON
+> 5. Monitor via CRE UI: execution logs, trigger history, error traces
 
 ---
 
@@ -715,7 +971,7 @@ contract VaultAutomationResolver is AutomationCompatibleInterface {
 | ------------------------------------------------- | ------- | -------------------------------------------------------------------------------------- |
 | `settleBatch(Order[] orders, bytes[] signatures)` | Relayer | Settle matched orders (soft reverts)                                                   |
 | `cancelOrder(Order order)`                        | Maker   | Cancel single order (requires full order struct to verify `msg.sender == order.maker`) |
-| `cancelOrders(Order[] orders)`                    | Maker   | Batch cancel (verifies maker on each)                                                  |
+| `cancelOrders(Order[] orders)`                    | Maker   | Batch cancel (verifies maker on each; bounded by `MAX_CANCEL_BATCH = 20`)              |
 | `incrementNonce()`                                | User    | Invalidate all pending orders                                                          |
 
 
@@ -847,24 +1103,24 @@ enum FeeSource { FPMM, CLOB, CLMM }
 
 | Method                                                            | Access                          | Purpose                                                                         |
 | ----------------------------------------------------------------- | ------------------------------- | ------------------------------------------------------------------------------- |
-| `registerProfile()`                                               | User                            | Create profile for msg.sender                                                   |
-| `linkWallet(address wallet, bytes signature)`                     | ProfileOwner                    | Add wallet to profile (requires wallet's EIP-712 consent signature)             |
+| `linkWallet(address wallet, bytes signature)`                     | User                            | Link wallet to profile (auto-creates profile if needed; requires wallet's EIP-712 consent) |
 | `unlinkWallet(address wallet)`                                    | ProfileOwner                    | Remove wallet (callable by profile owner or the wallet being unlinked)          |
-| `setCreditLimit(uint256 profileId, uint256 limit)`                | Admin                           | Set/update credit limit                                                         |
+| `setCreditLimit(uint256 profileId, uint256 limit)`                | Admin                           | Set/update credit limit (auto-creates profile via `_ensureProfile` if needed)   |
 | `recordDebt(uint256 profileId, uint256 amount)`                   | Internal                        | Add debt (called by Market)                                                     |
 | `depositFees(uint256 marketId, uint256 amount, FeeSource source)` | VaultMarket/VaultCLOB/VaultCLMM | Deposit fees into debt-first waterfall                                          |
-| `processEarnings(uint256 profileId, uint256 marketId)`            | Internal                        | Post-resolution accounting (gated: `block.timestamp >= market.disputeDeadline`) |
-| `withdrawEarnings()`                                              | ProfileOwner                    | Pull claimable funds                                                            |
-| `setProfileStatus(uint256 profileId, ProfileStatus status)`       | Admin                           | Update tier                                                                     |
+| `withdrawEarnings()`                                              | ProfileOwner                    | Auto-processes pending earnings (dispute-gated), then pulls claimable funds     |
+| `setProfileStatus(uint256 profileId, ProfileStatus status)`       | Admin                           | Update tier (auto-creates profile via `_ensureProfile` if needed)               |
 
 
-> **Pull Pattern**: Earnings are processed internally but not pushed to users. Instead, users call `withdrawEarnings()` to pull funds. This prevents revert-on-receive attacks where a malicious contract could block fund distribution by reverting in its receive function.
+> **Pull Pattern (Merged)**: `withdrawEarnings()` auto-processes pending earnings for up to `MAX_AUTO_PROCESS` (5) resolved markets where `block.timestamp >= disputeDeadline`, then transfers all claimable funds. This merges two transactions (`processEarnings` + `withdrawEarnings`) into one value-bearing call. For profiles with many pending markets, repeated calls process in batches. This prevents revert-on-receive attacks (pull, not push) and eliminates a purposeless intermediate transaction.
+>
+> **Lazy Profile Creation**: There is no user-facing `registerProfile()`. Profiles are created atomically via `_ensureProfile(address)` when needed — triggered by admin actions (`setCreditLimit`, `setProfileStatus`) or user `linkWallet()`. Casual traders never pay gas for identity registration.
 
 > **Fee Ingestion**: `depositFees(marketId, amount, FeeSource)` is callable by `VaultMarket` (FPMM), `VaultCLOB` (CLOB fills), and `VaultCLMM` (protocol LP fees). This ensures all venue fees flow into the debt-first waterfall.
 
 > **Fee Events**: `depositFees` emits `FeesDeposited(marketId, amount, source)` for indexing.
 
-> **Dispute Window Enforcement (On-Chain):** `processEarnings()` MUST revert with `DisputeWindowActive(marketId, disputeDeadline)` if `block.timestamp < market.disputeDeadline`. This ensures the dispute period is enforced at the contract level, not just cosmetically in the UI. `redeem()` is callable immediately after resolution since users are redeeming their own shares.
+> **Dispute Window Enforcement (On-Chain):** `processEarnings()` MUST revert with `DisputeWindowActive(marketId, disputeDeadline)` if `block.timestamp < market.disputeDeadline`. This ensures the dispute period is enforced at the contract level, not just cosmetically in the UI. `redeem()` is callable immediately after resolution since users are redeeming their own winning shares — losers never need to transact at all.
 
 > **Wallet Link Authorization:** `linkWallet()` requires an EIP-712 signature from the wallet being linked, preventing unauthorized profile association. Without this, an attacker could link a victim's wallet to their own profile and subject the victim's earnings to the attacker's debt-first waterfall. `unlinkWallet()` is callable by either the profile owner or the wallet itself (so a wallet can always remove itself).
 
@@ -880,46 +1136,44 @@ This section maps user journeys to contract calls, events, and backend integrati
 
 ### Workflow 1: User Onboarding
 
-**Scenario**: New user connects wallet and creates a profile.
+**Scenario**: New user connects wallet and starts trading.
+
+> **No on-chain registration required for casual traders.** Profiles (VaultCredit) are only needed for creators/KOLs who use credit lines and the debt-first waterfall. Regular traders interact with bare wallet addresses — `balanceOf`, `swap`, `split`, `merge`, `redeem` are all keyed by `msg.sender`, not `profileId`. Profiles are created lazily by admin actions (`setProfileStatus`, `setCreditLimit`) or when a user calls `linkWallet()`.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │ FRONTEND                                                                    │
 │ 1. User connects wallet (wagmi/viem)                                        │
-│ 2. Check if profile exists                                                  │
-│ 3. If not, prompt to register                                               │
-└─────────────────────────────────────────────────────────────────────────────┘
-                                    │
-                                    ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│ CONTRACT CALLS                                                              │
-├─────────────────────────────────────────────────────────────────────────────┤
-│ // Step 1: Check if registered                                              │
-│ bool exists = vaultCredit.isProfileRegistered(userAddress);                 │
+│ 2. Check USDC balance and allowance                                         │
+│ 3. If needed, approve USDC (one-time)                                       │
+│ 4. Ready to trade — no profile registration tx needed                       │
 │                                                                             │
-│ // Step 2: Register if new                                                  │
-│ if (!exists) {                                                              │
-│     uint256 profileId = vaultCredit.registerProfile();                      │
-│ }                                                                           │
+│ NOTE: Profile creation (VaultCredit) is only triggered when admin            │
+│ grants creator/KOL status. Casual traders never pay gas for identity.       │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ CONTRACT CALLS (view only — no tx, no gas)                                  │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ // Step 1: Check USDC balance                                               │
+│ uint256 balance = usdc.balanceOf(userAddress);                              │
 │                                                                             │
-│ // Step 3: Get profile details                                              │
-│ Profile memory profile = vaultCredit.getProfile(profileId);                 │
+│ // Step 2: Check allowance for VaultToken (for split/swap)                  │
+│ uint256 allowance = usdc.allowance(userAddress, address(vaultToken));       │
+│                                                                             │
+│ // Step 3: Optionally check profile (for creators/KOLs only)               │
+│ (uint256 profileId, bool exists) =                                          │
+│     vaultCredit.getProfileByWallet(userAddress);                            │
 └─────────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ EVENTS EMITTED                                                              │
+│ CONTRACT CALLS (tx — only if USDC not yet approved)                         │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│ event ProfileRegistered(uint256 indexed profileId, address indexed wallet); │
-└─────────────────────────────────────────────────────────────────────────────┘
-                                    │
-                                    ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│ BACKEND INDEXING                                                            │
-├─────────────────────────────────────────────────────────────────────────────┤
-│ Subgraph: Index ProfileRegistered → create Profile entity                   │
-│ Database: Upsert user record with profileId, wallet, createdAt              │
-│ Cache: Invalidate user lookup cache                                         │
+│ // One-time USDC approval (~25K gas, ~$0.01 on Arbitrum)                    │
+│ usdc.approve(address(vaultToken), type(uint256).max);                       │
+│ // This is the ONLY onboarding transaction — and it's standard ERC-20.      │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -1349,24 +1603,32 @@ This section maps user journeys to contract calls, events, and backend integrati
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ USER FLOW (Redemption) - after dispute window                               │
+│ WINNER FLOW (Redemption) - callable immediately after resolution             │
+│ NOTE: Losers NEVER need to transact. Losing shares are inert on-chain.      │
 └─────────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ CONTRACT CALLS (User)                                                       │
+│ CONTRACT CALLS (Winner only)                                                │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│ // Step 1: Check redemption amount                                          │
+│ // Step 1: Check redemption amount (view — no gas)                          │
 │ uint256 redeemable = vaultMarket.getRedemptionAmount(marketId, user);       │
+│ // Returns USDC payout (>0 for winners, 0 for losers)                       │
+│ // Frontend: only show "Redeem" button when redeemable > 0                  │
 │                                                                             │
 │ // Step 2: Redeem winning shares                                            │
 │ uint256 usdcReceived = vaultMarket.redeem(marketId);                        │
 │                                                                             │
 │ // This:                                                                    │
-│ // 1. Calls VaultToken.settle(marketId, user, winningShares)                │
-│ // 2. Burns winning shares and releases USDC from collateral custody         │
-│ // 3. Losing shares become worthless (optional burn)                         │
-│ // 4. Processes creator fees (if dispute window passed)                      │
+│ // 1. Burns winning shares via VaultToken.settle() → releases USDC          │
+│ // 2. Losing shares are LEFT INERT in user's wallet (not burned)            │
+│ //    - Zero economic value, zero gas cost to hold, zero harm               │
+│ //    - Frontend hides them (resolved losing position = "Market Lost")      │
+│ // 3. Reverts with NothingToRedeem if user has zero winning shares          │
+│ //    - Losers should NEVER reach this code path (frontend gates it)        │
+│ //                                                                          │
+│ // SCALE: 1M+ users per market. Each winner pays ~25K gas on Arbitrum       │
+│ // (~$0.01). Losers pay 0 gas. No batch/push burning. No iteration.         │
 └─────────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
@@ -1377,7 +1639,6 @@ This section maps user journeys to contract calls, events, and backend integrati
 │     uint256 indexed marketId,                                               │
 │     address indexed user,                                                   │
 │     uint256 winningShares,                                                  │
-│     uint256 losingShares,                                                   │
 │     uint256 usdcReceived                                                    │
 │ );                                                                          │
 │                                                                             │
@@ -1469,10 +1730,8 @@ This section maps user journeys to contract calls, events, and backend integrati
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │ AFTER RESOLUTION (Debt-First Waterfall)                                     │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│ // System processes earnings after dispute window                           │
-│ vaultCredit.processEarnings(profileId, marketId);                           │
-│                                                                             │
-│ // Profile owner pulls claimable funds                                      │
+│ // Single call: auto-processes pending earnings + withdraws claimable funds │
+│ // (processEarnings is absorbed into withdrawEarnings — no separate tx)     │
 │ vaultCredit.withdrawEarnings();                                             │
 │                                                                             │
 │ // Waterfall logic:                                                         │
@@ -1527,7 +1786,7 @@ This section maps user journeys to contract calls, events, and backend integrati
 | Workflow         | Contracts Involved                 | Key Write Methods                        | Backend Integration          |
 | ---------------- | ---------------------------------- | ---------------------------------------- | ---------------------------- |
 | Create Event     | VaultMarket                        | `createEvent()`                          | Event indexing               |
-| Onboarding       | VaultCredit                        | `registerProfile()`                      | Profile indexing             |
+| Onboarding       | USDC (ERC-20)                      | `approve()` (one-time)                   | Wallet tracking              |
 | Deposit          | VaultToken, USDC                   | `split(marketId, amount)`                | Position tracking            |
 | Buy (FPMM)       | VaultMarket, VaultRisk, VaultToken | `swap(SwapParams)`                       | Trade history, prices        |
 | Sell (FPMM)      | VaultMarket, VaultRisk, VaultToken | `swap(SwapParams)`                       | Trade history, prices        |
@@ -1708,13 +1967,21 @@ vaultMarket.resolve(
 // REDEMPTION (After resolution)
 // ============================================================
 
-// Check claimable amount
+// Check claimable amount (view — no gas, no tx)
 uint256 claimable = vaultMarket.getRedemptionAmount(42, user);
-// Returns: 250e6 (user had 250 winning shares)
+// Returns: 250e6 for winners (user had 250 winning shares)
+// Returns: 0 for losers (user held only losing shares)
+// Frontend: only show "Redeem" button when claimable > 0
 
-// Claim USDC
+// Winner redeems — burns winning shares, receives USDC
 uint256 received = vaultMarket.redeem(42);
-// Calls VaultToken.settle() to burn winning shares and release USDC
+// Burns winning shares via VaultToken.settle(), returns USDC
+// Losing shares remain inert in user's wallet (not burned — zero cost at scale)
+// Reverts with NothingToRedeem if user has zero winning shares
+
+// LOSERS: No transaction needed. Frontend shows "Market Lost" badge.
+// Losing ERC-1155 shares sit in wallet with $0 value — harmless storage slots.
+// Same pattern as Polymarket/Gnosis CTF: dead conditional tokens are never burned.
 ```
 
 ### VaultCLMM Examples
@@ -1928,8 +2195,11 @@ uint256 lastBlock = vaultRisk.getLastUpdateBlock();
 // PROFILE MANAGEMENT
 // ============================================================
 
-// Register new profile
-uint256 profileId = vaultCredit.registerProfile();
+// Profiles are created lazily — no registerProfile() call needed.
+// Admin grants status, which auto-creates profile internally:
+// vaultCredit.setProfileStatus(profileId, ProfileStatus.Creator);
+// Or user links wallet, which auto-creates if needed:
+// vaultCredit.linkWallet(walletAddress, eip712Signature);
 
 // Link additional wallet
 vaultCredit.linkWallet(0xSecondWallet...);
@@ -2281,7 +2551,7 @@ Users graduate from free-to-play to real-money trading:
 
 1. **Start in markets-web:** User signs up with Twitter OAuth, gets $10k virtual balance, earns XP, builds streaks.
 2. **Graduation trigger:** User connects a wallet (Privy creates an embedded wallet on first on-chain action, or user connects MetaMask/external wallet).
-3. **On-chain profile:** `VaultCredit.registerProfile()` creates an on-chain identity. Same Privy `userId` links both accounts.
+3. **On-chain profile:** Created lazily via `VaultCredit._ensureProfile()` when admin grants creator/KOL status. Same Privy `userId` links both accounts. Casual traders do not need on-chain profiles.
 4. **Reputation carries over:** Off-chain XP, streak length, and KOL status inform the on-chain `ProfileStatus` tier (Creator, TrustedKOL). This affects credit limits.
 5. **Balance does NOT carry over:** Virtual balance stays in `markets-web`. Real USDC must be deposited via `VaultToken.split()` or direct wallet funding.
 
@@ -2816,7 +3086,7 @@ packages/contracts/
 │   ├── VaultCLOB.sol
 │   ├── VaultRisk.sol
 │   ├── VaultCredit.sol
-│   ├── VaultAutomationResolver.sol  # Chainlink Automation keeper (no funds, ~50 LOC)
+│   ├── VaultResolutionConsumer.sol  # CRE consumer contract (no funds, ~60 LOC)
 │   ├── lib/
 │   │   ├── MathLib.sol        # Fixed-point ops, mulDiv, sqrt
 │   │   ├── LUTLib.sol         # Interpolated lookup tables
@@ -2840,9 +3110,17 @@ packages/contracts/
 │   └── Migrate.s.sol
 ├── test/
 │   └── *.t.sol
-└── deployments/
-    ├── 421614/   # Arbitrum Sepolia
-    └── 42161/    # Arbitrum One
+├── deployments/
+│   ├── 421614/   # Arbitrum Sepolia
+│   └── 42161/    # Arbitrum One
+└── workflows/                     # CRE Workflow (TypeScript)
+    └── resolution/
+        ├── index.ts               # Main workflow: cron → scan → resolve/close
+        ├── config.staging.json    # Arbitrum Sepolia config
+        ├── config.production.json # Arbitrum One config
+        ├── project.yaml           # CRE project config (RPCs, chain selectors)
+        └── contracts/
+            └── abi.ts             # VaultMarket ABI bindings (viem)
 ```
 
 ---
@@ -2908,6 +3186,1258 @@ pnpm contracts:mine:salt -- --pattern 777 --type hexPrefix --chain sepolia
 | Arbitrum Sepolia | 421614 | `$ARBITRUM_SEPOLIA_RPC_URL` |
 | Arbitrum One     | 42161  | `$ARBITRUM_ONE_RPC_URL`     |
 
+
+---
+
+## Gas Budget & Transaction Value Audit
+
+> **Transaction Value Principle:** Every user-signed transaction MUST involve a real value exchange (USDC in/out, share mint/burn, position creation/destruction, or order protection). If no value changes hands, no transaction should be required. "Housekeeping" operations are either eliminated, absorbed into value-bearing calls, or delegated to permissionless CRE workflows.
+
+### Arbitrum Gas Assumptions
+
+All estimates use live Arbitrum One parameters as of **February 6, 2026**:
+
+| Parameter | Value | Source |
+| --- | --- | --- |
+| L2 gas price (base) | **0.022 gwei** | arbiscan.io/gastracker (live) |
+| L2 priority fee | **0 gwei** | arbiscan.io (live) |
+| Block time | ~4 seconds | Arbitrum Nitro |
+| L1 data posting (calldata component) | ~460K ArbGas fixed + 2,116/non-zero byte | Arbitrum docs |
+| SSTORE (0 → non-zero, slot init) | ~20K gas | EVM opcode |
+| SSTORE (non-zero → non-zero) | ~5K gas | EVM opcode |
+| SLOAD | ~2.1K gas | EVM opcode |
+| ERC-20 transfer | ~46K gas → ~$0.002 | arbiscan.io |
+| Uniswap-style swap | ~130K gas → ~$0.006 | arbiscan.io |
+| **LINK price** | **$8.86** | CoinMarketCap (live, mcap $6.27B) |
+| **ETH price** | **~$2,100** | CoinMarketCap (range $1,750-$2,100) |
+
+> **Cost formula:** `USD = gas × 0.022 gwei × 1e-9 × ETH_price`. At 0.022 gwei and ETH=$2,100: **100K gas ≈ $0.0046**. For congested estimates below, we use a **5× spike** (0.11 gwei, ETH=$2,100) = ~$0.023 per 100K gas. All costs below use the **typical** rate unless noted.
+
+### Per-Operation Gas Estimates (User)
+
+Every operation listed is a user-signed tx with real value exchange. Operations eliminated for violating the value principle are marked.
+
+
+| Operation | Gas (L2) | USD (typical) | USD (5× spike) | Value Exchange |
+| --- | --- | --- | --- | --- |
+| **One-Time Setup** | | | | |
+| USDC `approve(vaultToken, max)` | 46K | $0.0021 | $0.011 | Enables deposits (once per spender) |
+| USDC `approve(vaultMarket, max)` | 46K | $0.0021 | $0.011 | Enables swaps (once per spender) |
+| `setApprovalForAll(vaultCLMM, true)` | 46K | $0.0021 | $0.011 | Enables LP (once) |
+| **Trading (FPMM)** | | | | |
+| `swap()` — buy (USDC → shares) | 150K | $0.0069 | $0.035 | Receives outcome shares |
+| `swap()` — sell (shares → USDC) | 150K | $0.0069 | $0.035 | Receives USDC |
+| **Trading (CLOB)** | | | | |
+| Sign EIP-712 order | **0** | **$0.00** | **$0.00** | Off-chain — no gas |
+| `cancelOrder(Order)` | 30K | $0.0014 | $0.007 | Protects from unwanted fill |
+| `cancelOrders(Order[20])` | 600K | $0.028 | $0.139 | Batch protection (max 20) |
+| `incrementNonce()` | 5K | $0.0002 | $0.001 | Emergency invalidate all orders |
+| **Minting / Burning** | | | | |
+| `split(marketId, amount)` | 80K | $0.0037 | $0.018 | USDC → complete set shares |
+| `merge(marketId, amount)` | 80K | $0.0037 | $0.018 | Complete set → USDC |
+| **Redemption / Claims** | | | | |
+| `redeem(marketId)` — winner | 30K | $0.0014 | $0.007 | Winning shares → USDC |
+| `redeem()` — loser | **0** | **$0.00** | **$0.00** | **No tx needed** — shares inert |
+| `claimRefund(marketId)` — cancelled market | 30K | $0.0014 | $0.007 | Share value → USDC refund |
+| `claimCreatorFees(marketId)` | 30K | $0.0014 | $0.007 | Accrued fees → USDC |
+| `withdrawEarnings()` (merged) | 50K | $0.0023 | $0.012 | Auto-processes + withdraws USDC |
+| **CLMM Liquidity** | | | | |
+| `addLiquidity(...)` | 200K | $0.0092 | $0.046 | Tokens → LP position + fee earning |
+| `removeLiquidity(...)` | 150K | $0.0069 | $0.035 | LP position → tokens |
+| `collectFees(positionId)` | 50K | $0.0023 | $0.012 | Accrued LP fees → tokens |
+| **Profile (creators/KOLs only)** | | | | |
+| `linkWallet(wallet, sig)` | 50K | $0.0023 | $0.012 | Associates wallet (auto-creates profile) |
+| `unlinkWallet(wallet)` | 30K | $0.0014 | $0.007 | Removes wallet association |
+| **Eliminated (no value)** | | | | |
+| ~~`registerProfile()`~~ | ~~50K~~ | — | — | Replaced by lazy `_ensureProfile()` |
+| ~~Losing share burn~~ | ~~5K×N~~ | — | — | Shares left inert (zero cost) |
+| ~~`processEarnings()` standalone~~ | ~~50K~~ | — | — | Absorbed into `withdrawEarnings()` |
+
+### Full User Journey Gas Estimates
+
+These show total gas for end-to-end user flows, including all setup and teardown.
+
+#### Journey 1: Casual FPMM Trader (buy → hold → redeem)
+
+```
+First trade ever (includes one-time setup):
+  USDC approve (VaultMarket)          46K gas    $0.0021
+  swap() buy                         150K gas    $0.0069
+                                     ─────────
+  Subtotal (first trade):            196K gas    $0.009
+
+Subsequent trades (no setup):
+  swap() buy                         150K gas    $0.007
+
+Redemption (if winner):
+  redeem()                            30K gas    $0.001
+
+Redemption (if loser):
+  (no transaction)                      0 gas    $0.000
+                                     ─────────
+  TOTAL LIFECYCLE (winner):          226K gas    $0.010
+  TOTAL LIFECYCLE (loser):           196K gas    $0.009
+```
+
+> A user's entire lifetime of prediction market participation — from first approval to final redemption — costs **less than one cent**.
+
+#### Journey 2: CLOB Trader (place limit order → fill → redeem)
+
+```
+One-time setup:
+  USDC approve (VaultToken)           46K gas    $0.0021
+  setApprovalForAll (VaultCLOB)       46K gas    $0.0021
+                                     ─────────
+  Subtotal (setup):                   92K gas    $0.004
+
+Trading (per order):
+  Sign EIP-712 order                    0 gas    $0.000  (off-chain)
+  Relayer settles via settleBatch       0 gas    $0.000  (relayer pays)
+
+Redemption (if winner):
+  redeem()                            30K gas    $0.001
+                                     ─────────
+  TOTAL LIFECYCLE (winner):          122K gas    $0.005
+  TOTAL LIFECYCLE (loser):            92K gas    $0.004
+  (+ $0.000/trade — all CLOB gas paid by relayer)
+```
+
+#### Journey 3: CLMM Liquidity Provider (add → earn → remove → redeem)
+
+```
+One-time setup:
+  USDC approve (VaultCLMM)            46K gas    $0.0021
+  setApprovalForAll (VaultCLMM)       46K gas    $0.0021
+                                     ─────────
+  Subtotal (setup):                   92K gas    $0.004
+
+Provide liquidity:
+  addLiquidity()                     200K gas    $0.009
+
+Collect fees (3 times over market life):
+  collectFees() × 3                  150K gas    $0.007
+
+Withdraw:
+  removeLiquidity()                  150K gas    $0.007
+
+Redeem outcome tokens:
+  redeem()                            30K gas    $0.001
+                                     ─────────
+  TOTAL LP LIFECYCLE:                622K gas    $0.029
+```
+
+#### Journey 4: Market Creator (credit line → seed → collect fees)
+
+```
+Profile created lazily by admin:       0 gas    $0.000  (admin pays)
+
+One-time wallet link:
+  linkWallet(wallet, sig)             50K gas    $0.002
+
+Withdraw earnings (after resolution):
+  withdrawEarnings()                  50K gas    $0.002
+                                     ─────────
+  TOTAL CREATOR LIFECYCLE:           100K gas    $0.005
+```
+
+### Protocol / Admin Gas Costs
+
+These are operational costs paid by the protocol multisig.
+
+
+| Operation | Gas | USD (typical) | Frequency |
+| --- | --- | --- | --- |
+| **Market Lifecycle** | | | |
+| `createEvent()` | 100K | $0.0046 | Per event |
+| `createMarket()` (incl. FPMM init + split) | 300K | $0.0139 | Per market |
+| `resolve(marketId, winner, evidence)` | 50K | $0.0023 | Per market |
+| `cancelMarket(marketId)` | 50K | $0.0023 | Rare |
+| `pauseMarket()` / `unpauseMarket()` | 25K | $0.0012 | Emergency |
+| `closeMarket(marketId)` | 30K | $0.0014 | Via CRE (not admin) |
+| **Risk Management** | | | |
+| `setRiskParams(RiskParams)` | 50K | $0.0023 | Rare (tuning) |
+| `setLUT(bytes lutData)` | 200K | $0.0092 | Rare (new LUT) |
+| **Credit Management** | | | |
+| `setProfileStatus(profileId, status)` | 50K | $0.0023 | Per creator/KOL |
+| `setCreditLimit(profileId, limit)` | 25K | $0.0012 | Per creator/KOL |
+| **Deployment (one-time)** | | | |
+| Deploy 6 core contracts + 1 consumer | ~8M | $0.37 | Once per version |
+| MineSalt (vanity addresses) | Off-chain | $0.00 | Once |
+
+**Monthly Admin Gas at 20 markets/day:**
+
+```
+Market operations:
+  createEvent (10/day)           10 × 100K = 1.0M gas/day
+  createMarket (20/day)          20 × 300K = 6.0M gas/day
+  resolve (20/day, admin path)   20 ×  50K = 1.0M gas/day
+                                              ─────────
+  Subtotal:                                   8.0M gas/day → $0.37/day
+
+Monthly admin gas cost:                       ~$11/month
+```
+
+### Relayer Gas Costs (CLOB Settlement)
+
+The relayer is a protocol-operated service that pays gas for CLOB batch settlement.
+
+
+| Operation | Gas per match | Matches/batch | Gas/batch | USD/batch |
+| --- | --- | --- | --- | --- |
+| `settleBatch()` | ~50K | 2 (min) | 100K | $0.005 |
+| `settleBatch()` | ~50K | 10 | 500K | $0.023 |
+| `settleBatch()` | ~50K | 25 | 1.25M | $0.058 |
+| `settleBatch()` | ~50K | 50 (max) | 2.5M | $0.116 |
+
+**Per-match breakdown:**
+
+```
+settleBatch() per match                ~50K gas
+  ├── OrderLib.hashOrder()             ~3K   (keccak256 + memory)
+  ├── SignatureCheckerLib.verify()      ~6K   (ecrecover)
+  ├── Fill validation + state update   ~10K  (SLOAD × 2 + SSTORE × 1)
+  ├── SafeTransferLib (USDC)           ~25K  (ERC-20 transfer)
+  ├── VaultToken.safeTransferFrom()    ~5K   (ERC-1155 transfer, warm)
+  └── VaultCredit.depositFees()        ~1K   (amortized across batch)
+```
+
+**Monthly relayer cost projections:**
+
+| CLOB Volume | Batches/day | Avg matches/batch | Gas/day | USD/day | USD/month |
+| --- | --- | --- | --- | --- | --- |
+| Low (1K trades) | 100 | 10 | 50M | $2.31 | **$69** |
+| Medium (10K trades) | 500 | 20 | 500M | $23.10 | **$693** |
+| High (100K trades) | 2,000 | 50 | 5B | $231 | **$6,930** |
+
+> **Relayer cost is fully recoverable:** Each CLOB fill deducts fees from spread. At $10 average trade size and 10K trades/day = ~$3,000/day in protocol fees vs $23/day relayer cost = **99.2% margin**.
+
+### CRE Workflow Costs (Chainlink LINK)
+
+CRE workflow costs include DON consensus fees for reads/writes, paid in LINK.
+
+> **Pricing caveat:** CRE is in Early Access (Feb 2026). Exact LINK costs per capability invocation are not yet published. Estimates below are based on Chainlink Automation v2.3 economics (gas reimbursement + node premium) and Chainlink Functions billing models. Actual CRE pricing may differ. **LINK=$8.86** as of Feb 6, 2026.
+
+**Cost model per resolution cycle (5-minute cron):**
+
+```
+CRE Resolution Workflow — per cycle cost breakdown:
+
+1. TRIGGER (Cron)
+   DON overhead:                     negligible (internal scheduling)
+
+2. EVM READS (market scanning via callContract)
+   Paginated getActiveMarketIds():   ~4 reads (200 active / 50 per page)
+   Per-market getMarket():           ~200 reads (each active market)
+   Total read operations:            ~204 consensus reads
+   Estimated cost:                   ~0.001 LINK per read × 204 = ~0.2 LINK
+
+3. EVM WRITES (writeReport via KeystoneForwarder)
+   Close batch (5 markets):          ~250K gas on-chain
+   Resolve batch (3 markets):        ~150K gas on-chain
+   DON consensus + signing:          ~80K gas overhead per write
+   Total write gas:                  ~560K gas
+   Gas cost at 0.022 gwei:          ~0.0000123 ETH ≈ $0.026
+   Node premium (est. 30-50%):       ~$0.009-0.013
+   LINK conversion + premium:        ~0.005 LINK per write × 2 = ~0.01 LINK
+
+4. TOTAL PER CYCLE:                  ~0.21 LINK
+   At LINK = $8.86:                  ~$1.86 per cycle
+   (most cycles scan but find nothing to close/resolve,
+    actual writes only when markets need action)
+```
+
+**Idle vs active cycle cost:**
+
+| Cycle Type | Frequency | Reads | Writes | LINK/cycle | USD/cycle |
+| --- | --- | --- | --- | --- | --- |
+| Idle (no markets to act on) | ~90% of cycles | ~204 | 0 | ~0.20 | $1.77 |
+| Active (close/resolve needed) | ~10% of cycles | ~204 | 1-2 | ~0.21 | $1.86 |
+
+**Daily / Monthly CRE cost projections (cron-based, unoptimized):**
+
+| Active Markets | Cycles/day | Avg LINK/day | USD/day (LINK=$8.86) | USD/month |
+| --- | --- | --- | --- | --- |
+| 50 (early) | 288 | ~14 LINK | $124 | **$3,720** |
+| 200 (growth) | 288 | ~58 LINK | $514 | **$15,420** |
+| 1,000 (scale) | 288 | ~290 LINK | $2,569 | **$77,070** |
+
+> **CRE Cost Optimization Levers:**
+>
+> 1. **Reduce cron frequency:** 5 min → 15 min cuts costs by 3×. Markets with >48h grace periods don't need 5-minute polling.
+> 2. **Event-driven triggers (EVM Log):** Replace cron with `MarketClosed` event listener — workflows fire only when needed, eliminating idle cycles entirely. Projected savings: **80-90%**.
+> 3. **Reduce read scope:** Track "next resolvable time" off-chain and skip scanning when no markets are due.
+> 4. **Batch reads:** Use a multicall-style contract that returns multiple market states in a single `callContract()`.
+>
+> **With EVM Log trigger + multicall (optimized):**
+>
+> | Active Markets | Triggers/day | LINK/day | USD/day (LINK=$8.86) | USD/month |
+> | --- | --- | --- | --- | --- |
+> | 50 | ~5 | ~0.25 | $2.22 | **$67** |
+> | 200 | ~20 | ~1.0 | $8.86 | **$266** |
+> | 1,000 | ~100 | ~5.0 | $44.30 | **$1,329** |
+
+### Total Protocol Operating Cost Summary
+
+Aggregated monthly infrastructure costs at different scale tiers (excluding liquidity capital).
+
+
+| Cost Center | 50 markets/day | 200 markets/day | 1,000 markets/day |
+| --- | --- | --- | --- |
+| Admin gas (create/resolve) | $17 | $67 | $333 |
+| Relayer gas (CLOB settlement) | $69 | $693 | $6,930 |
+| CRE workflow (cron, unoptimized) | $3,720 | $15,420 | $77,070 |
+| CRE workflow (event-driven, optimized) | **$67** | **$266** | **$1,329** |
+| **Total (optimized)** | **$153** | **$1,026** | **$8,592** |
+| **Total (unoptimized)** | $3,806 | $16,180 | $84,333 |
+
+> **Key insight:** CRE workflow cost dominates at scale unless optimized. Moving from cron polling to event-driven triggers is critical — it reduces CRE costs by **~98%**. The relayer is the second largest cost center but is fully covered by trading fees. At LINK=$8.86 (down from ~$20 peaks), CRE automation is remarkably affordable.
+
+### User Cost at Scale
+
+Aggregate gas paid by users (individually — not protocol cost).
+
+
+| Metric | 10K DAU | 100K DAU | 1M DAU |
+| --- | --- | --- | --- |
+| Avg trades/user/day | 5 | 5 | 3 |
+| Total trades/day | 50K | 500K | 3M |
+| Gas/trade (FPMM avg) | 150K | 150K | 150K |
+| Total gas/day | 7.5B | 75B | 450B |
+| Cost/trade (typical) | $0.0069 | $0.0069 | $0.0069 |
+| Cost/user/day | $0.035 | $0.035 | $0.021 |
+| Aggregate user gas/day | $347 | $3,465 | $20,790 |
+| Aggregate user gas/month | $10,395 | $103,950 | $623,700 |
+
+> **User gas is individually negligible.** At $0.007/trade on Arbitrum, gas is invisible to users. Even the most active trader doing 20 trades/day spends ~$0.14/day in gas.
+
+### Gas Sponsorship (Paymaster) Economics
+
+| DAU | Trades/day | Sponsor cost/day | Fee revenue/day ($10 avg, 3%) | Net margin |
+| --- | --- | --- | --- | --- |
+| 1K | 5K | $35 | $1,500 | **97.7%** |
+| 10K | 50K | $347 | $15,000 | **97.7%** |
+| 100K | 500K | $3,465 | $150,000 | **97.7%** |
+| 1M | 3M | $20,790 | $900,000 | **97.7%** |
+
+> **Recommendation:** Sponsor all user gas via an ERC-4337 paymaster on Arbitrum. The fee margin easily absorbs the gas cost at any scale tier, and zero-gas UX eliminates the last onboarding friction point.
+
+---
+
+### Scale Scenario: 50K MAU / 200 Markets per Day
+
+> **Target deployment model:** 50,000 Monthly Active Users, 10M transactions/month, 200 markets created and resolved daily. Protocol provides all FPMM liquidity (no syndicates). All user gas sponsored via ERC-4337 Account Abstraction paymaster.
+
+#### User Metrics
+
+| Metric | Value | Derivation |
+| --- | --- | --- |
+| MAU | 50,000 | Target |
+| Est. DAU (33% daily engagement) | ~17,000 | Industry avg for prediction apps |
+| Total transactions/month | 10,000,000 | Target |
+| Tx/user/month | 200 | 10M ÷ 50K |
+| Tx/user/day (active days) | ~6.7 | 200 ÷ 30 |
+| Markets/day (created) | 200 | Target |
+| Markets/day (resolved) | 200+ | Target (steady state) |
+| Avg market lifespan | ~5 days | Varies 1h–30d |
+| Active markets at any time | ~1,000 | 200/day × 5 day avg life |
+
+#### Transaction Mix (10M/month)
+
+| Type | Share | Monthly | Daily | Gas/tx | On-chain? |
+| --- | --- | --- | --- | --- | --- |
+| FPMM swap (buy/sell) | 55% | 5,500,000 | 183,333 | 150K | Yes |
+| CLOB order sign | 15% | 1,500,000 | 50,000 | 0 | **No** (off-chain) |
+| Redemptions (winners) | 10% | 1,000,000 | 33,333 | 30K | Yes |
+| Split / Merge | 8% | 800,000 | 26,667 | 80K | Yes |
+| CLMM LP actions (add/remove/collect) | 5% | 500,000 | 16,667 | 150K avg | Yes |
+| Approvals (new user setup) | 3% | 300,000 | 10,000 | 46K | Yes |
+| Cancel orders (CLOB) | 2% | 200,000 | 6,667 | 30K | Yes |
+| Claims (refund, creator, earnings) | 2% | 200,000 | 6,667 | 30K | Yes |
+| **Total on-chain** | **85%** | **8,500,000** | **283,334** | | |
+| **Total off-chain (CLOB sign)** | **15%** | **1,500,000** | **50,000** | | |
+
+#### Gas Consumption Breakdown (Monthly)
+
+| Transaction Type | Count/month | Gas/tx | Total gas | % of total |
+| --- | --- | --- | --- | --- |
+| FPMM swaps | 5,500,000 | 150K | 825.0B | **80.3%** |
+| CLMM LP actions | 500,000 | 150K | 75.0B | 7.3% |
+| Split / Merge | 800,000 | 80K | 64.0B | 6.2% |
+| Redemptions | 1,000,000 | 30K | 30.0B | 2.9% |
+| Approvals | 300,000 | 46K | 13.8B | 1.3% |
+| Cancel orders | 200,000 | 30K | 6.0B | 0.6% |
+| Claims | 200,000 | 30K | 6.0B | 0.6% |
+| CLOB orders (off-chain) | 1,500,000 | 0 | 0 | 0.0% |
+| **TOTAL** | **10,000,000** | | **1,019.8B** | **100%** |
+
+> FPMM swaps dominate gas (80.3%). This is the primary optimization target if costs ever become a concern.
+
+#### Cost Center 1: AA Gas Sponsorship (User Transactions)
+
+Protocol pays all user gas via ERC-4337 paymaster.
+
+```
+Total monthly gas:              1,019.8B gas (1.02 trillion)
+ETH consumed:                   1,019.8B × 0.022 gwei × 1e-9 = 22.44 ETH/month
+USD cost:                       22.44 ETH × $2,100 = $47,116/month
+
+Daily:                          $1,571/day
+Per transaction (avg):          $0.0047/tx (avg 120K gas across mix)
+Per user per month:             $0.94/user/month
+Per user per day (active):      $0.09/user/day
+```
+
+| Metric | Value |
+| --- | --- |
+| Monthly AA sponsorship cost | **$47,116** |
+| Cost per user per month | **$0.94** |
+| Cost per transaction (avg) | **$0.0047** |
+| ETH required per month | **22.44 ETH** |
+
+#### Cost Center 2: CLOB Relayer Settlement
+
+Relayer pays gas for settling CLOB order matches.
+
+```
+CLOB orders signed:             1,500,000/month → 50,000/day
+Fill rate (est. 80%):           1,200,000 fills/month
+Matches (2 sides = 1 match):   600,000 matches/month → 20,000/day
+Batching (avg 25 matches/batch):800 batches/day
+
+Gas per match:                  ~50K
+Total monthly gas:              600K × 50K = 30B gas
+ETH consumed:                   30B × 0.022e-9 = 0.66 ETH/month
+USD cost:                       0.66 ETH × $2,100 = $1,386/month
+```
+
+| Metric | Value |
+| --- | --- |
+| Monthly relayer cost | **$1,386** |
+| Cost per match | **$0.0023** |
+| Batches per day | **800** |
+
+#### Cost Center 3: Admin Operations (Market Lifecycle)
+
+Protocol multisig creates, manages, and resolves markets.
+
+```
+createEvent (100/day):          100 × 100K = 10M gas/day
+createMarket (200/day):         200 × 300K = 60M gas/day
+resolve (admin, 50/day):         50 ×  50K = 2.5M gas/day
+  (remaining 150/day via CRE)
+setProfileStatus (5/day):         5 ×  50K = 0.25M gas/day
+setCreditLimit (5/day):           5 ×  25K = 0.125M gas/day
+                                              ─────────
+Total:                                        72.9M gas/day → 2.19B gas/month
+
+ETH consumed:                   2.19B × 0.022e-9 = 0.048 ETH/month
+USD cost:                       0.048 × $2,100 = $101/month
+```
+
+| Metric | Value |
+| --- | --- |
+| Monthly admin gas cost | **$101** |
+
+#### Cost Center 4: CRE Workflows (Chainlink LINK)
+
+Automated market closing + oracle resolution via CRE DON.
+
+```
+Markets to close via CRE:       200/day (when resolution time passes)
+Markets to resolve via CRE:     150/day (oracle markets, auto-resolved)
+Total CRE-driven actions:       350/day
+
+── EVENT-DRIVEN APPROACH (optimized) ──
+
+Close workflow triggers:         ~200/day (on resolution time expiry)
+  Reads per trigger:             2 reads (verify state)
+  LINK per trigger:              ~0.005 LINK
+Resolve workflow triggers:       ~150/day (on oracle data available)
+  Reads per trigger:             3 reads (verify state + oracle data)
+  LINK per trigger:              ~0.007 LINK
+
+Write batches (10 markets each):
+  Close batches:                 200 ÷ 10 = 20 writes/day
+  Resolve batches:               150 ÷ 10 = 15 writes/day
+  LINK per write:                ~0.01 LINK
+
+Daily LINK consumption:
+  Read costs:   200 × 0.005 + 150 × 0.007   = 2.05 LINK/day
+  Write costs:  35 × 0.01                     = 0.35 LINK/day
+  Total:                                       = 2.40 LINK/day
+
+On-chain gas for writes:
+  35 batches × 250K gas avg     = 8.75M gas/day
+  ETH: 8.75M × 0.022e-9        = 0.000193 ETH/day ≈ $0.40/day
+
+── CRON APPROACH (unoptimized, 5-min interval) ──
+
+Active markets to scan:          ~1,000 (200/day × 5-day avg life)
+Cycles per day:                  288
+Reads per cycle (w/ multicall):  ~20 multicall reads (vs 1,004 raw)
+LINK per cycle:                  ~0.02 LINK (multicall) or ~1.0 LINK (raw)
+Write LINK:                      same 0.35 LINK/day
+
+Cron daily cost (multicall):     288 × 0.02 + 0.35 = 6.11 LINK/day
+Cron daily cost (raw reads):     288 × 1.0 + 0.35 = 288.35 LINK/day
+```
+
+| Approach | LINK/day | USD/day | USD/month | Feasibility |
+| --- | --- | --- | --- | --- |
+| Event-driven + multicall | 2.40 | $21.26 | **$638** | **Recommended** |
+| Cron + multicall | 6.11 | $54.13 | **$1,624** | Acceptable |
+| Cron + raw reads | 288.35 | $2,555 | **$76,650** | Too expensive |
+
+#### Cost Center 5: Protocol-Owned Liquidity (No Syndicates)
+
+Protocol seeds all FPMM markets with its own capital.
+
+```
+Markets created:                 200/day
+Seed liquidity per market:       $250 USDC average
+                                 (range $100-$500 based on expected volume)
+Daily capital deployed:          200 × $250 = $50,000/day
+
+Market lifespan (avg):           5 days
+Capital in flight at any time:   $50,000 × 5 = $250,000 locked
+
+Capital returned on resolution:  $250,000 rotating (not consumed)
+Monthly capital rotation:        200 × 30 × $250 = $1,500,000 deployed + returned
+
+── IMPERMANENT LOSS (the real cost of LP) ──
+
+Binary FPMM IL mechanics:
+  - Market starts at 50/50, resolves to 100/0
+  - LP holds equal shares of both outcomes at deployment
+  - As trading skews the pool, LP accumulates losing-side tokens
+  - Theoretical max IL for binary FPMM: ~29.3% (100% skew)
+  - Average IL (mix of close and skewed markets): ~12-15%
+
+Monthly IL (expected loss):
+  Total liquidity deployed:      $1,500,000/month (6,000 markets × $250)
+  Average IL rate:               12.5%
+  Gross IL:                      $1,500,000 × 12.5% = $187,500/month
+
+── LP ECONOMICS NOTE ──
+
+The 3% trading fee (from VaultRisk) routes ENTIRELY to VaultCredit.depositFees()
+for the debt-first waterfall — it does NOT stay in the FPMM pool. The LP
+earns from FPMM pool share dynamics (natural spread), but in a fee-extracted
+FPMM this is minimal. The primary LP cost is IL.
+
+Protocol-owned liquidity is the "cost of doing business" — without it, there
+are no FPMM swaps and no fee revenue. The $187,500/month IL enables the
+$1,675,000/month in fee revenue (a 8.9× return on IL).
+```
+
+| Metric | Value |
+| --- | --- |
+| Capital required (locked, revolving) | **$250,000** |
+| Monthly capital rotation | **$1,500,000** deployed + returned |
+| Monthly IL (expected loss) | **$187,500** (12.5% avg on rotated capital) |
+| IL as % of fee revenue | **11.2%** ($187K / $1,675K) |
+| Return on IL | **8.9×** (every $1 of IL enables $8.90 in fees) |
+
+> **IL is the dominant protocol cost but earns a 9× return in fee revenue.** Without protocol-owned LP, there is no FPMM market and no trading fee income. The $250K locked capital (+ $187K monthly IL) enables $1,675K in monthly protocol fees — a capital-efficient model that eliminates the need for external LP incentives, yield farming programs, or syndicate revenue-sharing agreements.
+
+#### IL Reduction Strategies
+
+IL is 79% of protocol costs. These five strategies compound to reduce IL by ~56%, from $187,500 to ~$82K/month.
+
+**Strategy 1: Adaptive Seed Sizing (Volume-Proportional)**
+
+Instead of seeding every market at a flat $250, tier seed capital based on expected volume using off-chain prediction data from `markets-web` (the graduation pipeline).
+
+```
+Current:   6,000 markets × $250 flat        = $1,500,000/month deployed
+Optimized: 6,000 markets × $200 weighted avg = $1,200,000/month deployed
+
+Tier breakdown:
+  Low-interest (40% of markets):    $50-100 seed    (niche, low-volume)
+  Medium (40%):                     $150-250 seed   (standard markets)
+  High-interest (20%):              $300-500 seed   (trending, high-demand)
+
+IL savings:  ($1,500K - $1,200K) × 12.5% = $37,500/month (-20%)
+```
+
+> **Implementation:** `createMarket()` already accepts liquidity parameters. The off-chain market creation pipeline (admin) simply passes different seed amounts based on the `markets-web` graduation score. No contract changes needed.
+
+**Strategy 2: CRE-Managed Early LP Withdrawal on High Skew**
+
+When a market's FPMM price skews past a threshold (e.g., >85% one outcome), the protocol's remaining IL exposure is mostly locked in but the remaining risk (85%→100%) has minimal fee generation (few traders bet on the trailing side). CRE can proactively withdraw protocol LP.
+
+```
+Binary FPMM IL curve:
+  At 50/50: IL = 0%
+  At 70/30: IL ≈ 4.5%
+  At 85/15: IL ≈ 13.2%
+  At 95/5:  IL ≈ 22.4%
+  At 100/0: IL ≈ 29.3%
+
+Without withdrawal:  average IL = 12.5% (markets resolve at various skews)
+With withdrawal at 85% skew:  IL capped at ~13.2% for pulled markets
+
+Impact: Markets that would have drifted from 85% → 100% now cap at 85%.
+  ~30% of markets reach >85% skew before resolution.
+  Those markets save avg ~10% IL (from 20% → 13.2%).
+  Net savings: $1,200K × 0.30 × (0.20 - 0.132) = $24,480/month
+
+After withdrawal, the CLOB provides remaining liquidity.
+```
+
+> **CRE Workflow: Liquidity Rebalancer**
+>
+> ```typescript
+> // workflows/liquidity/index.ts (simplified)
+> // Cron: every 15 minutes
+> // For each active market with protocol LP:
+> //   1. Read FPMM price via callContract
+> //   2. If price > 0.85 or price < 0.15:
+> //      → writeReport(WITHDRAW, marketId) to a VaultLiquidityConsumer
+> //   3. Consumer calls VaultMarket internal LP withdrawal
+> ```
+>
+> **Cost:** ~0.5 LINK/day additional CRE overhead (~$4.43/day, $133/month). Net savings after CRE cost: ~$24,350/month.
+
+**Strategy 3: Seed at Market Price, Not 50/50 — DEFERRED**
+
+> **Status: Deferred.** This strategy requires a contract change (`FPMMLib.initWithPrices`) for a marginal ~10% IL reduction. The four selected strategies achieve 67% IL reduction without it. Revisit for v2 if additional IL reduction is needed.
+
+<details>
+<summary>Deferred design (click to expand)</summary>
+
+The `markets-web` graduation pipeline provides off-chain price discovery before markets go on-chain. If the crowd sentiment suggests 70/30, seeding the FPMM at 50/50 means the LP immediately takes IL as the first trades correct the price. Seeding at 70/30 eliminates this "corrective IL."
+
+```
+Without market-price seeding:
+  LP enters at 50/50 → first $500 of trades correct to 70/30 → LP eats the move
+  Corrective IL: ~4.5% on seed capital for 20% mispricing
+
+With market-price seeding:
+  LP enters at 70/30 → no correction needed → IL only from NEW information
+  ~50% of markets benefit from pre-priced seeding (those with strong crowd signal)
+  Avg corrective IL eliminated: ~3% on those markets
+
+Savings: $1,200K × 0.50 × 0.03 = $18,000/month (-15% on remaining IL)
+```
+
+**Implementation:** `createMarket()` with `initialPrices` parameter. The FPMM is initialized with unequal token ratios matching the target price. The off-chain pipeline reads the `markets-web` consensus price and passes it during creation. Requires a contract enhancement: `FPMMLib.initWithPrices(uint256[] prices, uint256 liquidity)` instead of the current equal-weight init.
+
+</details>
+
+**Strategy 4: CLMM for Protocol-Owned Liquidity (Concentrated Ranges)**
+
+Instead of full-range FPMM liquidity (which is exposed to IL across the entire 0→1 price space), deploy protocol-owned liquidity via **VaultCLMM** in a concentrated range around the current price. When price moves outside the range, the LP is automatically out-of-range and stops accumulating IL.
+
+```
+Full-range FPMM:   LP exposed across entire [0, 1] price space → max IL 29.3%
+Concentrated CLMM: LP in [0.30, 0.70] range → IL capped at range boundary
+
+When price exits range:
+  - LP holds 100% of one token type (fully converted)
+  - No additional IL accrues beyond the range boundary
+  - CLOB takes over as sole liquidity source for extreme prices
+
+Estimated IL reduction: 25-35% vs full-range FPMM
+Net impact: $1,200K × (0.125 × 0.70) = $105,000 IL (vs $150,000 without)
+Additional savings: ~$45,000/month
+
+CRE manages repositioning:
+  1. Deploy CLMM position at market creation
+  2. Every 15 min: check if price near range boundary
+  3. If out of range: optionally redeploy at new range centered on current price
+  4. Near resolution (price approaching 0 or 1): withdraw, don't redeploy
+```
+
+> **Architecture fit:** VaultCLMM already supports `addLiquidity()` and `removeLiquidity()` for protocol positions via `getProtocolLiquidity()` and `collectProtocolFees()`. The CRE rebalancer workflow (Strategy 2) can be extended to also manage CLMM repositioning. This is essentially an **on-chain liquidity management agent** powered by CRE.
+>
+> **Tradeoff:** Concentrated LP provides deeper liquidity in-range (better prices for users, more fees) but zero liquidity out-of-range. For highly volatile markets, wider ranges or FPMM fallback may be needed. The optimal strategy is CLMM for popular markets + thin FPMM backstop for tail liquidity.
+
+**Strategy 5: Dynamic Fee Uplift on High-Skew Markets**
+
+VaultRisk already has inventory skew fees (`getInventorySkew`, `getEffectiveFee`). Amplify the skew component for markets approaching resolution with high directional conviction. This captures more fee revenue from the trades that cause the most IL.
+
+```
+Current fee structure:
+  fee = baseFee × surgeMultiplier × (1 + skewPenalty)
+  Typical effective fee: 2.5-4% depending on conditions
+
+Enhanced for IL coverage:
+  fee = baseFee × surgeMultiplier × (1 + skewPenalty × ilMultiplier)
+  Where ilMultiplier scales with market age and skew:
+    - Young market, low skew:   ilMultiplier = 1.0× (no change)
+    - Old market, high skew:    ilMultiplier = 1.5-2.0×
+    - Near resolution, >80% skew: ilMultiplier = 2.5×
+
+Impact: Higher fees on the exact trades causing the most IL.
+  Estimated additional fee capture: $55M × 0.3% uplift × 30% of volume = $49,500/month
+  This directly offsets IL.
+```
+
+> **Implementation:** Add `ilMultiplier(marketId)` to `VaultRisk.getEffectiveFee()`. Reads market creation time, resolution time, and current skew to compute the multiplier. Pure math — no additional storage writes. LUT can encode the multiplier curve.
+
+**Combined IL Reduction Impact (Strategies 1, 2, 4, 5)**
+
+> Strategy 3 (market-price seeding via `FPMMLib.initWithPrices`) is deferred — it requires a contract change for marginal benefit. The selected four strategies provide 67% IL reduction without it.
+
+| Strategy | Mechanism | IL reduction | Monthly savings | Requires |
+| --- | --- | --- | --- | --- |
+| 1. Adaptive seeding | Less capital exposed | -20% (capital) | $37,500 | Off-chain pipeline only |
+| 2. Early withdrawal (>85% skew) | Cap tail IL, CRE managed | -13% (rate) | $19,500 | CRE workflow + consumer |
+| 4. CLMM concentrated LP | Bounded range IL | -15% (rate) | $19,575 | CRE rebalancer (uses existing CLMM) |
+| 5. Dynamic fee uplift | Fee revenue offsets IL | ~$50K offset | $49,500 | VaultRisk LUT param |
+| **Combined** | **Multiplicative + offset** | | **~$125,942** | |
+
+```
+Baseline monthly IL:                         $187,500
+
+Strategy 1 — Adaptive seeding:
+  Capital deployed: $1,500K → $1,200K/month (tiered by demand)
+  New IL base: $1,200K × 12.5% =            $150,000
+
+Strategy 2 — Early withdrawal at >85% skew:
+  IL rate reduction: 12.5% × 0.87 =         10.875%
+  New IL: $1,200K × 10.875% =               $130,500
+
+Strategy 4 — CLMM concentrated ranges:
+  IL rate reduction: 10.875% × 0.85 =       9.24%
+  New IL: $1,200K × 9.24% =                 $110,925
+
+Strategy 5 — Fee uplift offset:
+  Additional fee capture:                    -$49,500
+  Net IL after offset:                       $61,425
+
+CRE rebalancer cost:                         +$133
+
+NET OPTIMIZED IL:                            ~$61,558/month
+SAVINGS vs BASELINE:                         $125,942/month (67.2% reduction)
+```
+
+> **Implementation path:** Strategy 1 (adaptive seeding) is a **zero code change** — purely an off-chain pipeline decision. Strategy 5 (fee uplift) is a VaultRisk LUT parameter update. Strategy 2 (CRE early withdrawal) needs a new `VaultLiquidityConsumer` contract + CRE workflow. Strategy 4 (CLMM for protocol LP) is the most complex, requiring the CRE rebalancer to manage concentrated positions, but uses existing VaultCLMM methods (`addLiquidity`, `removeLiquidity`, `getProtocolLiquidity`).
+>
+> **Recommended rollout order:** 1 → 5 → 2 → 4 (escalating complexity, each independently valuable).
+
+#### Cost Center 6: Infrastructure (Off-Chain)
+
+Estimated hosting and service costs not covered by on-chain gas.
+
+| Service | Est. cost/month | Notes |
+| --- | --- | --- |
+| CLOB relayer server | $200 | Dedicated instance, low latency |
+| CLOB matcher / orderbook engine | $300 | In-memory matching, WebSocket feeds |
+| Backend API (market data, indexer) | $500 | Graph node or custom indexer |
+| Frontend hosting (CDN) | $100 | Static site, Vercel/Cloudflare |
+| Database (off-chain metadata) | $200 | Market descriptions, images, event data |
+| Monitoring / alerting | $100 | Grafana, PagerDuty |
+| CRE CLI / workflow deployment | $50 | Build + deploy pipeline |
+| **Total infrastructure** | **$1,450/month** | |
+
+#### Full Monthly P&L (50K MAU, 200 markets/day)
+
+> **Fee structure assumption:** VaultRisk charges a dynamic 3% fee on all trades. All fees route through `VaultCredit.depositFees()` into the debt-first waterfall. Creator share = `MIN_CREATOR_FEE` (0.5%). Protocol retains 2.5%. LP income/loss from protocol-owned FPMM liquidity is separate from fee revenue — it manifests as IL on the locked capital.
+
+```
+╔═══════════════════════════════════════════════════════════════════╗
+║                    MONTHLY OPERATING SUMMARY                      ║
+║                50K MAU · 200 markets/day · 10M tx/month           ║
+╠═══════════════════════════════════════════════════════════════════╣
+║                                                                   ║
+║  REVENUE                                                          ║
+║  ────────────────────────────────────────────────────────────────  ║
+║  Total trading fees collected (3% on $67M)     +$2,010,000        ║
+║    ├── FPMM: $55M × 3%                        +$1,650,000        ║
+║    └── CLOB: $12M × 3%                          +$360,000        ║
+║  Less: creator share (0.5% of volume)            -$335,000        ║
+║                                                 ──────────        ║
+║  Net protocol fee revenue:                     +$1,675,000        ║
+║                                                                   ║
+║  COSTS                                                            ║
+║  ────────────────────────────────────────────────────────────────  ║
+║  Impermanent loss (protocol LP on $250K)         -$187,500        ║
+║  AA gas sponsorship (8.5M on-chain txs)           -$47,116        ║
+║  CLOB relayer gas (600K matches)                   -$1,386        ║
+║  Admin gas (create/resolve 6K markets)               -$101        ║
+║  CRE workflows (72 LINK, event-driven)               -$638        ║
+║  Infrastructure (servers, hosting)                 -$1,450        ║
+║                                                 ──────────        ║
+║  Total costs:                                    -$238,191        ║
+║                                                                   ║
+║  ════════════════════════════════════════════════════════════════  ║
+║  NET MONTHLY P&L:                              +$1,436,809        ║
+║  Operating margin:                                   85.8%        ║
+║                                                                   ║
+║  CAPITAL REQUIREMENTS                                             ║
+║  ────────────────────────────────────────────────────────────────  ║
+║  Locked LP capital (revolving):                    $250,000       ║
+║  ETH for AA paymaster (monthly):              22.44 ETH           ║
+║  ETH for relayer (monthly):                    0.66 ETH           ║
+║  LINK for CRE (monthly):                     72 LINK              ║
+║  Total crypto reserves needed:               ~$50,000 buffer      ║
+║                                                                   ║
+║  UNIT ECONOMICS                                                   ║
+║  ────────────────────────────────────────────────────────────────  ║
+║  Revenue per MAU:                              $33.50/month       ║
+║  Cost per MAU:                                  $4.76/month       ║
+║  LTV contribution per MAU:                     $28.74/month       ║
+║  Cost per on-chain tx (gas only):                 $0.0055         ║
+║  Protocol margin per tx (all-in):              $0.144 (85.8%)     ║
+║                                                                   ║
+╚═══════════════════════════════════════════════════════════════════╝
+```
+
+#### Cost Breakdown by Category
+
+| Category | Monthly | % of total cost | $/tx |
+| --- | --- | --- | --- |
+| Impermanent loss (protocol LP) | $187,500 | **78.7%** | $0.019 |
+| AA gas sponsorship | $47,116 | **19.8%** | $0.005 |
+| CLOB relayer gas | $1,386 | 0.6% | $0.0001 |
+| Infrastructure | $1,450 | 0.6% | $0.0001 |
+| CRE workflows (LINK) | $638 | 0.3% | $0.0001 |
+| Admin gas | $101 | <0.1% | $0.00001 |
+| **Total** | **$238,191** | **100%** | **$0.024** |
+
+> **IL is 79% of costs.** Protocol-owned liquidity's impermanent loss dominates all other cost centers combined. Gas costs (AA + relayer + admin + CRE) total only $49,241/month — just 2.9% of revenue. This means the protocol's profitability hinges on trading volume (fee revenue) and market diversity (IL averaging), not on gas economics.
+
+#### P&L Comparison: Baseline vs IL-Optimized (Strategies 1, 2, 4, 5)
+
+| Line Item | Baseline | IL-Optimized | Delta |
+| --- | --- | --- | --- |
+| **Revenue** | | | |
+| Trading fees (3% on $67M) | +$2,010,000 | +$2,059,500 | +$49,500 (Strat 5 fee uplift) |
+| Less: creator share (0.5%) | -$335,000 | -$335,000 | — |
+| **Net revenue** | **$1,675,000** | **$1,724,500** | **+$49,500** |
+| **Costs** | | | |
+| Impermanent loss | -$187,500 | -$61,558 | +$125,942 (Strats 1+2+4+5) |
+| AA gas sponsorship | -$47,116 | -$47,116 | — |
+| CRE workflows (resolution + rebalancer) | -$638 | -$771 | -$133 (Strat 2+4 CRE) |
+| CLOB relayer | -$1,386 | -$1,386 | — |
+| Admin gas | -$101 | -$101 | — |
+| Infrastructure | -$1,450 | -$1,450 | — |
+| **Total costs** | **-$238,191** | **-$112,382** | **+$125,809** |
+| | | | |
+| **NET P&L** | **$1,436,809** | **$1,612,118** | **+$175,309** |
+| **Margin** | **85.8%** | **93.5%** | **+7.7pp** |
+| **Cost per MAU** | **$4.76** | **$2.25** | **-53%** |
+| **Breakeven avg trade** | **$1.42** | **$0.65** | **-54%** |
+
+```
+╔═══════════════════════════════════════════════════════════════════╗
+║              IL-OPTIMIZED MONTHLY OPERATING SUMMARY               ║
+║                50K MAU · 200 markets/day · 10M tx/month           ║
+║              Strategies 1 (adaptive seed) + 2 (CRE withdraw)     ║
+║              + 4 (CLMM ranges) + 5 (fee uplift)                  ║
+╠═══════════════════════════════════════════════════════════════════╣
+║                                                                   ║
+║  REVENUE                                                          ║
+║  ────────────────────────────────────────────────────────────────  ║
+║  Total trading fees (3% on $67M + uplift)    +$2,059,500          ║
+║  Less: creator share (0.5%)                    -$335,000          ║
+║                                                ──────────         ║
+║  Net protocol fee revenue:                   +$1,724,500          ║
+║                                                                   ║
+║  COSTS                                                            ║
+║  ────────────────────────────────────────────────────────────────  ║
+║  Impermanent loss (optimized, net of offset)    -$61,558          ║
+║    ├── Gross IL ($1.2M × 9.24%):     $110,925                    ║
+║    └── Fee uplift offset:            -$49,500                     ║
+║    └── CRE rebalancer:                  +$133                     ║
+║  AA gas sponsorship (8.5M on-chain txs)         -$47,116          ║
+║  CRE workflows (resolution)                       -$638           ║
+║  CLOB relayer gas (600K matches)                 -$1,386          ║
+║  Admin gas (create/resolve 6K markets)             -$101          ║
+║  Infrastructure (servers, hosting)               -$1,450          ║
+║                                                ──────────         ║
+║  Total costs:                                  -$112,382          ║
+║                                                                   ║
+║  ════════════════════════════════════════════════════════════════  ║
+║  NET MONTHLY P&L:                            +$1,612,118          ║
+║  Operating margin:                                 93.5%          ║
+║                                                                   ║
+║  CAPITAL REQUIREMENTS                                             ║
+║  ────────────────────────────────────────────────────────────────  ║
+║  Locked LP capital (revolving):                  $200,000         ║
+║    (reduced from $250K via adaptive seeding)                      ║
+║  ETH for AA paymaster (monthly):            22.44 ETH             ║
+║  ETH for relayer (monthly):                  0.66 ETH             ║
+║  LINK for CRE (monthly):                   74 LINK                ║
+║    (72 resolution + 2 rebalancer)                                 ║
+║  Total crypto reserves needed:             ~$48,000 buffer        ║
+║                                                                   ║
+║  UNIT ECONOMICS                                                   ║
+║  ────────────────────────────────────────────────────────────────  ║
+║  Revenue per MAU:                            $34.49/month         ║
+║  Cost per MAU:                                $2.25/month         ║
+║  LTV contribution per MAU:                   $32.24/month         ║
+║  Cost per on-chain tx (gas only):               $0.0055           ║
+║  Protocol margin per tx (all-in):            $0.161 (93.5%)       ║
+║                                                                   ║
+╚═══════════════════════════════════════════════════════════════════╝
+```
+
+#### Cost Breakdown by Category (IL-Optimized)
+
+| Category | Baseline | IL-Optimized | % of opt cost | Change |
+| --- | --- | --- | --- | --- |
+| Impermanent loss | $187,500 | $61,558 | **54.8%** | -67.2% |
+| AA gas sponsorship | $47,116 | $47,116 | **41.9%** | — |
+| CLOB relayer gas | $1,386 | $1,386 | 1.2% | — |
+| Infrastructure | $1,450 | $1,450 | 1.3% | — |
+| CRE workflows (LINK) | $638 | $771 | 0.7% | +20.8% |
+| Admin gas | $101 | $101 | <0.1% | — |
+| **Total** | **$238,191** | **$112,382** | **100%** | **-52.8%** |
+
+> **IL drops from 79% to 55% of costs.** With the four strategies active, AA gas sponsorship rises to 42% of costs — the two are now roughly balanced. Gas costs remain structurally fixed by Arbitrum's L2 pricing. The combined effect: **total costs cut by 53%, margin up 7.7 percentage points, and breakeven avg trade drops from $1.42 to $0.65** — making the protocol viable for sub-dollar micro-bet markets.
+
+#### Sensitivity Analysis
+
+| Variable | Change | Net Revenue | Monthly P&L (baseline) | Monthly P&L (IL-opt) |
+| --- | --- | --- | --- | --- |
+| **Base case** | As modeled | $1,675,000 | **$1,436,809** (85.8%) | **$1,612,118** (93.5%) |
+| ETH price 2× ($4,200) | Gas costs double | $1,675,000 | $1,388,194 (82.9%) | $1,563,503 (90.7%) |
+| Gas spike 5× (0.11 gwei) | Gas costs 5× | $1,675,000 | $1,242,349 (74.2%) | $1,417,658 (82.2%) |
+| LINK 3× ($26.58) | CRE cost 3× | $1,675,000 | $1,435,557 (85.7%) | $1,610,576 (93.4%) |
+| IL spike to 20% | Avg IL rate doubles | $1,675,000 | $1,324,309 (79.1%) | $1,545,563 (89.6%) |
+| Avg trade $5 | Revenue halved | $862,250 | $599,309 (71.6%) | $749,868 (87.0%) |
+| Avg trade $2 (micro-bets) | Revenue ~80% lower | $344,900 | $96,809 (28.9%) | $232,518 (67.4%) |
+| 50% fewer trades | Volume halved | $862,250 | $599,309 (71.6%) | $749,868 (87.0%) |
+| Gas 5× + trade $5 | Combined stress | $862,250 | $404,849 (48.3%) | $555,408 (64.4%) |
+| Gas 5× + ETH 2× + trade $5 | Extreme worst case | $862,250 | $161,774 (19.3%) | $312,333 (36.2%) |
+
+> **IL optimization transforms the stress scenarios.** With baseline IL, the $2 micro-bet scenario barely breaks even at 29% margin. With strategies 1+2+4+5, the same scenario achieves **67% margin**. The extreme worst case (gas 5× + ETH 2× + avg trade $5) moves from a tight 19% margin to a comfortable **36%**.
+>
+> **CRE/LINK costs remain negligible** at $8.86/LINK — even a 3× LINK price increase adds only $1.5K/month. After IL optimization, **AA gas sponsorship** ($47K/month, 42% of costs) is now the largest single cost center, but it is structurally immovable (set by Arbitrum L2 pricing) and completely covered by fee revenue at any realistic volume tier.
+
+#### Bet Size Benchmarking: Myriad Markets Comparable Analysis
+
+The previous estimates used a **$10 average trade size** as a conservative placeholder. Myriad Markets — a decentralized prediction market on Base that launched March 2025 — provides the most directly comparable benchmark for Vault Markets: a new platform with diverse market types (crypto, pop culture, politics), no whale-dominated election flow, and a high-frequency micro-bet user base.
+
+**Myriad Markets Platform Metrics (Mar 2025 – Jan 2026):**
+
+| Metric | Value | Notes |
+| --- | --- | --- |
+| Total cumulative volume (7mo) | $18M+ | March–October 2025 milestone |
+| Total users | 511,000+ | Registered accounts (includes dormant) |
+| Total trades (7mo) | 5M | Through October 2025 |
+| Total trades (10mo) | 6.3M | Through ~January 2026 |
+| Monthly volume (Oct 2025) | $4.2M | Post-summer cooldown |
+| Monthly volume (Jul 2025) | $7.52M | Growth-phase peak |
+| Monthly volume (growth peak) | $14M+ | 94% surge Jul→Sep |
+| Weekly volume (Jan 2026) | $1.8M | ~$7.2M/month annualized |
+| Peak daily volume | $360K | Spike days |
+| Hourly burst volume | >$100K | High-velocity automated markets |
+
+**Implied Average Trade Size by Phase:**
+
+| Phase | Volume | Trades | Avg Trade | Reasoning |
+| --- | --- | --- | --- | --- |
+| All-time blend (7mo) | $18M | 5M | **$3.60** | Hardest number: cumulative ÷ total trades |
+| Growth phase (est.) | ~$35M (Jul–Dec) | ~3.5M | **~$10** | Higher-value markets as platform matures |
+| Current (Jan 2026, est.) | $7.2M/mo | ~500K/mo | **~$14** | Weekly $1.8M; lower trade count, higher avg |
+
+> **Key insight:** Myriad's all-time average of **$3.60/trade** reflects a platform designed for high-frequency micro-bets with a large base of casual users. The average increases significantly as the platform matures — growth-phase estimates suggest **$10–$14/trade** for engaged, recurring users. Unlike Polymarket (where whale-driven election markets inflate averages to $178–$292), Myriad's numbers are organic retail flow on diverse market types — exactly the traffic profile Vault Markets would see at launch.
+
+**Myriad User Engagement Comparison:**
+
+| Metric | Myriad (observed) | Vault Markets (model) | Notes |
+| --- | --- | --- | --- |
+| Total users | 511K | 50K MAU | VM measures active, Myriad total signups |
+| Est. MAU (10–15% of signups) | ~51–77K | 50K | Comparable active base |
+| Trades/MAU/month | ~9–14 | ~134 | VM assumes high-frequency FPMM + CLOB |
+| Volume/user (lifetime, 7mo) | $35 | TBD | Low due to large dormant base |
+
+> **Engagement gap:** Our 50K MAU model assumes 134 fee-generating trades/user/month vs Myriad's ~9–14. This is by design — Vault Markets' dual AMM (FPMM + CLOB) with automated market creation targets power-user engagement. However, if per-user frequency is closer to Myriad's, the effective trade count would be ~700K/month (not 6.7M), which still generates profitable volume at $5+ avg trades.
+
+**Vault Markets Conservative Model (50% of Myriad):**
+
+We apply a **50% haircut** to Myriad benchmarks across all phases to account for: (1) Vault being newer than Myriad at the 50K MAU milestone, (2) no established viral market categories yet, (3) crypto-winter dampening speculative activity.
+
+| VM Phase | Myriad Ref. | VM Est. (50%) | Applies When |
+| --- | --- | --- | --- |
+| Launch (Year 1) | $3.60 (all-time) | **$1.80** | First 6 months, user acquisition phase |
+| Growth (Year 1–2) | $10 (growth) | **$5** | 10K–50K MAU, diverse markets |
+| Mature (Year 2+) | $14 (current) | **$7** | 50K+ MAU, established categories |
+
+**Planning estimate for 50K MAU model: $5/trade** (50% of Myriad's growth-phase average)
+
+> **Compared to prior benchmarks:** Polymarket's whale-inflated averages ($178 non-election, $292 broad) produced a 50% haircut estimate of ~$33/trade — likely too optimistic for a new platform without established whale flow. Myriad's organic micro-bet data produces a much more conservative **$5/trade** that better reflects real decentralized prediction market behavior at comparable scale.
+
+**Revenue Projections at Myriad-Benchmarked Bet Sizes (IL-Optimized, 50K MAU)**
+
+All scenarios use 10M tx/month (6.7M fee-generating), 200 markets/day, IL-optimized costs of $112,382/month.
+
+| Avg Trade | Benchmark Ref. | Monthly Volume | Net Revenue | Monthly P&L | Margin | Rev/MAU |
+| --- | --- | --- | --- | --- | --- | --- |
+| $1.80 | 50% Myriad all-time | $12.1M | $310,410 | $198,028 | **63.8%** | $6.21 |
+| $3.60 | Myriad all-time (no cut) | $24.1M | $620,820 | $508,438 | **81.9%** | $12.42 |
+| **$5** | **50% Myriad growth** | **$33.5M** | **$862,250** | **$749,868** | **87.0%** | **$17.25** |
+| $7 | 50% Myriad mature | $46.9M | $1,207,150 | $1,094,768 | **90.7%** | $24.14 |
+| $10 | Original model | $67.0M | $1,724,500 | $1,612,118 | **93.5%** | $34.49 |
+| $12 | Myriad mature (no cut) | $80.4M | $2,069,400 | $1,957,018 | **94.6%** | $41.39 |
+
+```
+Revenue derivation (at $5 benchmark):
+  FPMM:  5.5M trades × $5 = $27.5M
+  CLOB:  1.2M fills × $5  =  $6.0M
+  Total volume:               $33.5M
+
+  Gross fees (3%):           $1,005,000
+  Less creator (0.5%):        -$167,500
+  Net protocol fees:           $837,500
+  Fee uplift (Strat 5):        +$24,750
+  Net revenue:                 $862,250
+
+  Costs (IL-opt):             -$112,382
+  NET P&L:                    $749,868  (87.0% margin)
+```
+
+> **Critical difference from whale-market benchmarking:** At Myriad-comparable bet sizes, costs represent **13% of revenue** (vs <2% at Polymarket-derived $33 estimates). The IL optimization strategies (1+2+4+5) become essential — without them, costs would be $238K/month (28% of revenue at $5 avg trade), cutting margin to 72%. IL optimization is not optional at micro-bet scale.
+
+**Stress Test at $5 Avg Trade (IL-Optimized)**
+
+| Scenario | Net Revenue | Monthly P&L | Margin |
+| --- | --- | --- | --- |
+| **Base ($5 avg)** | **$862,250** | **$749,868** | **87.0%** |
+| Gas spike 5× | $862,250 | $555,456 | 64.4% |
+| Gas 5× + ETH 2× | $862,250 | $312,441 | 36.2% |
+| IL spike to 20% | $862,250 | $688,310 | 79.8% |
+| Volume halved (5M tx/mo) | $431,125 | $318,743 | 73.9% |
+| Avg trade grows to $10 | $1,724,500 | $1,612,118 | 93.5% |
+| Avg trade drops to $2 | $344,900 | $232,518 | 67.4% |
+| Avg trade drops to $1 | $172,450 | $60,068 | 34.8% |
+| Gas 5× + trade $2 | $344,900 | $38,106 | 11.0% |
+| Gas 5× + ETH 2× + trade $2 | $344,900 | -$204,909 | **-59.4%** |
+
+> **At $5 avg trade, the protocol is profitable across all single-variable stresses.** The only scenario that produces a loss is the extreme triple-stress: 5× gas price + 2× ETH price + avg trade dropping 60% to $2 simultaneously. Even then, the loss (-$205K/month) is bounded and recoverable. The most likely downside — avg trade settling at $2–$3 instead of $5 — still yields $233K–$508K monthly P&L at 67–82% margin.
+
+**Key Takeaway: Micro-Bet Unit Economics Are Viable but Cost-Sensitive**
+
+| Metric | At $10 (original) | At $5 (Myriad-benchmarked) | At $2 (ultra-conservative) |
+| --- | --- | --- | --- |
+| Monthly revenue | $1,724,500 | $862,250 | $344,900 |
+| Monthly costs (IL-opt) | $112,382 | $112,382 | $112,382 |
+| Cost as % of revenue | 6.5% | **13.0%** | **32.6%** |
+| P&L | $1,612,118 | $749,868 | $232,518 |
+| Revenue-to-cost ratio | 15:1 | **7.7:1** | **3.1:1** |
+| Cost per MAU vs Revenue/MAU | $2.25 vs $34.49 | $2.25 vs $17.25 | $2.25 vs $6.90 |
+
+> **At Myriad-comparable bet sizes, costs are meaningful but manageable.** Unlike whale-market benchmarks where costs were negligible at <2% of revenue, Myriad's micro-bet reality puts costs at 13% — a healthy SaaS-like cost structure. The protocol's fixed-cost infrastructure model (gas + IL) still provides strong operating leverage: doubling average trade size from $5 to $10 doubles revenue while costs remain at $112K. The **critical threshold is ~$0.65/trade** (breakeven) — everything above generates margin. At $5 avg trade, the protocol earns **$7.70 for every $1 it spends**. The business priority is clear: drive average trade size above $5 through market quality, user engagement, and category expansion, rather than obsessing over cost reduction.
+
+### Findings & Fixes
+
+#### Fix 1: Lazy Profile Registration (Eliminate `registerProfile()` as User Action)
+
+**Problem:** `registerProfile()` is a standalone transaction that creates a VaultCredit profile. Casual traders don't need profiles — profiles are only required for the credit line system (creators, KOLs). Asking every user to pay ~50K gas for an identity they may never use violates the value principle.
+
+**Fix:** Remove `registerProfile()` as a user-facing action. Profiles are created lazily:
+
+- **Creators:** Profile auto-created during `createMarket()` when `useCredit: true` (admin triggers)
+- **KOLs:** Profile auto-created during `setProfileStatus()` (admin triggers)
+- **Wallet linking:** `linkWallet()` auto-creates profile if none exists for the caller
+- **Casual traders:** No profile needed. Trading (swap, split, merge, CLOB orders) works with bare wallet addresses. `balanceOf`, `redeem`, `merge` are keyed by `msg.sender`, not `profileId`.
+
+> **Implementation:** `VaultCredit._ensureProfile(address wallet)` internal helper. Called by `linkWallet`, `setCreditLimit`, `setProfileStatus`. Creates profile atomically if `!isProfileRegistered(wallet)`. No user-facing `registerProfile()` method.
+
+#### Fix 2: Bound `cancelOrders()` Batch Size
+
+**Problem:** `cancelOrders(Order[] orders)` accepts an unbounded array. A user submitting 1000 cancellations would consume ~30M gas, potentially exceeding block limits.
+
+**Fix:** Add `MAX_CANCEL_BATCH = 20` constant. Revert with `BatchTooLarge(orders.length, MAX_CANCEL_BATCH)` if exceeded. Users needing to cancel more can call `incrementNonce()` (5K gas, invalidates all orders) or make multiple bounded calls.
+
+```solidity
+uint256 public constant MAX_CANCEL_BATCH = 20;
+
+function cancelOrders(Order[] calldata orders) external {
+    if (orders.length > MAX_CANCEL_BATCH) revert BatchTooLarge(orders.length, MAX_CANCEL_BATCH);
+    for (uint256 i; i < orders.length; i++) {
+        _cancelOrder(orders[i]); // verifies msg.sender == order.maker
+    }
+}
+```
+
+#### Fix 3: `processEarnings()` Caller & Automation
+
+**Problem:** `processEarnings(profileId, marketId)` is gated on `block.timestamp >= market.disputeDeadline`. Who calls it? If each creator/KOL must call it themselves, that's a transaction with no direct value exchange (the value comes from the subsequent `withdrawEarnings()`). At 100 creators per market, that's 100 unpaid txs.
+
+**Fix:** Absorb `processEarnings` into `withdrawEarnings()` automatically:
+
+```solidity
+function withdrawEarnings() external {
+    uint256 profileId = _getProfileId(msg.sender);
+
+    // Auto-process any unprocessed markets where dispute window has passed
+    uint256[] memory pending = _getPendingMarkets(profileId);
+    for (uint256 i; i < pending.length && i < MAX_AUTO_PROCESS; i++) {
+        if (block.timestamp >= markets[pending[i]].disputeDeadline) {
+            _processEarnings(profileId, pending[i]);
+        }
+    }
+
+    // Then withdraw all claimable funds
+    uint256 claimable = _getClaimable(profileId);
+    if (claimable == 0) revert NothingToWithdraw();
+    _transfer(msg.sender, claimable);
+}
+```
+
+This collapses two transactions (processEarnings + withdrawEarnings) into one value-bearing call. The `MAX_AUTO_PROCESS` cap (e.g., 5) prevents gas spikes. For profiles with many pending markets, repeated `withdrawEarnings()` calls process in batches.
+
+> **Alternatively:** Add `processEarnings` to the CRE resolution workflow. After the dispute window expires, the workflow calls `processEarnings(profileId, marketId)` for all affected profiles via a second consumer contract action. This removes the burden from users entirely.
+
+#### Fix 4: CRE Resolution Workflow — Paginated Scanning
+
+**Problem:** The current CRE workflow iterates `for (let i = 1n; i <= totalMarkets; i++)`. At 10K+ markets, this is 10K EVM read calls through the CRE DON — expensive in execution time even though reads are off-chain.
+
+**Fix:** Use `getActiveMarketIds(cursor, limit)` for paginated scanning of only active/closed markets. Resolved and cancelled markets are excluded from the active list (swap-and-pop on state changes), so the scan stays proportional to live markets only.
+
+```typescript
+// BEFORE (O(totalMarkets) — scans resolved/cancelled markets too):
+for (let i = 1n; i <= totalMarkets; i++) { ... }
+
+// AFTER (O(activeMarkets) — only live markets, paginated):
+let cursor = 0n
+const PAGE_SIZE = 50n
+while (true) {
+  const activeIds = evmClient.callContract(runtime, {
+    call: encodeCallMsg({
+      from: zeroAddress,
+      to: config.vaultMarketAddress,
+      data: encodeFunctionData({
+        abi: VaultMarketABI,
+        functionName: "getActiveMarketIds",
+        args: [cursor, PAGE_SIZE],
+      }),
+    }),
+    blockNumber: LAST_FINALIZED_BLOCK_NUMBER,
+  }).result()
+
+  const ids = decodeFunctionResult({ ... }) as bigint[]
+  if (ids.length === 0) break
+
+  for (const id of ids) {
+    // Check close/resolve conditions for each active market
+  }
+  cursor += PAGE_SIZE
+}
+```
+
+> **Scale:** If protocol has 10K total markets but only 200 active, the workflow makes ~4 paginated reads + 200 market reads = ~204 EVM calls vs. 10K. This scales permanently because resolved markets never re-enter the active list.
+
+#### Fix 5: VaultResolutionConsumer — On-Chain Batch Cap
+
+**Problem:** The consumer contract loops over `marketIds.length` with try/catch. If CRE sends 100 IDs, that's 100 cross-contract calls (~50K each = 5M gas). No on-chain cap.
+
+**Fix:** Add `MAX_MARKETS_PER_REPORT` constant to bound gas per `onReport` call:
+
+```solidity
+uint256 public constant MAX_MARKETS_PER_REPORT = 10;
+
+function _processReport(bytes calldata report) internal override {
+    (uint8 action, uint256[] memory marketIds) =
+        abi.decode(report, (uint8, uint256[]));
+
+    if (marketIds.length > MAX_MARKETS_PER_REPORT)
+        revert BatchTooLarge(marketIds.length, MAX_MARKETS_PER_REPORT);
+
+    // ... loop with try/catch
+}
+```
+
+The CRE workflow respects this cap via `maxResolvePerRun` / `maxClosePerRun` config, and submits multiple reports if needed.
+
+### Operations That Do NOT Require User Transactions
+
+| Operation | Current | Recommendation |
+| --- | --- | --- |
+| Market closing (past resolutionTime) | Permissionless `closeMarket()` or lazy close | CRE workflow auto-closes; lazy close on next user swap is free |
+| Oracle resolution | Permissionless `resolveByOracle()` | CRE workflow auto-resolves via consumer contract |
+| Earnings processing | Separate `processEarnings()` tx | Absorbed into `withdrawEarnings()` (Fix 3) |
+| Profile creation (casual traders) | `registerProfile()` tx | Eliminated — profiles created lazily by admin actions (Fix 1) |
+| Losing share cleanup | Was `burnResolved()` tx | Eliminated — shares left inert (prior decision) |
+| CLOB order placement | Off-chain EIP-712 signature | **Already gas-free** ✅ — settled by relayer |
+| CLOB order matching | Off-chain matcher | **Already gas-free** ✅ — settled by relayer |
+
+### Cross-Contract Gas Breakdowns (Hot Paths)
+
+Detailed opcode-level gas accounting for the most frequently called user operations.
+
+**1. FPMM Buy (`swap` with `isBuy: true`)** — most gas-intensive user action:
+
+```
+VaultMarket.swap()                           ~150K total gas
+  ├── VaultRisk.getEffectiveFee()            ~8K  (SLOAD × 3 + LUT interp)
+  ├── FPMMLib.calcBuyDelta()                 ~5K  (pure math, no SLOAD)
+  ├── SafeTransferLib.safeTransferFrom()     ~25K (USDC transfer in)
+  ├── VaultToken.split()                     ~45K (SSTORE × 2 + ERC-1155 batch mint)
+  ├── VaultToken.safeTransferFrom()          ~25K (ERC-1155 transfer unwanted leg)
+  ├── VaultRisk.updateVelocity()             ~8K  (SSTORE × 1)
+  ├── VaultCredit.depositFees()              ~20K (SSTORE × 2 + event)
+  └── emit Swap(...)                         ~4K  (log with 4 indexed topics)
+  ─ calldata overhead (L1 posting):          ~10K (est. 120 bytes tx data)
+```
+
+**2. Redeem (`redeem(marketId)`)** — winner claims payout:
+
+```
+VaultMarket.redeem()                         ~30K total gas
+  ├── _requireResolved(marketId)             ~2K  (SLOAD × 1)
+  ├── VaultToken.balanceOf(sender, winId)    ~3K  (SLOAD × 1)
+  ├── require(balance > 0) NothingToRedeem   ~0.1K (branch)
+  ├── VaultToken.burn(sender, winId, balance)~10K (SSTORE × 1 + event)
+  ├── SafeTransferLib.safeTransfer(USDC)     ~8K  (USDC transfer out)
+  └── emit Redeemed(...)                     ~3K  (log with 3 indexed topics)
+  ─ calldata overhead (L1 posting):          ~4K  (est. 36 bytes tx data)
+```
+
+**3. CLOB Settlement (`settleBatch` per match)** — relayer-paid:
+
+```
+VaultCLOB.settleBatch() — per match          ~50K gas
+  ├── OrderLib.hashOrder(maker)              ~3K  (keccak256, memory alloc)
+  ├── SignatureCheckerLib.verify(maker)       ~6K  (ecrecover)
+  ├── OrderLib.hashOrder(taker)              ~3K  (keccak256, memory alloc)
+  ├── SignatureCheckerLib.verify(taker)       ~6K  (ecrecover)
+  ├── _validateAndFill()                     ~10K (SLOAD × 2 nonce/fills, SSTORE × 1)
+  ├── SafeTransferLib (USDC ↔ shares)        ~15K (1-2 transfers depending on side)
+  ├── VaultCredit.depositFees()              ~5K  (amortized fee deposit)
+  └── emit OrderFilled(...)                  ~2K  (log)
+  ─ calldata per match (L1 posting):         ~15K (est. 330 bytes: 2 orders + sigs)
+```
+
+**4. Add Liquidity (`addLiquidity`)** — LP position creation:
+
+```
+VaultCLMM.addLiquidity()                     ~200K total gas
+  ├── _validateRange(tickLower, tickUpper)    ~3K  (pure math)
+  ├── VaultToken.safeTransferFrom() × 2      ~50K (move 2 token types to CLMM)
+  ├── _mintPosition(NFT or struct)            ~45K (SSTORE × 3: position, ticks, bitmap)
+  ├── _updateTick(lower) + _updateTick(upper) ~20K (SSTORE × 2 tick state)
+  ├── _updateLiquidity(range)                ~30K (SSTORE × 1 + sqrt math)
+  ├── SafeTransferLib.safeTransferFrom(USDC) ~25K (USDC collateral transfer)
+  ├── VaultRisk.updateVelocity()             ~8K  (SSTORE × 1)
+  └── emit LiquidityAdded(...)               ~4K  (log)
+  ─ calldata overhead (L1 posting):          ~15K (est. 200 bytes)
+```
+
+**5. CRE Consumer Report (`_processReport` — close 5 markets)** — CRE-paid:
+
+```
+VaultResolutionConsumer._processReport()     ~250K total gas
+  ├── abi.decode(report)                     ~3K  (calldata → memory)
+  ├── BatchTooLarge check                    ~0.2K (branch)
+  └── loop × 5:
+      ├── VaultMarket.closeMarket(id)        ~45K per call
+      │   ├── _requireActive(id)             ~2K  (SLOAD × 1)
+      │   ├── _checkResolutionTime()         ~1K  (comparison)
+      │   ├── state = Closed                 ~5K  (SSTORE × 1)
+      │   ├── _removeFromActiveList()        ~5K  (swap-and-pop, SSTORE × 2)
+      │   └── emit MarketClosed(...)         ~3K  (log)
+      └── try/catch overhead                 ~2K  per iteration
+  ─ KeystoneForwarder overhead:              ~30K (signature verification + routing)
+  ─ TOTAL: 5 × 47K + 30K + 3K ≈            ~268K
+```
+
+> **Arbitrum Cost at current prices (Feb 6, 2026):** 150K gas × 0.022 gwei × ETH/$2,100 = **~$0.007 per trade**. Even during 5× congestion spikes (0.11 gwei), cost stays under $0.035. All hot paths are optimized to minimize SSTORE operations (the most expensive L2 opcode).
 
 ---
 
@@ -3109,7 +4639,7 @@ function setFeeCollector(address caller, bool allowed) external onlyOwner {
 - `VaultCLOB.cancelOrder`: Accept full `Order` struct; verify `msg.sender == order.maker`
 - `VaultCredit.linkWallet`: Require EIP-712 consent signature from wallet being linked
 - `VaultToken.split`/`merge`: Revert on `amount == 0`
-- `VaultMarket.redeem`: Revert with `NothingToRedeem` if user has zero winning shares
+- `VaultMarket.redeem`: Burns winning shares, pays USDC. Reverts with `NothingToRedeem` if user has zero winning shares. Losing shares are intentionally left inert (not burned) — at 1M+ users, burning $0-value tokens is pure gas waste. Frontend gates the "Redeem" button behind `getRedemptionAmount > 0` so losers never reach this code path.
 - `VaultMarket`: Enforce state machine — Active/Paused/Closed/Resolved/Cancelled; Resolved and Cancelled are terminal
 - `VaultMarket.cancelMarket`: Admin-only; state → Cancelled; snapshot collateral for pro-rata refunds
 - `VaultMarket.claimRefund`: Pull-based; user reclaims proportional USDC from cancelled market; revert if already claimed
@@ -3185,7 +4715,7 @@ function setFeeCollector(address caller, bool allowed) external onlyOwner {
 
 ### Audit Surface
 
-- 6 core contracts + 1 automation resolver + 9 libraries
+- 6 core contracts + 1 CRE resolution consumer + 9 libraries + 1 CRE workflow (TypeScript)
 - ~35 write methods (minimal)
 - ~68 read methods (comprehensive but view-only)
 - No proxies (simpler to verify)
@@ -3249,7 +4779,7 @@ Architecture-level audit (pre-implementation). Severity rubric: Critical (total 
 | MEDIUM-14 | `DISPUTE_PERIOD` undefined                                           | Added as constant: 86400 (24 hours)                                                      |
 | MEDIUM-15 | Market state transitions not formalized                              | Added explicit state machine: Active↔Paused, Active/Paused→Resolved (terminal)           |
 | MEDIUM-16 | `split(0)`/`merge(0)` not guarded                                    | Zero-amount calls revert                                                                 |
-| MEDIUM-17 | Double redemption not explicitly guarded                             | `redeem` reads balance atomically; second call reverts `NothingToRedeem`                 |
+| MEDIUM-17 | Double redemption not explicitly guarded                             | `redeem` reads winning balance atomically; second call reverts `NothingToRedeem` (balance is zero) |
 | MEDIUM-18 | `getPositionsByOwner` unbounded return                               | Paginated variant added                                                                  |
 | MEDIUM-19 | Wallet linking creates unbounded arrays (gas bomb)                   | Mapping-based membership; view-only enumeration; `MAX_WALLETS_PER_PROFILE` cap           |
 | MEDIUM-20 | No `Closed` state; resolution timing ambiguous                       | Added `Closed` state with lazy transition at `resolutionTime`; formal state machine      |
@@ -3267,7 +4797,7 @@ Architecture-level audit (pre-implementation). Severity rubric: Critical (total 
 - EIP-712 consent on wallet linking
 - Global velocity covers all venues (FPMM + CLMM + CLOB)
 - Permissionless oracle resolution with admin fallback
-- Chainlink Automation for resolution liveness (bounded gas, no funds held)
+- Chainlink CRE Workflow for resolution liveness (off-chain scanning, BFT consensus, no funds held in consumer)
 - Explicit Closed state separates trading cessation from resolution
 - Oracle staleness + snapshot semantics prevent stale/ambiguous resolutions
 
