@@ -198,11 +198,16 @@ export async function processExpiredMarkets(): Promise<ProcessExpiredMarketsResu
   const now = new Date();
   const systemAdminId = await getSystemAdminId();
 
+  // Add 3-second buffer so markets closing very soon are picked up
+  // (avoids waiting a full minute if cron runs just before closesAt)
+  const bufferMs = 3000;
+  const threshold = new Date(now.getTime() + bufferMs);
+
   const expired = await prisma.market.findMany({
     where: {
       autoMarketConfigId: { not: null },
       status: MarketStatus.OPEN,
-      closesAt: { lt: now },
+      closesAt: { lt: threshold },
     },
     include: {
       autoMarketConfig: true,
