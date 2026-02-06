@@ -53,6 +53,7 @@ Extract math and pure computation into libraries. No state, no storage — just 
 ### 3. Immutable Contracts
 
 No proxies or upgradeability. Contracts are deployed as-is. "Upgrades" are handled by:
+
 - Deploying new contract versions
 - Migrating markets at resolution
 - Pointing frontend to new contract set (tracked in database)
@@ -65,6 +66,7 @@ No proxies or upgradeability. Contracts are deployed as-is. "Upgrades" are handl
 ### 5. Modern Solidity (0.8.33)
 
 Leverage latest language features:
+
 - Transient storage for reentrancy guards (~100 gas vs 20,000)
 - Custom errors with `revert Error(...)`
 - Named mapping parameters
@@ -112,14 +114,16 @@ Use [Solady](https://github.com/Vectorized/solady) optimized primitives wherever
 
 ### Core Contracts
 
-| Contract | Responsibility |
-|----------|----------------|
-| `VaultToken` | ERC-1155 outcome shares + split/merge complete sets |
-| `VaultMarket` | Market factory + state + FPMM backstop + resolution + fee routing |
-| `VaultCLMM` | Concentrated liquidity vault + vLP shares (Uniswap v3-style) |
-| `VaultCLOB` | EIP-712 order settlement + batch netting |
-| `VaultRisk` | Velocity tracking + surge LUT + inventory skew (protocol-liquidity only) |
+
+| Contract      | Responsibility                                                            |
+| ------------- | ------------------------------------------------------------------------- |
+| `VaultToken`  | ERC-1155 outcome shares + split/merge complete sets                       |
+| `VaultMarket` | Market factory + state + FPMM backstop + resolution + fee routing         |
+| `VaultCLMM`   | Concentrated liquidity vault + vLP shares (Uniswap v3-style)              |
+| `VaultCLOB`   | EIP-712 order settlement + batch netting                                  |
+| `VaultRisk`   | Velocity tracking + surge LUT + inventory skew (protocol-liquidity only)  |
 | `VaultCredit` | ProfileID registry + credit lines + recourse debt + debt-first waterfalls |
+
 
 ### Contract Relationships
 
@@ -187,21 +191,24 @@ Use [Solady](https://github.com/Vectorized/solady) optimized primitives wherever
 
 All libraries are pure/view with no state modifications.
 
-| Library | File | Purpose |
-|---------|------|---------|
-| `MathLib` | `src/lib/MathLib.sol` | Fixed-point ops, mulDiv, sqrt (extends Solady's FixedPointMathLib) |
-| `LUTLib` | `src/lib/LUTLib.sol` | Interpolated lookup tables for surge multipliers + decay powers |
-| `FPMMLib` | `src/lib/FPMMLib.sol` | Pure FPMM math: price derivation, buy/sell delta calculations |
-| `CLMMLib` | `src/lib/CLMMLib.sol` | Pure CLMM math: sqrt price, liquidity ↔ amounts, tick math |
-| `OrderLib` | `src/lib/OrderLib.sol` | EIP-712 typed data hashing, signature validation, order structs |
-| `SafeCastLib` | `src/lib/SafeCastLib.sol` | Explicit int/uint casting (critical for CLMM tick math) |
-| `MetadataLib` | `src/lib/MetadataLib.sol` | On-chain JSON construction using LibString + Base64 |
-| `Errors` | `src/lib/Errors.sol` | Centralized error definitions (reduces bytecode duplication) |
-| `UnitLib` | `src/lib/UnitLib.sol` | USDC↔Share unit conversions with explicit rounding |
+
+| Library       | File                      | Purpose                                                            |
+| ------------- | ------------------------- | ------------------------------------------------------------------ |
+| `MathLib`     | `src/lib/MathLib.sol`     | Fixed-point ops, mulDiv, sqrt (extends Solady's FixedPointMathLib) |
+| `LUTLib`      | `src/lib/LUTLib.sol`      | Interpolated lookup tables for surge multipliers + decay powers    |
+| `FPMMLib`     | `src/lib/FPMMLib.sol`     | Pure FPMM math: price derivation, buy/sell delta calculations      |
+| `CLMMLib`     | `src/lib/CLMMLib.sol`     | Pure CLMM math: sqrt price, liquidity ↔ amounts, tick math         |
+| `OrderLib`    | `src/lib/OrderLib.sol`    | EIP-712 typed data hashing, signature validation, order structs    |
+| `SafeCastLib` | `src/lib/SafeCastLib.sol` | Explicit int/uint casting (critical for CLMM tick math)            |
+| `MetadataLib` | `src/lib/MetadataLib.sol` | On-chain JSON construction using LibString + Base64                |
+| `Errors`      | `src/lib/Errors.sol`      | Centralized error definitions (reduces bytecode duplication)       |
+| `UnitLib`     | `src/lib/UnitLib.sol`     | USDC↔Share unit conversions with explicit rounding                 |
+
 
 ### Decimal Handling (Critical)
 
 **USDC vs Shares:**
+
 - USDC: **6 decimals** (1 USDC = 1e6)
 - Outcome Shares: **18 decimals** (1 share = 1e18)
 
@@ -268,28 +275,32 @@ Libraries (pure/view)
 
 **Read Methods (view/pure):**
 
-| Method | Returns | Purpose |
-|--------|---------|---------|
-| `balanceOf(address account, uint256 tokenId)` | `uint256` | User's share balance (inherited) |
-| `balanceOfBatch(address[] accounts, uint256[] tokenIds)` | `uint256[]` | Batch balance query (inherited) |
-| `isApprovedForAll(address owner, address operator)` | `bool` | Operator approval (inherited) |
-| `totalSupply(uint256 tokenId)` | `uint256` | Total shares minted for outcome |
-| `exists(uint256 tokenId)` | `bool` | Whether token ID exists |
-| `getMarketTokenIds(uint256 marketId)` | `uint256[]` | All token IDs for a market |
-| `decodeTokenId(uint256 tokenId)` | `(uint256 marketId, uint8 outcomeId)` | Parse token ID components |
-| `encodeTokenId(uint256 marketId, uint8 outcomeId)` | `uint256` | Build token ID: `(marketId << 8) \| outcomeId`. marketId bounded to `< 2^248` |
-| `uri(uint256 tokenId)` | `string` | On-chain JSON metadata (data URI) |
+
+| Method                                                   | Returns                               | Purpose                                                                      |
+| -------------------------------------------------------- | ------------------------------------- | ---------------------------------------------------------------------------- |
+| `balanceOf(address account, uint256 tokenId)`            | `uint256`                             | User's share balance (inherited)                                             |
+| `balanceOfBatch(address[] accounts, uint256[] tokenIds)` | `uint256[]`                           | Batch balance query (inherited)                                              |
+| `isApprovedForAll(address owner, address operator)`      | `bool`                                | Operator approval (inherited)                                                |
+| `totalSupply(uint256 tokenId)`                           | `uint256`                             | Total shares minted for outcome                                              |
+| `exists(uint256 tokenId)`                                | `bool`                                | Whether token ID exists                                                      |
+| `getMarketTokenIds(uint256 marketId)`                    | `uint256[]`                           | All token IDs for a market                                                   |
+| `decodeTokenId(uint256 tokenId)`                         | `(uint256 marketId, uint8 outcomeId)` | Parse token ID components                                                    |
+| `encodeTokenId(uint256 marketId, uint8 outcomeId)`       | `uint256`                             | Build token ID: `(marketId << 8) | outcomeId`. marketId bounded to `< 2^248` |
+| `uri(uint256 tokenId)`                                   | `string`                              | On-chain JSON metadata (data URI)                                            |
+
 
 **Write Methods (state-changing):**
 
-| Method | Access | Purpose |
-|--------|--------|---------|
-| `split(uint256 marketId, uint256 amount)` | User | Deposit USDC → mint complete set (active markets only; reverts on `amount == 0`) |
-| `merge(uint256 marketId, uint256 amount)` | User | Burn complete set → withdraw USDC (reverts on `amount == 0`) |
-| `settle(uint256 marketId, address user, uint256 winningShares)` | VaultMarket | Burn winning shares → release USDC |
-| `setApprovalForAll(address operator, bool approved)` | User | Grant/revoke operator (inherited) |
-| `safeTransferFrom(...)` | User | Transfer shares (inherited) |
-| `safeBatchTransferFrom(...)` | User | Batch transfer (inherited) |
+
+| Method                                                          | Access      | Purpose                                                                          |
+| --------------------------------------------------------------- | ----------- | -------------------------------------------------------------------------------- |
+| `split(uint256 marketId, uint256 amount)`                       | User        | Deposit USDC → mint complete set (active markets only; reverts on `amount == 0`) |
+| `merge(uint256 marketId, uint256 amount)`                       | User        | Burn complete set → withdraw USDC (reverts on `amount == 0`)                     |
+| `settle(uint256 marketId, address user, uint256 winningShares)` | VaultMarket | Burn winning shares → release USDC                                               |
+| `setApprovalForAll(address operator, bool approved)`            | User        | Grant/revoke operator (inherited)                                                |
+| `safeTransferFrom(...)`                                         | User        | Transfer shares (inherited)                                                      |
+| `safeBatchTransferFrom(...)`                                    | User        | Batch transfer (inherited)                                                       |
+
 
 > **On-Chain Metadata**: The `uri()` function generates fully on-chain JSON using Solady's `LibString` and `Base64`. This eliminates centralized metadata dependencies and ensures token metadata survives independently of any API.
 
@@ -307,7 +318,7 @@ Libraries (pure/view)
 > function uri(uint256 tokenId) public view override returns (string memory) {
 >     (uint256 marketId, uint8 outcomeId) = decodeTokenId(tokenId);
 >     Market memory m = vaultMarket.getMarket(marketId);
->     
+>
 >     return string.concat(
 >         "data:application/json;base64,",
 >         Base64.encode(bytes(string.concat(
@@ -328,61 +339,67 @@ Libraries (pure/view)
 
 **Constants:**
 
-| Constant | Value | Purpose |
-|----------|-------|---------|
-| `MIN_CREATOR_FEE` | 50 bps (0.5%) | Minimum creator fee to prevent sybil evasion |
-| `MAX_OUTCOMES` | 8 | Maximum outcomes per market to bound FPMM gas costs |
-| `DISPUTE_PERIOD` | 86400 (24 hours) | Time after resolution before `processEarnings` is callable |
-| `DEFAULT_GRACE_PERIOD` | 172800 (48 hours) | Max delay after `resolutionTime` before admin fallback is allowed for oracle markets |
-| `DEFAULT_STALE_TOLERANCE` | 3600 (1 hour) | Max oracle data age for `resolveByOracle` |
+
+| Constant                  | Value             | Purpose                                                                              |
+| ------------------------- | ----------------- | ------------------------------------------------------------------------------------ |
+| `MIN_CREATOR_FEE`         | 50 bps (0.5%)     | Minimum creator fee to prevent sybil evasion                                         |
+| `MAX_OUTCOMES`            | 8                 | Maximum outcomes per market to bound FPMM gas costs                                  |
+| `DISPUTE_PERIOD`          | 86400 (24 hours)  | Time after resolution before `processEarnings` is callable                           |
+| `DEFAULT_GRACE_PERIOD`    | 172800 (48 hours) | Max delay after `resolutionTime` before admin fallback is allowed for oracle markets |
+| `DEFAULT_STALE_TOLERANCE` | 3600 (1 hour)     | Max oracle data age for `resolveByOracle`                                            |
+
 
 **Read Methods (view/pure):**
 
-| Method | Returns | Purpose |
-|--------|---------|---------|
-| `getMarket(uint256 marketId)` | `Market` | Full market struct |
-| `getMarketState(uint256 marketId)` | `MarketState` | Status enum (Active/Paused/Resolved) |
-| `getMarketCount()` | `uint256` | Total markets created |
-| `getEvent(uint256 eventId)` | `Event` | Event metadata struct |
-| `getEventCount()` | `uint256` | Total events created |
-| `getEventMarketCount(uint256 eventId)` | `uint256` | Number of markets under an event |
-| `getEventMarketId(uint256 eventId, uint256 index)` | `uint256` | Market ID by event + index |
-| `getActiveEventCount()` | `uint256` | Number of active events |
-| `getActiveEventId(uint256 index)` | `uint256` | Active event ID by index |
-| `getActiveEventIds(uint256 cursor, uint256 limit)` | `uint256[]` | Paginated active event IDs |
-| `getActiveMarketCount()` | `uint256` | Number of active markets |
-| `getActiveMarketId(uint256 index)` | `uint256` | Active market ID by index |
-| `getActiveMarketIds(uint256 cursor, uint256 limit)` | `uint256[]` | Paginated active market IDs |
-| `getOutcomeCount(uint256 marketId)` | `uint8` | Number of outcomes |
-| `getReserves(uint256 marketId)` | `uint256[]` | FPMM reserves per outcome |
-| `getOutcomePrice(uint256 marketId, uint8 outcomeId)` | `uint256` | Implied probability (WAD) |
-| `getAllPrices(uint256 marketId)` | `uint256[]` | All outcome prices |
-| `quoteSwapIn(uint256 marketId, uint8 outcomeId, uint256 amountIn)` | `(uint256 out, uint256 fee)` | Simulate buy with USDC |
-| `quoteSwapOut(uint256 marketId, uint8 outcomeId, uint256 amountOut)` | `(uint256 in, uint256 fee)` | Simulate buy for exact shares |
-| `quoteSell(uint256 marketId, uint8 outcomeId, uint256 sharesIn)` | `(uint256 out, uint256 fee)` | Simulate sell shares |
-| `getResolution(uint256 marketId)` | `(uint8 winner, string evidence, uint256 resolvedAt)` | Resolution details |
-| `getCreatorFees(uint256 marketId, address creator)` | `uint256` | Accrued creator fees |
-| `isMarketActive(uint256 marketId)` | `bool` | Can trade? |
-| `isMarketResolved(uint256 marketId)` | `bool` | Has winner? |
-| `getRedemptionAmount(uint256 marketId, address user)` | `uint256` | USDC claimable after resolution |
+
+| Method                                                               | Returns                                               | Purpose                              |
+| -------------------------------------------------------------------- | ----------------------------------------------------- | ------------------------------------ |
+| `getMarket(uint256 marketId)`                                        | `Market`                                              | Full market struct                   |
+| `getMarketState(uint256 marketId)`                                   | `MarketState`                                         | Status enum (Active/Paused/Resolved) |
+| `getMarketCount()`                                                   | `uint256`                                             | Total markets created                |
+| `getEvent(uint256 eventId)`                                          | `Event`                                               | Event metadata struct                |
+| `getEventCount()`                                                    | `uint256`                                             | Total events created                 |
+| `getEventMarketCount(uint256 eventId)`                               | `uint256`                                             | Number of markets under an event     |
+| `getEventMarketId(uint256 eventId, uint256 index)`                   | `uint256`                                             | Market ID by event + index           |
+| `getActiveEventCount()`                                              | `uint256`                                             | Number of active events              |
+| `getActiveEventId(uint256 index)`                                    | `uint256`                                             | Active event ID by index             |
+| `getActiveEventIds(uint256 cursor, uint256 limit)`                   | `uint256[]`                                           | Paginated active event IDs           |
+| `getActiveMarketCount()`                                             | `uint256`                                             | Number of active markets             |
+| `getActiveMarketId(uint256 index)`                                   | `uint256`                                             | Active market ID by index            |
+| `getActiveMarketIds(uint256 cursor, uint256 limit)`                  | `uint256[]`                                           | Paginated active market IDs          |
+| `getOutcomeCount(uint256 marketId)`                                  | `uint8`                                               | Number of outcomes                   |
+| `getReserves(uint256 marketId)`                                      | `uint256[]`                                           | FPMM reserves per outcome            |
+| `getOutcomePrice(uint256 marketId, uint8 outcomeId)`                 | `uint256`                                             | Implied probability (WAD)            |
+| `getAllPrices(uint256 marketId)`                                     | `uint256[]`                                           | All outcome prices                   |
+| `quoteSwapIn(uint256 marketId, uint8 outcomeId, uint256 amountIn)`   | `(uint256 out, uint256 fee)`                          | Simulate buy with USDC               |
+| `quoteSwapOut(uint256 marketId, uint8 outcomeId, uint256 amountOut)` | `(uint256 in, uint256 fee)`                           | Simulate buy for exact shares        |
+| `quoteSell(uint256 marketId, uint8 outcomeId, uint256 sharesIn)`     | `(uint256 out, uint256 fee)`                          | Simulate sell shares                 |
+| `getResolution(uint256 marketId)`                                    | `(uint8 winner, string evidence, uint256 resolvedAt)` | Resolution details                   |
+| `getCreatorFees(uint256 marketId, address creator)`                  | `uint256`                                             | Accrued creator fees                 |
+| `isMarketActive(uint256 marketId)`                                   | `bool`                                                | Can trade?                           |
+| `isMarketResolved(uint256 marketId)`                                 | `bool`                                                | Has winner?                          |
+| `getRedemptionAmount(uint256 marketId, address user)`                | `uint256`                                             | USDC claimable after resolution      |
+
 
 **Write Methods (state-changing):**
 
-| Method | Access | Purpose |
-|--------|--------|---------|
-| `createMarket(CreateMarketParams params)` | Admin | Create new market |
-| `createEvent(CreateEventParams params)` | Admin | Create new event container |
-| `updateEvent(UpdateEventParams params)` | Admin | Update event metadata/flags |
-| `swap(SwapParams params)` | User | Execute FPMM trade |
-| `resolve(uint256 marketId, uint8 winner, string evidence)` | Admin | Set winning outcome |
-| `redeem(uint256 marketId)` | User | Claim USDC for winning shares |
-| `claimCreatorFees(uint256 marketId)` | Creator | Withdraw accrued fees |
-| `pauseMarket(uint256 marketId)` | Admin | Emergency pause |
-| `unpauseMarket(uint256 marketId)` | Admin | Resume trading |
-| `closeMarket(uint256 marketId)` | Permissionless | Transition to Closed when `block.timestamp >= resolutionTime` |
-| `resolveByOracle(uint256 marketId)` | Permissionless | Resolve via configured oracle (state must be Closed, resolver != ADMIN) |
-| `cancelMarket(uint256 marketId)` | Admin | Cancel market (Active/Paused/Closed → Cancelled). Enables pull-based refunds. |
-| `claimRefund(uint256 marketId)` | User | Claim proportional USDC refund after market cancellation |
+
+| Method                                                     | Access         | Purpose                                                                       |
+| ---------------------------------------------------------- | -------------- | ----------------------------------------------------------------------------- |
+| `createMarket(CreateMarketParams params)`                  | Admin          | Create new market                                                             |
+| `createEvent(CreateEventParams params)`                    | Admin          | Create new event container                                                    |
+| `updateEvent(UpdateEventParams params)`                    | Admin          | Update event metadata/flags                                                   |
+| `swap(SwapParams params)`                                  | User           | Execute FPMM trade                                                            |
+| `resolve(uint256 marketId, uint8 winner, string evidence)` | Admin          | Set winning outcome                                                           |
+| `redeem(uint256 marketId)`                                 | User           | Claim USDC for winning shares                                                 |
+| `claimCreatorFees(uint256 marketId)`                       | Creator        | Withdraw accrued fees                                                         |
+| `pauseMarket(uint256 marketId)`                            | Admin          | Emergency pause                                                               |
+| `unpauseMarket(uint256 marketId)`                          | Admin          | Resume trading                                                                |
+| `closeMarket(uint256 marketId)`                            | Permissionless | Transition to Closed when `block.timestamp >= resolutionTime`                 |
+| `resolveByOracle(uint256 marketId)`                        | Permissionless | Resolve via configured oracle (state must be Closed, resolver != ADMIN)       |
+| `cancelMarket(uint256 marketId)`                           | Admin          | Cancel market (Active/Paused/Closed → Cancelled). Enables pull-based refunds. |
+| `claimRefund(uint256 marketId)`                            | User           | Claim proportional USDC refund after market cancellation                      |
+
 
 > **Swap Direction & Deadlines**: `SwapParams` includes `isBuy` (buy vs sell) and `deadline` to prevent stale execution. `Swap` events emit `fee` and `newPrice` for indexers and analytics.
 
@@ -391,16 +408,19 @@ Libraries (pure/view)
 > **Redemption Path**: `redeem(marketId)` calls `VaultToken.settle(marketId, user, winningShares)` to burn winning shares and release collateral from VaultToken custody. `redeem` reads the caller's winning share balance atomically — a second call sees zero balance and reverts with `NothingToRedeem`. Losing shares are not burned on redemption (users may burn them manually or leave them).
 
 > **Post-Resolution Pool Recovery (FPMM):** After resolution, the FPMM pool holds complementary outcome shares as inventory. The protocol MUST recover this value:
+>
 > 1. For winning shares held by the pool: call `VaultToken.settle()` to convert to USDC and route to VaultCredit (protocol treasury).
 > 2. For losing shares held by the pool: worthless, can be burned or left.
 > 3. Implementation: `resolve()` should trigger pool inventory accounting or expose `reclaimPoolInventory(marketId)` callable by admin after resolution.
 >
 > **Post-Resolution CLMM LP Positions:** When a market resolves, CLMM LP positions still hold outcome tokens:
+>
 > 1. LPs MUST be able to call `removeLiquidity()` on resolved markets to withdraw their tokens.
 > 2. LPs then call `redeem()` for winning shares or `merge()` if they hold complete sets.
 > 3. `removeLiquidity()` MUST NOT revert on resolved markets — only `addLiquidity()` and `swap()` should be gated by market state.
 
 > **Market State Machine:** Valid transitions are strictly enforced:
+>
 > ```
 > Active → Paused    (pauseMarket)
 > Paused → Active    (unpauseMarket)
@@ -411,6 +431,7 @@ Libraries (pure/view)
 > Paused → Resolved  (resolve — admin fast-path)
 > Active/Paused/Closed → Cancelled  (cancelMarket — admin only)
 > ```
+>
 > **Closed** = trading disabled, awaiting resolution. **Resolved** and **Cancelled** are terminal — no transition back. `createMarket` initializes to Active. Any other transition MUST revert with `InvalidStateTransition(currentState, targetState)`.
 >
 > **Lazy Close:** Any write call (`swap`, `split`, `addLiquidity`) SHOULD check `block.timestamp >= market.resolutionTime` and auto-transition to Closed if still Active. Alternatively, `closeMarket(marketId)` is permissionless and callable by anyone/keepers when `block.timestamp >= resolutionTime`.
@@ -463,6 +484,7 @@ struct Market {
 ```
 
 > **On-Chain Discovery (No Indexer)**: To support fully on-chain UIs, track timestamps for events/markets and expose paginated views of **active** IDs. Avoid unbounded loops by using cursor/limit reads. Recommended view methods:
+>
 > - `getActiveEventCount()` / `getActiveEventId(uint256 index)`
 > - `getActiveMarketCount()` / `getActiveMarketId(uint256 index)`
 > - `getActiveEventIds(uint256 cursor, uint256 limit)` / `getActiveMarketIds(uint256 cursor, uint256 limit)`
@@ -479,13 +501,15 @@ Markets may optionally be configured with an on-chain oracle resolver. When conf
 
 **Resolver Types:**
 
-| Type | Use Case | Resolution Actor |
-|------|----------|-----------------|
-| `ADMIN` | Subjective markets (politics, sports outcomes) | Admin/multisig only |
-| `CHAINLINK_FEED` | Objectively machine-verifiable (price thresholds) | Permissionless via oracle read |
-| `CUSTOM_ADAPTER` | Complex conditions (multi-feed, off-chain proof) | Permissionless via adapter contract |
 
-**`resolveByOracle(marketId)` Logic:**
+| Type             | Use Case                                          | Resolution Actor                    |
+| ---------------- | ------------------------------------------------- | ----------------------------------- |
+| `ADMIN`          | Subjective markets (politics, sports outcomes)    | Admin/multisig only                 |
+| `CHAINLINK_FEED` | Objectively machine-verifiable (price thresholds) | Permissionless via oracle read      |
+| `CUSTOM_ADAPTER` | Complex conditions (multi-feed, off-chain proof)  | Permissionless via adapter contract |
+
+
+`**resolveByOracle(marketId)` Logic:**
 
 ```solidity
 function resolveByOracle(uint256 marketId) external {
@@ -505,6 +529,8 @@ function resolveByOracle(uint256 marketId) external {
         revert OracleNotYetUpdated(updatedAt, m.resolutionTime);
 
     // Grace period: cannot resolve too late (forces fallback to admin)
+    // NOTE: Use strict > (not >=) so oracle resolution is valid AT the exact expiry second.
+    // Admin resolve uses >= to unlock AT the same second. This ensures no gap and no overlap.
     if (block.timestamp > m.resolutionTime + m.oracleConfig.gracePeriod)
         revert GracePeriodExpired(m.resolutionTime, m.oracleConfig.gracePeriod);
 
@@ -530,6 +556,13 @@ Closed → (grace period expired, oracle unavailable) → resolve() by Admin →
 ```
 
 > **Fallback Rule:** After `resolutionTime + gracePeriod`, admin `resolve()` is unlocked for oracle-configured markets. Before that deadline, only `resolveByOracle()` is permitted (prevents admin front-running the oracle). This preserves decentralization guarantees during the oracle window while ensuring markets always eventually resolve.
+>
+> **Grace Period Boundary Semantics (Off-by-One Trap):** The boundary between oracle resolution and admin fallback MUST be tested at the exact second of expiry:
+>
+> - Oracle: `block.timestamp > deadline` reverts (strict `>`, so `block.timestamp == deadline` is still valid for oracle)
+> - Admin: `block.timestamp >= deadline` permits (so `block.timestamp == deadline` is the first valid admin second)
+> - This means at `t == resolutionTime + gracePeriod`: **both** oracle and admin can resolve. This is safe because either produces a valid resolution.
+> - **Required test:** `test_resolveAtExactGracePeriodBoundary()` — admin tries to resolve at `block.timestamp == resolutionTime + gracePeriod` (should succeed) AND at `block.timestamp == resolutionTime + gracePeriod - 1` (should revert).
 
 ---
 
@@ -608,36 +641,43 @@ contract VaultAutomationResolver is AutomationCompatibleInterface {
 
 **Read Methods (view/pure):**
 
-| Method | Returns | Purpose |
-|--------|---------|---------|
-| `getPool(uint256 marketId, uint8 outcomeId)` | `Pool` | Pool state (sqrtPrice, liquidity, tick) |
-| `getPosition(uint256 positionId)` | `Position` | Position details |
-| `getPositionsByOwner(address owner)` | `uint256[]` | All position IDs for user (bounded; see note) |
-| `getPositionsByOwner(address owner, uint256 cursor, uint256 limit)` | `uint256[]` | Paginated position IDs for user |
-| `getLiquidityInRange(uint256 marketId, uint8 outcomeId, int24 tickLower, int24 tickUpper)` | `uint128` | Liquidity in tick range |
-| `quoteSwap(uint256 marketId, uint8 outcomeId, uint256 amountIn, bool zeroForOne)` | `(uint256 out, uint256 fee)` | Simulate swap |
-| `getVLPBalance(address owner)` | `uint256` | User's vLP share balance |
-| `getTotalVLP()` | `uint256` | Total vLP supply |
-| `getProtocolLiquidity(uint256 marketId)` | `uint256` | Protocol-owned liquidity |
-| `getEarnedFees(uint256 positionId)` | `(uint256 token0, uint256 token1)` | Uncollected fees |
-| `tickToPrice(int24 tick)` | `uint256` | Convert tick to price (WAD) |
-| `priceToTick(uint256 price)` | `int24` | Convert price to nearest tick |
+
+| Method                                                                                     | Returns                            | Purpose                                       |
+| ------------------------------------------------------------------------------------------ | ---------------------------------- | --------------------------------------------- |
+| `getPool(uint256 marketId, uint8 outcomeId)`                                               | `Pool`                             | Pool state (sqrtPrice, liquidity, tick)       |
+| `getPosition(uint256 positionId)`                                                          | `Position`                         | Position details                              |
+| `getPositionsByOwner(address owner)`                                                       | `uint256[]`                        | All position IDs for user (bounded; see note) |
+| `getPositionsByOwner(address owner, uint256 cursor, uint256 limit)`                        | `uint256[]`                        | Paginated position IDs for user               |
+| `getLiquidityInRange(uint256 marketId, uint8 outcomeId, int24 tickLower, int24 tickUpper)` | `uint128`                          | Liquidity in tick range                       |
+| `quoteSwap(uint256 marketId, uint8 outcomeId, uint256 amountIn, bool zeroForOne)`          | `(uint256 out, uint256 fee)`       | Simulate swap                                 |
+| `getVLPBalance(address owner)`                                                             | `uint256`                          | User's vLP share balance                      |
+| `getTotalVLP()`                                                                            | `uint256`                          | Total vLP supply                              |
+| `getProtocolLiquidity(uint256 marketId)`                                                   | `uint256`                          | Protocol-owned liquidity                      |
+| `getEarnedFees(uint256 positionId)`                                                        | `(uint256 token0, uint256 token1)` | Uncollected fees                              |
+| `tickToPrice(int24 tick)`                                                                  | `uint256`                          | Convert tick to price (WAD)                   |
+| `priceToTick(uint256 price)`                                                               | `int24`                            | Convert price to nearest tick                 |
+
 
 **Write Methods (state-changing):**
 
-| Method | Access | Purpose |
-|--------|--------|---------|
-| `addLiquidity(AddLiquidityParams params)` | User/Protocol | Provide concentrated liquidity |
-| `removeLiquidity(RemoveLiquidityParams params)` | Owner | Withdraw liquidity |
-| `swap(CLMMSwapParams params)` | User | Execute CLMM swap |
-| `collectFees(uint256 positionId)` | Owner | Collect earned fees |
-| `collectProtocolFees(uint256 marketId, uint8 outcomeId)` | VaultCLMM | Route POL fees to VaultCredit |
+
+| Method                                                   | Access        | Purpose                        |
+| -------------------------------------------------------- | ------------- | ------------------------------ |
+| `addLiquidity(AddLiquidityParams params)`                | User/Protocol | Provide concentrated liquidity |
+| `removeLiquidity(RemoveLiquidityParams params)`          | Owner         | Withdraw liquidity             |
+| `swap(CLMMSwapParams params)`                            | User          | Execute CLMM swap              |
+| `collectFees(uint256 positionId)`                        | Owner         | Collect earned fees            |
+| `collectProtocolFees(uint256 marketId, uint8 outcomeId)` | VaultCLMM     | Route POL fees to VaultCredit  |
+
 
 > **CLMM Audit Priority (HIGH)**: Uniswap v3-style concentrated liquidity math is notoriously error-prone. `CLMMLib` requires:
+>
 > - Differential fuzz testing against Uniswap v3 reference implementation (mandatory)
 > - Fuzz testing all tick/liquidity/price conversions
 > - Invariant tests: `liquidity >= 0`, `price ∈ [tickLower, tickUpper]`, fee growth monotonicity
-> - Explicit overflow checks on `int24`/`int128`/`uint128` casts (use `SafeCastLib`)
+> - Casting discipline: Follow Uniswap v3 reference implementation's casting logic exactly (see SafeCast trap below)
+
+> **CLMM SafeCast Trap (CRITICAL):** Uniswap v3 math relies on **intentional wrapping overflows** in specific places (e.g., fee growth accumulators use `unchecked` uint256 wrapping, tick bitmap uses wrapping int24 arithmetic) and strict checked casts in others (e.g., liquidity delta must not overflow int128). Do **NOT** blindly apply `SafeCastLib` to every variable in `CLMMLib`. Instead: (1) audit each cast site against the Uniswap v3 reference implementation, (2) use `SafeCastLib` only where the reference uses checked casts, (3) use `unchecked` blocks where the reference relies on wrapping, (4) document each cast site with a comment citing the Uniswap v3 source line. Incorrect checked casts on intentionally-wrapping values will cause reverts on valid operations. Incorrect unchecked casts on bounds-critical values will cause silent truncation exploits.
 
 > **Deadlines**: `AddLiquidityParams`, `RemoveLiquidityParams`, and `CLMMSwapParams` include a `deadline` field to prevent stale execution after major price moves.
 
@@ -653,37 +693,44 @@ contract VaultAutomationResolver is AutomationCompatibleInterface {
 
 **Read Methods (view/pure):**
 
-| Method | Returns | Purpose |
-|--------|---------|---------|
-| `getOrderStatus(bytes32 orderHash)` | `OrderStatus` | Open/Filled/Cancelled |
-| `getFilledAmount(bytes32 orderHash)` | `uint256` | Amount already filled |
-| `getRemainingAmount(bytes32 orderHash)` | `uint256` | Amount still fillable |
-| `getNonce(address user)` | `uint256` | Current nonce for user |
-| `isValidSignature(Order order, bytes signature)` | `bool` | Verify order signature |
-| `hashOrder(Order order)` | `bytes32` | Compute EIP-712 order hash |
-| `DOMAIN_SEPARATOR()` | `bytes32` | EIP-712 domain separator (dynamic on chain fork) |
-| `verifyOrder(Order order, bytes signature)` | `(bool valid, uint8 reason)` | Full validation with reason code |
-| `getFailedMatches(uint256 batchId)` | `bytes32[]` | Order hashes that failed in batch |
-| `getFailedMatchReasons(uint256 batchId)` | `uint8[]` | Reason codes per failed match |
+
+| Method                                           | Returns                      | Purpose                                          |
+| ------------------------------------------------ | ---------------------------- | ------------------------------------------------ |
+| `getOrderStatus(bytes32 orderHash)`              | `OrderStatus`                | Open/Filled/Cancelled                            |
+| `getFilledAmount(bytes32 orderHash)`             | `uint256`                    | Amount already filled                            |
+| `getRemainingAmount(bytes32 orderHash)`          | `uint256`                    | Amount still fillable                            |
+| `getNonce(address user)`                         | `uint256`                    | Current nonce for user                           |
+| `isValidSignature(Order order, bytes signature)` | `bool`                       | Verify order signature                           |
+| `hashOrder(Order order)`                         | `bytes32`                    | Compute EIP-712 order hash                       |
+| `DOMAIN_SEPARATOR()`                             | `bytes32`                    | EIP-712 domain separator (dynamic on chain fork) |
+| `verifyOrder(Order order, bytes signature)`      | `(bool valid, uint8 reason)` | Full validation with reason code                 |
+| `getFailedMatches(uint256 batchId)`              | `bytes32[]`                  | Order hashes that failed in batch                |
+| `getFailedMatchReasons(uint256 batchId)`         | `uint8[]`                    | Reason codes per failed match                    |
+
 
 **Write Methods (state-changing):**
 
-| Method | Access | Purpose |
-|--------|--------|---------|
-| `settleBatch(Order[] orders, bytes[] signatures)` | Relayer | Settle matched orders (soft reverts) |
-| `cancelOrder(Order order)` | Maker | Cancel single order (requires full order struct to verify `msg.sender == order.maker`) |
-| `cancelOrders(Order[] orders)` | Maker | Batch cancel (verifies maker on each) |
-| `incrementNonce()` | User | Invalidate all pending orders |
+
+| Method                                            | Access  | Purpose                                                                                |
+| ------------------------------------------------- | ------- | -------------------------------------------------------------------------------------- |
+| `settleBatch(Order[] orders, bytes[] signatures)` | Relayer | Settle matched orders (soft reverts)                                                   |
+| `cancelOrder(Order order)`                        | Maker   | Cancel single order (requires full order struct to verify `msg.sender == order.maker`) |
+| `cancelOrders(Order[] orders)`                    | Maker   | Batch cancel (verifies maker on each)                                                  |
+| `incrementNonce()`                                | User    | Invalidate all pending orders                                                          |
+
 
 **Events:**
 
-| Event | Parameters | Purpose |
-|-------|------------|---------|
+
+| Event         | Parameters                            | Purpose                          |
+| ------------- | ------------------------------------- | -------------------------------- |
 | `MatchFailed` | `bytes32 orderHash, uint8 reasonCode` | Individual match failed in batch |
+
 
 > **Soft Revert Pattern**: `settleBatch` uses try/catch internally. If an individual match fails (insufficient balance, cancelled order, etc.), it emits `MatchFailed` and continues processing remaining orders. This prevents DoS where one bad order blocks the entire batch.
 >
 > **Implementation Notes:**
+>
 > - Use compact failure codes (`uint8`) instead of dynamic strings in `MatchFailed` to prevent gas griefing
 > - Bound max matches per batch (e.g., 50) to limit gas consumption
 > - Bound per-order validation cost
@@ -693,6 +740,7 @@ contract VaultAutomationResolver is AutomationCompatibleInterface {
 > **CLOB Velocity Update (Critical):** `settleBatch` MUST call `VaultRisk.updateVelocity(notional)` after processing fills. Without this, CLOB volume is invisible to the surge fee engine and attackers can route massive directional flow through the CLOB at base fees while FPMM/CLMM traders pay surge pricing. VaultCLOB must be added to the `VaultRisk.updateVelocity` whitelist alongside VaultMarket and VaultCLMM.
 
 > **Settlement Correctness (Critical)**: The on-chain settlement MUST verify:
+>
 > - Matched orders share the same `(marketId, outcomeId)` and have opposite `isBuy` flags
 > - Fill amount ≤ remaining order amount
 > - Fill price respects both maker's limit price constraints
@@ -716,28 +764,33 @@ contract VaultAutomationResolver is AutomationCompatibleInterface {
 
 **Read Methods (view/pure):**
 
-| Method | Returns | Purpose |
-|--------|---------|---------|
-| `getVelocity()` | `uint256` | Current velocity V (WAD) |
-| `getSurgeMultiplier()` | `uint256` | Current surge M (WAD, 1e18 = 1x) |
-| `getInventorySkew(uint256 marketId, uint8 outcomeId)` | `int256` | Skew z_i (signed WAD) |
-| `getEffectiveFee(uint256 marketId, uint8 outcomeId, bool isBuy)` | `uint256` | Computed fee (bps) |
-| `getBaselineFee()` | `uint256` | f0 baseline (300 bps) |
-| `getMaxFee()` | `uint256` | f_max cap |
-| `getRiskParams()` | `RiskParams` | All params struct |
-| `getLastUpdateBlock()` | `uint256` | Block of last velocity update |
-| `previewEffectiveFee(uint256 notional, uint256 marketId, uint8 outcomeId, bool isBuy)` | `uint256` | Fee after hypothetical trade |
-| `getReferenceMidPrice(uint256 marketId)` | `uint256` | CLOB mid-price for inventory skew calc |
+
+| Method                                                                                 | Returns      | Purpose                                |
+| -------------------------------------------------------------------------------------- | ------------ | -------------------------------------- |
+| `getVelocity()`                                                                        | `uint256`    | Current velocity V (WAD)               |
+| `getSurgeMultiplier()`                                                                 | `uint256`    | Current surge M (WAD, 1e18 = 1x)       |
+| `getInventorySkew(uint256 marketId, uint8 outcomeId)`                                  | `int256`     | Skew z_i (signed WAD)                  |
+| `getEffectiveFee(uint256 marketId, uint8 outcomeId, bool isBuy)`                       | `uint256`    | Computed fee (bps)                     |
+| `getBaselineFee()`                                                                     | `uint256`    | f0 baseline (300 bps)                  |
+| `getMaxFee()`                                                                          | `uint256`    | f_max cap                              |
+| `getRiskParams()`                                                                      | `RiskParams` | All params struct                      |
+| `getLastUpdateBlock()`                                                                 | `uint256`    | Block of last velocity update          |
+| `previewEffectiveFee(uint256 notional, uint256 marketId, uint8 outcomeId, bool isBuy)` | `uint256`    | Fee after hypothetical trade           |
+| `getReferenceMidPrice(uint256 marketId)`                                               | `uint256`    | CLOB mid-price for inventory skew calc |
+
 
 **Write Methods (state-changing):**
 
-| Method | Access | Purpose |
-|--------|--------|---------|
+
+| Method                             | Access   | Purpose                             |
+| ---------------------------------- | -------- | ----------------------------------- |
 | `updateVelocity(uint256 notional)` | Internal | Called by Market/CLMM/CLOB on trade |
-| `setRiskParams(RiskParams params)` | Admin | Update risk parameters |
-| `setLUT(bytes lutData)` | Admin | Upload new surge LUT (validated) |
+| `setRiskParams(RiskParams params)` | Admin    | Update risk parameters              |
+| `setLUT(bytes lutData)`            | Admin    | Upload new surge LUT (validated)    |
+
 
 > **LUT Validation (setLUT)**: Before accepting a new LUT, validate:
+>
 > - **Monotonicity**: `LUT[i] <= LUT[i+1]` for surge multipliers (fees increase with velocity)
 > - **Bounds**: All values within `[1e18, f_max * 1e18]` (1x to max multiplier)
 > - **Length**: Expected array length matches step count
@@ -748,6 +801,7 @@ contract VaultAutomationResolver is AutomationCompatibleInterface {
 > **Reference Price Oracle**: Inventory skew calculation uses CLOB mid-price (from `getReferenceMidPrice`) rather than AMM spot price. This prevents attackers from manipulating AMM reserves to artificially reduce skew penalties before large directional trades.
 >
 > **Mid-Price Derivation Rules** (oracle hardening):
+>
 > - Use **last-executed-trade mid**, not quoted/resting order mid
 > - Apply **TWAP over recent fills** (e.g., 5-minute window) to smooth manipulation
 > - Require **minimum volume threshold** before price updates
@@ -771,34 +825,38 @@ enum FeeSource { FPMM, CLOB, CLMM }
 
 **Read Methods (view/pure):**
 
-| Method | Returns | Purpose |
-|--------|---------|---------|
-| `getProfile(uint256 profileId)` | `Profile` | Full profile struct |
-| `getProfileByWallet(address wallet)` | `(uint256 profileId, bool exists)` | Lookup by wallet |
-| `getProfileWallets(uint256 profileId)` | `address[]` | All linked wallets |
-| `getCreditLimit(uint256 profileId)` | `uint256` | Current limit |
-| `getDebt(uint256 profileId)` | `uint256` | Outstanding debt |
-| `getAvailableCredit(uint256 profileId)` | `uint256` | limit - debt |
-| `getEscrowedFees(uint256 profileId, uint256 marketId)` | `uint256` | Fees escrowed for market |
-| `getTotalEscrowedFees(uint256 profileId)` | `uint256` | Total across all markets |
-| `getProfileStatus(uint256 profileId)` | `ProfileStatus` | Tier (Creator/TrustedKOL/Public) |
-| `isProfileRegistered(address wallet)` | `bool` | Has profile? |
-| `getDebtHistory(uint256 profileId)` | `DebtRecord[]` | Historical debt records |
-| `getClaimable(uint256 profileId)` | `uint256` | Net withdrawable after debt repayment |
+
+| Method                                                 | Returns                            | Purpose                               |
+| ------------------------------------------------------ | ---------------------------------- | ------------------------------------- |
+| `getProfile(uint256 profileId)`                        | `Profile`                          | Full profile struct                   |
+| `getProfileByWallet(address wallet)`                   | `(uint256 profileId, bool exists)` | Lookup by wallet                      |
+| `getProfileWallets(uint256 profileId)`                 | `address[]`                        | All linked wallets                    |
+| `getCreditLimit(uint256 profileId)`                    | `uint256`                          | Current limit                         |
+| `getDebt(uint256 profileId)`                           | `uint256`                          | Outstanding debt                      |
+| `getAvailableCredit(uint256 profileId)`                | `uint256`                          | limit - debt                          |
+| `getEscrowedFees(uint256 profileId, uint256 marketId)` | `uint256`                          | Fees escrowed for market              |
+| `getTotalEscrowedFees(uint256 profileId)`              | `uint256`                          | Total across all markets              |
+| `getProfileStatus(uint256 profileId)`                  | `ProfileStatus`                    | Tier (Creator/TrustedKOL/Public)      |
+| `isProfileRegistered(address wallet)`                  | `bool`                             | Has profile?                          |
+| `getDebtHistory(uint256 profileId)`                    | `DebtRecord[]`                     | Historical debt records               |
+| `getClaimable(uint256 profileId)`                      | `uint256`                          | Net withdrawable after debt repayment |
+
 
 **Write Methods (state-changing):**
 
-| Method | Access | Purpose |
-|--------|--------|---------|
-| `registerProfile()` | User | Create profile for msg.sender |
-| `linkWallet(address wallet, bytes signature)` | ProfileOwner | Add wallet to profile (requires wallet's EIP-712 consent signature) |
-| `unlinkWallet(address wallet)` | ProfileOwner | Remove wallet (callable by profile owner or the wallet being unlinked) |
-| `setCreditLimit(uint256 profileId, uint256 limit)` | Admin | Set/update credit limit |
-| `recordDebt(uint256 profileId, uint256 amount)` | Internal | Add debt (called by Market) |
-| `depositFees(uint256 marketId, uint256 amount, FeeSource source)` | VaultMarket/VaultCLOB/VaultCLMM | Deposit fees into debt-first waterfall |
-| `processEarnings(uint256 profileId, uint256 marketId)` | Internal | Post-resolution accounting (gated: `block.timestamp >= market.disputeDeadline`) |
-| `withdrawEarnings()` | ProfileOwner | Pull claimable funds |
-| `setProfileStatus(uint256 profileId, ProfileStatus status)` | Admin | Update tier |
+
+| Method                                                            | Access                          | Purpose                                                                         |
+| ----------------------------------------------------------------- | ------------------------------- | ------------------------------------------------------------------------------- |
+| `registerProfile()`                                               | User                            | Create profile for msg.sender                                                   |
+| `linkWallet(address wallet, bytes signature)`                     | ProfileOwner                    | Add wallet to profile (requires wallet's EIP-712 consent signature)             |
+| `unlinkWallet(address wallet)`                                    | ProfileOwner                    | Remove wallet (callable by profile owner or the wallet being unlinked)          |
+| `setCreditLimit(uint256 profileId, uint256 limit)`                | Admin                           | Set/update credit limit                                                         |
+| `recordDebt(uint256 profileId, uint256 amount)`                   | Internal                        | Add debt (called by Market)                                                     |
+| `depositFees(uint256 marketId, uint256 amount, FeeSource source)` | VaultMarket/VaultCLOB/VaultCLMM | Deposit fees into debt-first waterfall                                          |
+| `processEarnings(uint256 profileId, uint256 marketId)`            | Internal                        | Post-resolution accounting (gated: `block.timestamp >= market.disputeDeadline`) |
+| `withdrawEarnings()`                                              | ProfileOwner                    | Pull claimable funds                                                            |
+| `setProfileStatus(uint256 profileId, ProfileStatus status)`       | Admin                           | Update tier                                                                     |
+
 
 > **Pull Pattern**: Earnings are processed internally but not pushed to users. Instead, users call `withdrawEarnings()` to pull funds. This prevents revert-on-receive attacks where a malicious contract could block fund distribution by reverting in its receive function.
 
@@ -1465,23 +1523,25 @@ This section maps user journeys to contract calls, events, and backend integrati
 
 ### Workflow Summary Table
 
-| Workflow | Contracts Involved | Key Write Methods | Backend Integration |
-|----------|-------------------|-------------------|---------------------|
-| Create Event | VaultMarket | `createEvent()` | Event indexing |
-| Onboarding | VaultCredit | `registerProfile()` | Profile indexing |
-| Deposit | VaultToken, USDC | `split(marketId, amount)` | Position tracking |
-| Buy (FPMM) | VaultMarket, VaultRisk, VaultToken | `swap(SwapParams)` | Trade history, prices |
-| Sell (FPMM) | VaultMarket, VaultRisk, VaultToken | `swap(SwapParams)` | Trade history, prices |
-| Place Order | VaultCLOB (off-chain) | - | Orderbook |
-| Cancel Order | VaultCLOB | `cancelOrder()` | Orderbook |
-| Settle Batch | VaultCLOB, VaultToken, VaultCredit | `settleBatch()` | Fills, positions, fee escrow |
-| Add Liquidity | VaultCLMM, VaultToken, USDC | `addLiquidity(AddLiquidityParams)` | LP positions |
-| Remove Liquidity | VaultCLMM | `removeLiquidity(RemoveLiquidityParams)` | LP positions |
-| Collect Fees | VaultCLMM | `collectFees()` | LP earnings |
-| Resolution | VaultMarket | `resolve()` | Market state |
-| Redemption | VaultMarket, VaultToken | `redeem()` | PnL, positions |
-| Withdraw | VaultToken | `merge()` | Positions |
-| Creator Fees | VaultCredit | `withdrawEarnings()` | Earnings, debt |
+
+| Workflow         | Contracts Involved                 | Key Write Methods                        | Backend Integration          |
+| ---------------- | ---------------------------------- | ---------------------------------------- | ---------------------------- |
+| Create Event     | VaultMarket                        | `createEvent()`                          | Event indexing               |
+| Onboarding       | VaultCredit                        | `registerProfile()`                      | Profile indexing             |
+| Deposit          | VaultToken, USDC                   | `split(marketId, amount)`                | Position tracking            |
+| Buy (FPMM)       | VaultMarket, VaultRisk, VaultToken | `swap(SwapParams)`                       | Trade history, prices        |
+| Sell (FPMM)      | VaultMarket, VaultRisk, VaultToken | `swap(SwapParams)`                       | Trade history, prices        |
+| Place Order      | VaultCLOB (off-chain)              | -                                        | Orderbook                    |
+| Cancel Order     | VaultCLOB                          | `cancelOrder()`                          | Orderbook                    |
+| Settle Batch     | VaultCLOB, VaultToken, VaultCredit | `settleBatch()`                          | Fills, positions, fee escrow |
+| Add Liquidity    | VaultCLMM, VaultToken, USDC        | `addLiquidity(AddLiquidityParams)`       | LP positions                 |
+| Remove Liquidity | VaultCLMM                          | `removeLiquidity(RemoveLiquidityParams)` | LP positions                 |
+| Collect Fees     | VaultCLMM                          | `collectFees()`                          | LP earnings                  |
+| Resolution       | VaultMarket                        | `resolve()`                              | Market state                 |
+| Redemption       | VaultMarket, VaultToken            | `redeem()`                               | PnL, positions               |
+| Withdraw         | VaultToken                         | `merge()`                                | Positions                    |
+| Creator Fees     | VaultCredit                        | `withdrawEarnings()`                     | Earnings, debt               |
+
 
 ---
 
@@ -1931,27 +1991,29 @@ vaultCredit.setProfileStatus(profileId, ProfileStatus.TrustedKOL);
 
 ### Contract → Subgraph Mappings
 
-| Event | Subgraph Entity | Key Fields |
-|-------|-----------------|------------|
-| `Split` | `Split`, `UserBalance` | marketId, user, amount, timestamp |
-| `Merge` | `Merge`, `UserBalance` | marketId, user, amount, timestamp |
-| `TransferSingle/Batch` | `Transfer`, `UserBalance` | from, to, tokenId, amount |
-| `EventCreated` | `Event` | eventId, eventKey, metadataURI |
-| `EventUpdated` | `Event` | eventId, metadataURI, flags |
-| `MarketCreated` | `Market` | marketId, question, outcomes, creator |
-| `Swap` | `Trade`, `Market`, `UserPosition` | marketId, user, outcome, isBuy, amounts, fee, newPrice |
-| `MarketResolved` | `Market` | marketId, winner, evidenceUri, timestamp |
-| `Redeemed` | `Redemption`, `UserPosition` | marketId, user, amounts |
-| `LiquidityAdded` | `Position`, `Pool` | positionId, owner, ticks, liquidity |
-| `LiquidityRemoved` | `Position`, `Pool` | positionId, amounts |
-| `OrderFilled` | `Order`, `Fill` | orderHash, maker, taker, amount, price |
-| `BatchSettled` | `Settlement` | batchId, orders, volume |
-| `VelocityUpdated` | `RiskMetric` | velocity, surge, timestamp |
-| `ProfileRegistered` | `Profile` | profileId, wallet |
-| `CreditUsed` | `CreditEvent`, `Profile` | profileId, amount, newDebt |
-| `FeesDeposited` | `Fees`, `Market` | marketId, amount, source |
-| `EarningsProcessed` | `Earnings`, `Profile` | profileId, gross, debt, net |
-| `EarningsWithdrawn` | `Earnings`, `Profile` | profileId, amount |
+
+| Event                  | Subgraph Entity                   | Key Fields                                             |
+| ---------------------- | --------------------------------- | ------------------------------------------------------ |
+| `Split`                | `Split`, `UserBalance`            | marketId, user, amount, timestamp                      |
+| `Merge`                | `Merge`, `UserBalance`            | marketId, user, amount, timestamp                      |
+| `TransferSingle/Batch` | `Transfer`, `UserBalance`         | from, to, tokenId, amount                              |
+| `EventCreated`         | `Event`                           | eventId, eventKey, metadataURI                         |
+| `EventUpdated`         | `Event`                           | eventId, metadataURI, flags                            |
+| `MarketCreated`        | `Market`                          | marketId, question, outcomes, creator                  |
+| `Swap`                 | `Trade`, `Market`, `UserPosition` | marketId, user, outcome, isBuy, amounts, fee, newPrice |
+| `MarketResolved`       | `Market`                          | marketId, winner, evidenceUri, timestamp               |
+| `Redeemed`             | `Redemption`, `UserPosition`      | marketId, user, amounts                                |
+| `LiquidityAdded`       | `Position`, `Pool`                | positionId, owner, ticks, liquidity                    |
+| `LiquidityRemoved`     | `Position`, `Pool`                | positionId, amounts                                    |
+| `OrderFilled`          | `Order`, `Fill`                   | orderHash, maker, taker, amount, price                 |
+| `BatchSettled`         | `Settlement`                      | batchId, orders, volume                                |
+| `VelocityUpdated`      | `RiskMetric`                      | velocity, surge, timestamp                             |
+| `ProfileRegistered`    | `Profile`                         | profileId, wallet                                      |
+| `CreditUsed`           | `CreditEvent`, `Profile`          | profileId, amount, newDebt                             |
+| `FeesDeposited`        | `Fees`, `Market`                  | marketId, amount, source                               |
+| `EarningsProcessed`    | `Earnings`, `Profile`             | profileId, gross, debt, net                            |
+| `EarningsWithdrawn`    | `Earnings`, `Profile`             | profileId, amount                                      |
+
 
 ### Subgraph Schema (Simplified)
 
@@ -2042,51 +2104,60 @@ type Order @entity {
 
 ### Backend API → Contract Calls
 
-| API Endpoint | Contract Call | Caching Strategy |
-|--------------|---------------|------------------|
-| `GET /markets` | `getMarket()`, Subgraph | Cache 5s, invalidate on Swap |
-| `GET /events` | `getEventCount()`, `getEvent()` | Cache 10s |
-| `GET /events/:id/markets` | `getEventMarketCount()`, `getEventMarketId()` | Cache 10s |
-| `GET /markets/:id/prices` | `getAllPrices()` | Cache 1s, WebSocket updates |
-| `GET /markets/:id/depth` | `getReserves()`, CLMM queries | Cache 2s |
-| `POST /orders` | Sign only (off-chain) | - |
-| `GET /orders/:hash` | `getOrderStatus()` | Cache until filled |
-| `POST /quote` | `quoteSwapIn()` | No cache (real-time) |
-| `GET /positions/:user` | Subgraph + `balanceOfBatch()` | Cache 10s |
-| `GET /profile/:wallet` | `getProfileByWallet()` | Cache 60s |
+
+| API Endpoint              | Contract Call                                 | Caching Strategy             |
+| ------------------------- | --------------------------------------------- | ---------------------------- |
+| `GET /markets`            | `getMarket()`, Subgraph                       | Cache 5s, invalidate on Swap |
+| `GET /events`             | `getEventCount()`, `getEvent()`               | Cache 10s                    |
+| `GET /events/:id/markets` | `getEventMarketCount()`, `getEventMarketId()` | Cache 10s                    |
+| `GET /markets/:id/prices` | `getAllPrices()`                              | Cache 1s, WebSocket updates  |
+| `GET /markets/:id/depth`  | `getReserves()`, CLMM queries                 | Cache 2s                     |
+| `POST /orders`            | Sign only (off-chain)                         | -                            |
+| `GET /orders/:hash`       | `getOrderStatus()`                            | Cache until filled           |
+| `POST /quote`             | `quoteSwapIn()`                               | No cache (real-time)         |
+| `GET /positions/:user`    | Subgraph + `balanceOfBatch()`                 | Cache 10s                    |
+| `GET /profile/:wallet`    | `getProfileByWallet()`                        | Cache 60s                    |
+
 
 ### UI ↔ On-Chain Alignment (markets-web parity)
 
 The on-chain app must preserve **current markets-web UX** (select outcome → enter dollar amount → confirm; sell by shares). The contract calls below are designed to match existing UI inputs with minimal changes.
 
-| Current UX Action (markets-web) | Off-Chain API Today | On-Chain Equivalent | Notes |
-|---|---|---|---|
-| Buy shares with $ amount | `POST /api/trades/buy` | `VaultMarket.swap(SwapParams)` | `isBuy=true`, `amountIn=USDC(6d)` |
-| Sell shares by quantity | `POST /api/trades/sell` | `VaultMarket.swap(SwapParams)` | `isBuy=false`, `amountIn=shares(18d)` |
-| Quote buy/sell | `GET/POST /api/trades/quote` | `quoteSwapIn/quoteSell` + `previewEffectiveFee` | Use same slippage UI |
+
+| Current UX Action (markets-web) | Off-Chain API Today          | On-Chain Equivalent                             | Notes                                 |
+| ------------------------------- | ---------------------------- | ----------------------------------------------- | ------------------------------------- |
+| Buy shares with $ amount        | `POST /api/trades/buy`       | `VaultMarket.swap(SwapParams)`                  | `isBuy=true`, `amountIn=USDC(6d)`     |
+| Sell shares by quantity         | `POST /api/trades/sell`      | `VaultMarket.swap(SwapParams)`                  | `isBuy=false`, `amountIn=shares(18d)` |
+| Quote buy/sell                  | `GET/POST /api/trades/quote` | `quoteSwapIn/quoteSell` + `previewEffectiveFee` | Use same slippage UI                  |
+
 
 **Parameter mapping (keep UI behavior identical):**
+
 - **Buy**: UI dollar input → `amountIn = dollars * 1e6` (USDC). `minAmountOut` is computed from `quoteSwapIn` minus slippage.  
 - **Sell**: UI share input → `amountIn = shares * 1e18`. `minAmountOut` is computed from `quoteSell` minus slippage.  
 - **Deadline**: UI must set `deadline = now + 5 minutes` to avoid stale execution.
 
 **Approval flow (preserve UX):**
+
 - Buy: require `USDC.approve(VaultMarket)` once.  
 - Sell: require `VaultToken.setApprovalForAll(VaultMarket)` once for ERC-1155 shares.
 
 **Events and UI updates:**
+
 - `Swap` event includes `isBuy`, `fee`, and `newPrice` for UI price/position updates.
 - UI can remain unchanged by consuming the same fields currently returned by `/api/trades/*` (via adapter).
 
 ### WebSocket Events
 
-| Event Type | Source | Payload |
-|------------|--------|---------|
-| `price_update` | Swap event | `{ marketId, prices, timestamp }` |
-| `trade` | Swap event | `{ marketId, user, outcome, isBuy, amounts, fee, newPrice }` |
-| `order_filled` | OrderFilled event | `{ orderHash, maker, taker, fill }` |
-| `market_resolved` | MarketResolved event | `{ marketId, winner }` |
-| `orderbook_update` | Matcher | `{ marketId, bids, asks }` |
+
+| Event Type         | Source               | Payload                                                      |
+| ------------------ | -------------------- | ------------------------------------------------------------ |
+| `price_update`     | Swap event           | `{ marketId, prices, timestamp }`                            |
+| `trade`            | Swap event           | `{ marketId, user, outcome, isBuy, amounts, fee, newPrice }` |
+| `order_filled`     | OrderFilled event    | `{ orderHash, maker, taker, fill }`                          |
+| `market_resolved`  | MarketResolved event | `{ marketId, winner }`                                       |
+| `orderbook_update` | Matcher              | `{ marketId, bids, asks }`                                   |
+
 
 ### Data Flow Diagram
 
@@ -2150,16 +2221,18 @@ The on-chain app must preserve **current markets-web UX** (select outcome → en
 
 Vault Markets operates as **two distinct frontend applications** sharing a common backend, connected by a market and user graduation pipeline:
 
-| | markets-web (Predictor) | markets-arena (Real Money) |
-|---|---|---|
-| **Purpose** | Free-to-play predictor, market incubator, demand oracle | Real-money prediction market with on-chain settlement |
-| **Balance** | Virtual ($10k starting credit) | USDC (on-chain, user's wallet) |
-| **Auth** | Twitter OAuth via Privy | Privy embedded wallet + optional external wallet |
-| **Trading** | Off-chain CPMM (DB transactions) | On-chain FPMM / CLMM / CLOB |
-| **Positions** | DB `Position` table | ERC-1155 `VaultToken.balanceOf` |
-| **Settlement** | Admin settle + user redeem (DB) | Pull-based `redeem()` on-chain |
-| **Gamification** | XP, streaks, badges, KOL competition, referrals, daily spins | Real PnL, leaderboard (from indexer) |
-| **Shared** | Backend API, Postgres DB, event/market metadata, resolution sources | Backend API, Postgres DB, subgraph/indexer |
+
+|                  | markets-web (Predictor)                                             | markets-arena (Real Money)                            |
+| ---------------- | ------------------------------------------------------------------- | ----------------------------------------------------- |
+| **Purpose**      | Free-to-play predictor, market incubator, demand oracle             | Real-money prediction market with on-chain settlement |
+| **Balance**      | Virtual ($10k starting credit)                                      | USDC (on-chain, user's wallet)                        |
+| **Auth**         | Twitter OAuth via Privy                                             | Privy embedded wallet + optional external wallet      |
+| **Trading**      | Off-chain CPMM (DB transactions)                                    | On-chain FPMM / CLMM / CLOB                           |
+| **Positions**    | DB `Position` table                                                 | ERC-1155 `VaultToken.balanceOf`                       |
+| **Settlement**   | Admin settle + user redeem (DB)                                     | Pull-based `redeem()` on-chain                        |
+| **Gamification** | XP, streaks, badges, KOL competition, referrals, daily spins        | Real PnL, leaderboard (from indexer)                  |
+| **Shared**       | Backend API, Postgres DB, event/market metadata, resolution sources | Backend API, Postgres DB, subgraph/indexer            |
+
 
 > **Predictor as Market Intelligence:** `markets-web` is not just a game — it is a **demand oracle and price discovery engine**. Off-chain prediction data provides: (1) market viability signals (volume + unique bettors prove demand), (2) initial price discovery (crowd sentiment before real money is at stake), (3) CLMM band intelligence (where users cluster bets informs concentrated liquidity ranges), and (4) volume forecasting (off-chain trading rate predicts on-chain surge fee levels).
 
@@ -2169,13 +2242,15 @@ Markets start in `markets-web` (free-to-play) and graduate to `markets-arena` (r
 
 **Graduation Criteria:**
 
-| Criterion | Threshold | Notes |
-|---|---|---|
-| Virtual volume | $50k+ | Proves genuine interest |
-| Unique bettors | 50+ | Prevents single-user inflation |
-| Price stability | < 20% swing in 24h | Market has found equilibrium |
+
+| Criterion           | Threshold                      | Notes                                           |
+| ------------------- | ------------------------------ | ----------------------------------------------- |
+| Virtual volume      | $50k+                          | Proves genuine interest                         |
+| Unique bettors      | 50+                            | Prevents single-user inflation                  |
+| Price stability     | < 20% swing in 24h             | Market has found equilibrium                    |
 | Liquidity threshold | `graduationThreshold` USDC met | From ONCHAIN_REQUIREMENTS (default: 1,000 USDC) |
-| Admin approval | Required (or auto-graduate) | Final gate |
+| Admin approval      | Required (or auto-graduate)    | Final gate                                      |
+
 
 **Graduation Flow:**
 
@@ -2214,49 +2289,55 @@ Users graduate from free-to-play to real-money trading:
 
 `markets-web` prediction data feeds market making decisions in `markets-arena` via a backend signal API (dashboard for market makers and admins, not auto-seeded):
 
-| Signal | Source | Use |
-|---|---|---|
-| Price discovery | Off-chain CPMM prices + confidence | Initial FPMM reserve ratios for graduated markets |
-| Volume heatmap | Volume by price bucket (e.g., bets clustered at 0.60–0.70) | Informs CLMM tick range configuration |
-| Bet distribution | Outcome split (e.g., 65/35 Yes/No) | Initial FPMM seed prices |
-| Volume velocity | Off-chain trading rate (bets/hour) | Predicts on-chain surge fee levels |
-| Market health score | Composite (volume, unique users, price stability) | Graduation readiness indicator |
+
+| Signal              | Source                                                     | Use                                               |
+| ------------------- | ---------------------------------------------------------- | ------------------------------------------------- |
+| Price discovery     | Off-chain CPMM prices + confidence                         | Initial FPMM reserve ratios for graduated markets |
+| Volume heatmap      | Volume by price bucket (e.g., bets clustered at 0.60–0.70) | Informs CLMM tick range configuration             |
+| Bet distribution    | Outcome split (e.g., 65/35 Yes/No)                         | Initial FPMM seed prices                          |
+| Volume velocity     | Off-chain trading rate (bets/hour)                         | Predicts on-chain surge fee levels                |
+| Market health score | Composite (volume, unique users, price stability)          | Graduation readiness indicator                    |
+
 
 **Signal API endpoints** (backend, read by market makers / admin dashboard):
 
-| Endpoint | Returns |
-|---|---|
-| `GET /api/signals/market/:id/price-discovery` | Current off-chain prices, confidence interval, unique bettor count |
-| `GET /api/signals/market/:id/volume-heatmap` | Volume by price bucket (0.05 increments) |
-| `GET /api/signals/market/:id/graduation-readiness` | Composite score (0–100) with per-criterion breakdown |
-| `GET /api/signals/markets/candidates` | All markets meeting graduation criteria, sorted by readiness |
+
+| Endpoint                                           | Returns                                                            |
+| -------------------------------------------------- | ------------------------------------------------------------------ |
+| `GET /api/signals/market/:id/price-discovery`      | Current off-chain prices, confidence interval, unique bettor count |
+| `GET /api/signals/market/:id/volume-heatmap`       | Volume by price bucket (0.05 increments)                           |
+| `GET /api/signals/market/:id/graduation-readiness` | Composite score (0–100) with per-criterion breakdown               |
+| `GET /api/signals/markets/candidates`              | All markets meeting graduation criteria, sorted by readiness       |
+
 
 ---
 
 ## On-Chain / Off-Chain / Indexer Boundary
 
-| Data | Where It Lives | Source |
-|---|---|---|
-| Market metadata (question, outcomes) | On-chain (`VaultMarket.getMarket`) + DB | Admin creates in DB, deploys to chain at graduation |
-| Event metadata | On-chain (`VaultMarket.getEvent`) + DB | Same |
-| FPMM reserves / prices | On-chain (`getReserves`, `getAllPrices`) | Contract state |
-| User balance (USDC) | On-chain (ERC-20 `balanceOf`) | User's wallet |
-| User shares | On-chain (ERC-1155 `balanceOf`) | VaultToken |
-| Trade history | Indexer/Subgraph (from `Swap` events) | On-chain events |
-| Avg cost basis | Indexer (computed from `Swap` events) | NOT on-chain |
-| Realized PnL | Indexer (from `Swap` + `Redeemed` events) | Computed |
-| Unrealized PnL | Indexer (current price - avg cost) | Computed |
-| Volume (per user/market) | Indexer (aggregated from events) | Computed |
-| Price history | Indexer (from `Swap.newPrice` field) | On-chain events |
-| Win rate | Indexer (from `Redeemed` events) | Computed |
-| XP / Streaks / Badges | Backend DB only | Off-chain gamification |
-| KOL competition | Backend DB only | Off-chain |
-| Referrals / Daily spins | Backend DB only | Off-chain |
-| Bookmarks | Backend DB only | Off-chain |
-| Credit limits / Debt | On-chain (`VaultCredit`) | Contract state |
-| Profile / Wallets | On-chain (`VaultCredit`) + DB | Both |
-| Resolution sources | Backend DB (research trail) + On-chain (`OracleConfig`) | Both |
-| Off-chain prediction data | Backend DB (`markets-web`) | Predictor signals |
+
+| Data                                 | Where It Lives                                          | Source                                              |
+| ------------------------------------ | ------------------------------------------------------- | --------------------------------------------------- |
+| Market metadata (question, outcomes) | On-chain (`VaultMarket.getMarket`) + DB                 | Admin creates in DB, deploys to chain at graduation |
+| Event metadata                       | On-chain (`VaultMarket.getEvent`) + DB                  | Same                                                |
+| FPMM reserves / prices               | On-chain (`getReserves`, `getAllPrices`)                | Contract state                                      |
+| User balance (USDC)                  | On-chain (ERC-20 `balanceOf`)                           | User's wallet                                       |
+| User shares                          | On-chain (ERC-1155 `balanceOf`)                         | VaultToken                                          |
+| Trade history                        | Indexer/Subgraph (from `Swap` events)                   | On-chain events                                     |
+| Avg cost basis                       | Indexer (computed from `Swap` events)                   | NOT on-chain                                        |
+| Realized PnL                         | Indexer (from `Swap` + `Redeemed` events)               | Computed                                            |
+| Unrealized PnL                       | Indexer (current price - avg cost)                      | Computed                                            |
+| Volume (per user/market)             | Indexer (aggregated from events)                        | Computed                                            |
+| Price history                        | Indexer (from `Swap.newPrice` field)                    | On-chain events                                     |
+| Win rate                             | Indexer (from `Redeemed` events)                        | Computed                                            |
+| XP / Streaks / Badges                | Backend DB only                                         | Off-chain gamification                              |
+| KOL competition                      | Backend DB only                                         | Off-chain                                           |
+| Referrals / Daily spins              | Backend DB only                                         | Off-chain                                           |
+| Bookmarks                            | Backend DB only                                         | Off-chain                                           |
+| Credit limits / Debt                 | On-chain (`VaultCredit`)                                | Contract state                                      |
+| Profile / Wallets                    | On-chain (`VaultCredit`) + DB                           | Both                                                |
+| Resolution sources                   | Backend DB (research trail) + On-chain (`OracleConfig`) | Both                                                |
+| Off-chain prediction data            | Backend DB (`markets-web`)                              | Predictor signals                                   |
+
 
 ---
 
@@ -2279,6 +2360,7 @@ CANCELLED (voided)           │                  Cancelled (admin refund, pull-
 ```
 
 **Key differences:**
+
 - **DRAFT / PUBLISHED** are admin CMS states. Markets exist only in the database until graduation deploys them on-chain.
 - **SETTLED** has no on-chain equivalent. Settlement is implicit — users call `redeem()` (pull pattern). The indexer tracks who has redeemed.
 - **CANCELLED** is a new on-chain terminal state (see below).
@@ -2289,20 +2371,22 @@ CANCELLED (voided)           │                  Cancelled (admin refund, pull-
 
 Every metric currently tracked in the off-chain system, mapped to its on-chain event source and indexer computation:
 
-| Current Metric | On-Chain Event Source | Indexer Computation |
-|---|---|---|
-| User balance | `USDC.balanceOf(user)` | Direct read |
-| Shares per outcome | `VaultToken.balanceOf(user, tokenId)` | Direct read |
-| Avg cost per share | `Swap` events (`amountIn`, `sharesOut`) | Weighted average from trade history (FIFO or weighted) |
-| Realized PnL | `Swap` (sells) + `Redeemed` events | `sum(proceeds - costBasis)` |
-| Unrealized PnL | Current price vs avg cost | `(currentPrice * shares) - (avgCost * shares)` per position |
-| Total volume | `Swap.amountIn` + `OrderFilled.filledAmount` | Sum per user / per market |
-| Price history | `Swap.newPrice` field | Time series indexed by block timestamp |
-| Win rate | `Redeemed` events (winning count / total positions) | Aggregated per user |
-| Trade count | `Swap` + `OrderFilled` event count | Count per user |
-| Largest win | `Redeemed.usdcReceived` - cost basis | Max per user |
-| Market liquidity | `getReserves()` + CLMM `getLiquidityInRange()` | Direct read + aggregation |
-| Fee revenue | `FeesDeposited` events | Sum per market / per source |
+
+| Current Metric     | On-Chain Event Source                               | Indexer Computation                                         |
+| ------------------ | --------------------------------------------------- | ----------------------------------------------------------- |
+| User balance       | `USDC.balanceOf(user)`                              | Direct read                                                 |
+| Shares per outcome | `VaultToken.balanceOf(user, tokenId)`               | Direct read                                                 |
+| Avg cost per share | `Swap` events (`amountIn`, `sharesOut`)             | Weighted average from trade history (FIFO or weighted)      |
+| Realized PnL       | `Swap` (sells) + `Redeemed` events                  | `sum(proceeds - costBasis)`                                 |
+| Unrealized PnL     | Current price vs avg cost                           | `(currentPrice * shares) - (avgCost * shares)` per position |
+| Total volume       | `Swap.amountIn` + `OrderFilled.filledAmount`        | Sum per user / per market                                   |
+| Price history      | `Swap.newPrice` field                               | Time series indexed by block timestamp                      |
+| Win rate           | `Redeemed` events (winning count / total positions) | Aggregated per user                                         |
+| Trade count        | `Swap` + `OrderFilled` event count                  | Count per user                                              |
+| Largest win        | `Redeemed.usdcReceived` - cost basis                | Max per user                                                |
+| Market liquidity   | `getReserves()` + CLMM `getLiquidityInRange()`      | Direct read + aggregation                                   |
+| Fee revenue        | `FeesDeposited` events                              | Sum per market / per source                                 |
+
 
 > **Leaderboard computation** moves from the cron-refreshed `LeaderboardPnLSnapshot` materialized view to an indexer-computed entity. The subgraph maintains `UserStats` entities updated on every `Swap` and `Redeemed` event, providing real-time leaderboard data without cron jobs.
 
@@ -2312,27 +2396,29 @@ Every metric currently tracked in the off-chain system, mapped to its on-chain e
 
 Every admin operation in the off-chain system, mapped to its on-chain equivalent:
 
-| Off-Chain Admin Action | On-Chain Equivalent | Notes |
-|---|---|---|
-| Create Event | `VaultMarket.createEvent()` | On-chain at graduation time |
-| Update Event | `VaultMarket.updateEvent()` | Metadata/flags |
-| Create Market (DRAFT) | Backend DB only | Pre-chain CMS state |
-| Publish Market (OPEN) | `VaultMarket.createMarket()` | On-chain deployment IS "publish" |
-| Close Market | `closeMarket()` or lazy close | Permissionless at `resolutionTime` |
-| Resolve Market | `resolve()` or `resolveByOracle()` | Admin or oracle path |
-| Settle Market | N/A — pull-based `redeem()` | No explicit settle step on-chain |
-| Cancel Market | `cancelMarket()` **(NEW)** | Admin-only, pull-based refund |
-| Cancel Bet (admin) | N/A — trades are atomic on-chain | Cannot undo a swap |
-| Adjust Balance | N/A — USDC is user's wallet | Off-chain only for virtual balance |
-| Adjust XP | Backend DB only | Off-chain gamification |
-| Grant/Revoke KOL | `VaultCredit.setProfileStatus()` | On-chain profile tier |
-| Set Credit Limit | `VaultCredit.setCreditLimit()` | On-chain |
-| Recalibrate AMM | N/A — deterministic on-chain | Not needed |
-| Resolution Sources | Backend DB + on-chain `OracleConfig` | Research trail stays in DB; oracle is authoritative |
-| AI Generate Market | Backend only | Creates DRAFT in DB |
-| Upload Assets | Backend only | IPFS / Vercel Blob |
-| Feature Flags | Backend DB only | Off-chain |
-| Tag Management | Backend DB only | Off-chain (events use `metadataURI` on-chain) |
+
+| Off-Chain Admin Action | On-Chain Equivalent                  | Notes                                               |
+| ---------------------- | ------------------------------------ | --------------------------------------------------- |
+| Create Event           | `VaultMarket.createEvent()`          | On-chain at graduation time                         |
+| Update Event           | `VaultMarket.updateEvent()`          | Metadata/flags                                      |
+| Create Market (DRAFT)  | Backend DB only                      | Pre-chain CMS state                                 |
+| Publish Market (OPEN)  | `VaultMarket.createMarket()`         | On-chain deployment IS "publish"                    |
+| Close Market           | `closeMarket()` or lazy close        | Permissionless at `resolutionTime`                  |
+| Resolve Market         | `resolve()` or `resolveByOracle()`   | Admin or oracle path                                |
+| Settle Market          | N/A — pull-based `redeem()`          | No explicit settle step on-chain                    |
+| Cancel Market          | `cancelMarket()` **(NEW)**           | Admin-only, pull-based refund                       |
+| Cancel Bet (admin)     | N/A — trades are atomic on-chain     | Cannot undo a swap                                  |
+| Adjust Balance         | N/A — USDC is user's wallet          | Off-chain only for virtual balance                  |
+| Adjust XP              | Backend DB only                      | Off-chain gamification                              |
+| Grant/Revoke KOL       | `VaultCredit.setProfileStatus()`     | On-chain profile tier                               |
+| Set Credit Limit       | `VaultCredit.setCreditLimit()`       | On-chain                                            |
+| Recalibrate AMM        | N/A — deterministic on-chain         | Not needed                                          |
+| Resolution Sources     | Backend DB + on-chain `OracleConfig` | Research trail stays in DB; oracle is authoritative |
+| AI Generate Market     | Backend only                         | Creates DRAFT in DB                                 |
+| Upload Assets          | Backend only                         | IPFS / Vercel Blob                                  |
+| Feature Flags          | Backend DB only                      | Off-chain                                           |
+| Tag Management         | Backend DB only                      | Off-chain (events use `metadataURI` on-chain)       |
+
 
 ---
 
@@ -2340,8 +2426,8 @@ Every admin operation in the off-chain system, mapped to its on-chain equivalent
 
 The existing off-chain resolution source system integrates with the on-chain oracle system:
 
-- **`ResolutionSource` / `ResolutionDataPoint` tables** stay in the backend DB as the admin's research and verification trail. This workflow is unchanged.
-- **On-chain `OracleConfig`** is set per market for automated (Chainlink) resolution. The oracle is the authoritative source on-chain.
+- `**ResolutionSource` / `ResolutionDataPoint` tables** stay in the backend DB as the admin's research and verification trail. This workflow is unchanged.
+- **On-chain `OracleConfig**` is set per market for automated (Chainlink) resolution. The oracle is the authoritative source on-chain.
 - **Admin resolution** (`resolve()`) works exactly like today: admin selects the winning outcome and provides an evidence URL. The `evidence` string parameter replaces `resolutionSourceUrl`.
 - **For oracle markets:** Admin resolution is blocked until `gracePeriod` expires (prevents admin front-running the oracle). After grace period, admin fallback unlocks.
 - **Verification flow preserved:** Admins still create data points, verify them, and use them as research. The on-chain oracle is a separate, automated path for machine-verifiable markets.
@@ -2350,11 +2436,13 @@ The existing off-chain resolution source system integrates with the on-chain ora
 
 ## Wallet Strategy
 
-| Phase | Auth | Wallet | Trading UX |
-|---|---|---|---|
-| **Current (markets-web)** | Twitter OAuth (Privy) | None | Instant (DB transaction) |
-| **V1 Launch (markets-arena)** | Twitter OAuth (Privy) | Privy embedded wallet (created on first on-chain action) | Tx signing per trade (Privy popup) |
-| **V2 (markets-arena)** | Same | ERC-4337 smart account + session keys | Approve session once, then trades execute without popups (bounded by time + amount) |
+
+| Phase                         | Auth                  | Wallet                                                   | Trading UX                                                                          |
+| ----------------------------- | --------------------- | -------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| **Current (markets-web)**     | Twitter OAuth (Privy) | None                                                     | Instant (DB transaction)                                                            |
+| **V1 Launch (markets-arena)** | Twitter OAuth (Privy) | Privy embedded wallet (created on first on-chain action) | Tx signing per trade (Privy popup)                                                  |
+| **V2 (markets-arena)**        | Same                  | ERC-4337 smart account + session keys                    | Approve session once, then trades execute without popups (bounded by time + amount) |
+
 
 > **Privy Embedded Wallets:** Users authenticate with Twitter (same flow as today). Privy creates an embedded wallet behind the scenes on first on-chain interaction. No MetaMask or browser extension required. The wallet is recoverable via Privy's social recovery.
 
@@ -2366,14 +2454,17 @@ The existing off-chain resolution source system integrates with the on-chain ora
 
 ## Fee Model Transition
 
-| | Off-Chain (markets-web) | On-Chain (markets-arena) |
-|---|---|---|
-| **Fee structure** | Fixed `feeBps` per market (default 100 = 1%) | Dynamic via VaultRisk (300 bps base + surge + skew) |
-| **Fee range** | Always 1% | 3%–15% depending on conditions |
-| **Fee preview** | N/A (fixed, known) | `previewEffectiveFee()` returns exact fee before execution |
-| **Fee split** | Protocol only | Protocol + creator (via VaultCredit debt-first waterfall) |
+
+|                   | Off-Chain (markets-web)                      | On-Chain (markets-arena)                                   |
+| ----------------- | -------------------------------------------- | ---------------------------------------------------------- |
+| **Fee structure** | Fixed `feeBps` per market (default 100 = 1%) | Dynamic via VaultRisk (300 bps base + surge + skew)        |
+| **Fee range**     | Always 1%                                    | 3%–15% depending on conditions                             |
+| **Fee preview**   | N/A (fixed, known)                           | `previewEffectiveFee()` returns exact fee before execution |
+| **Fee split**     | Protocol only                                | Protocol + creator (via VaultCredit debt-first waterfall)  |
+
 
 **UI implications for markets-arena:**
+
 - Show effective fee prominently before trade confirmation
 - Display surge indicator when fees are elevated above baseline
 - Show fee breakdown (base + surge + skew components) in advanced view
@@ -2400,7 +2491,7 @@ via_ir = true
 ### Transient Storage for Reentrancy
 
 Use `tstore`/`tload` instead of storage-based reentrancy guards (~100 gas vs 20,000). **Always use a contract-specific slot** (never slot `0`) to avoid cross-contract collisions:
->
+
 > ```solidity
 > // Unique slot per contract to avoid cross-contract collisions
 > uint256 private constant _GUARD_SLOT = uint256(keccak256("VaultMarket.ReentrancyGuard")) - 1;
@@ -2487,19 +2578,21 @@ interface IVaultMarket {
 
 ### Solady Integration
 
-| Module | Usage |
-|--------|-------|
-| `ERC1155` | Extend for VaultToken |
-| `SafeTransferLib` | All USDC transfers |
-| `EIP712` + `SignatureCheckerLib` | Order signing (EOA + ERC-1271) |
-| `OwnableRoles` | Admin, relayer, council roles |
-| `FixedPointMathLib` | mulDiv, sqrt, ln, exp |
-| `SSTORE2` | Store LUT data cheaply |
-| `LibBitmap` / `LibMap` | Order nonce/fill tracking |
-| `CREATE3` | Deterministic deployment addresses |
-| `LibString` | On-chain string ops for metadata |
-| `Base64` | Encode JSON for data URIs |
-| `SafeCastLib` | Explicit int/uint casting for CLMM tick math |
+
+| Module                           | Usage                                        |
+| -------------------------------- | -------------------------------------------- |
+| `ERC1155`                        | Extend for VaultToken                        |
+| `SafeTransferLib`                | All USDC transfers                           |
+| `EIP712` + `SignatureCheckerLib` | Order signing (EOA + ERC-1271)               |
+| `OwnableRoles`                   | Admin, relayer, council roles                |
+| `FixedPointMathLib`              | mulDiv, sqrt, ln, exp                        |
+| `SSTORE2`                        | Store LUT data cheaply                       |
+| `LibBitmap` / `LibMap`           | Order nonce/fill tracking                    |
+| `CREATE3`                        | Deterministic deployment addresses           |
+| `LibString`                      | On-chain string ops for metadata             |
+| `Base64`                         | Encode JSON for data URIs                    |
+| `SafeCastLib`                    | Explicit int/uint casting for CLMM tick math |
+
 
 ---
 
@@ -2779,6 +2872,7 @@ CREATE3.deploy(salt, creationCode, value);
 > `CREATE3` address depends on the deployer's address (factory or EOA). If you change the deployer wallet or script logic, the mined salt will no longer produce the vanity address.
 >
 > **Requirements:**
+>
 > - Use a consistent deployer key (dedicated Ledger/Safe) for all production deployments
 > - Salt mining script must include `msg.sender` in hash calculation
 > - Store the `(deployer, salt)` pair alongside deployment artifacts
@@ -2798,18 +2892,22 @@ pnpm contracts:mine:salt -- --pattern 777 --type hexPrefix --chain sepolia
 
 ### Deployment Scripts
 
-| Script | Purpose |
-|--------|---------|
-| `Deploy.s.sol` | Deploy all contracts with CREATE3 |
-| `MineSalt.s.sol` | Find salt for vanity address |
-| `Migrate.s.sol` | Deploy new version (future) |
+
+| Script           | Purpose                           |
+| ---------------- | --------------------------------- |
+| `Deploy.s.sol`   | Deploy all contracts with CREATE3 |
+| `MineSalt.s.sol` | Find salt for vanity address      |
+| `Migrate.s.sol`  | Deploy new version (future)       |
+
 
 ### Chain Configuration
 
-| Chain | ID | RPC |
-|-------|-----|-----|
+
+| Chain            | ID     | RPC                         |
+| ---------------- | ------ | --------------------------- |
 | Arbitrum Sepolia | 421614 | `$ARBITRUM_SEPOLIA_RPC_URL` |
-| Arbitrum One | 42161 | `$ARBITRUM_ONE_RPC_URL` |
+| Arbitrum One     | 42161  | `$ARBITRUM_ONE_RPC_URL`     |
+
 
 ---
 
@@ -2820,6 +2918,7 @@ pnpm contracts:mine:salt -- --pattern 777 --type hexPrefix --chain sepolia
 > **CRITICAL**: This protocol operates under a **trusted admin model**. Admin compromise = total loss event. The admin can resolve markets incorrectly, set hostile risk params, and alter credit limits. This centralization risk is explicitly accepted.
 
 **Recommended Operational Controls:**
+
 - Deploy Admin behind a Gnosis Safe with hardware keys
 - Implement role separation using `OwnableRoles`:
   - `RESOLVER_ROLE` — market resolution only
@@ -2835,34 +2934,38 @@ pnpm contracts:mine:salt -- --pattern 777 --type hexPrefix --chain sepolia
 - **Users**: Trading, liquidity provision, profile management
 
 **Relayer Risk:**
+
 > `settleBatch` is relayer-only, creating censorship and MEV vectors. The relayer can choose when/which orders settle and can time settlements around price moves.
 >
 > **Mitigations:**
+>
 > - Publish SLA and failover relayer keys
 > - Consider multi-relayer (N-of-M) design for future versions
 > - On-chain emergency role rotation capability
 
 ### Explicit Access Control List (ACL)
 
-| Contract | Method | Allowed Callers | Modifier |
-|----------|--------|-----------------|----------|
-| `VaultRisk` | `setRiskParams` | Admin | `onlyOwner` |
-| `VaultRisk` | `setLUT` | Admin | `onlyOwner` |
-| `VaultRisk` | `updateVelocity` | VaultMarket, VaultCLMM, VaultCLOB | `onlyWhitelisted` |
-| `VaultCredit` | `setCreditLimit` | Admin | `onlyOwner` |
-| `VaultCredit` | `setProfileStatus` | Admin | `onlyOwner` |
-| `VaultCredit` | `recordDebt` | VaultMarket | `onlyMarket` |
-| `VaultCredit` | `depositFees` | VaultMarket, VaultCLOB, VaultCLMM | `onlyFeeCollector` |
-| `VaultCredit` | `processEarnings` | VaultMarket | `onlyMarket` |
-| `VaultCLOB` | `settleBatch` | Relayer | `onlyRelayer` |
-| `VaultMarket` | `createMarket` | Admin | `onlyOwner` |
-| `VaultMarket` | `createEvent` | Admin | `onlyOwner` |
-| `VaultMarket` | `updateEvent` | Admin | `onlyOwner` |
-| `VaultMarket` | `resolve` | Admin | `onlyOwner` (oracle markets: only after gracePeriod) |
-| `VaultMarket` | `cancelMarket` | Admin | `onlyOwner` (Active/Paused/Closed → Cancelled) |
-| `VaultMarket` | `resolveByOracle` | Permissionless | Requires state == Closed, resolver != ADMIN |
-| `VaultMarket` | `closeMarket` | Permissionless | Requires `block.timestamp >= resolutionTime` |
-| `VaultToken` | `settle` | VaultMarket | `onlyMarket` |
+
+| Contract      | Method             | Allowed Callers                   | Modifier                                             |
+| ------------- | ------------------ | --------------------------------- | ---------------------------------------------------- |
+| `VaultRisk`   | `setRiskParams`    | Admin                             | `onlyOwner`                                          |
+| `VaultRisk`   | `setLUT`           | Admin                             | `onlyOwner`                                          |
+| `VaultRisk`   | `updateVelocity`   | VaultMarket, VaultCLMM, VaultCLOB | `onlyWhitelisted`                                    |
+| `VaultCredit` | `setCreditLimit`   | Admin                             | `onlyOwner`                                          |
+| `VaultCredit` | `setProfileStatus` | Admin                             | `onlyOwner`                                          |
+| `VaultCredit` | `recordDebt`       | VaultMarket                       | `onlyMarket`                                         |
+| `VaultCredit` | `depositFees`      | VaultMarket, VaultCLOB, VaultCLMM | `onlyFeeCollector`                                   |
+| `VaultCredit` | `processEarnings`  | VaultMarket                       | `onlyMarket`                                         |
+| `VaultCLOB`   | `settleBatch`      | Relayer                           | `onlyRelayer`                                        |
+| `VaultMarket` | `createMarket`     | Admin                             | `onlyOwner`                                          |
+| `VaultMarket` | `createEvent`      | Admin                             | `onlyOwner`                                          |
+| `VaultMarket` | `updateEvent`      | Admin                             | `onlyOwner`                                          |
+| `VaultMarket` | `resolve`          | Admin                             | `onlyOwner` (oracle markets: only after gracePeriod) |
+| `VaultMarket` | `cancelMarket`     | Admin                             | `onlyOwner` (Active/Paused/Closed → Cancelled)       |
+| `VaultMarket` | `resolveByOracle`  | Permissionless                    | Requires state == Closed, resolver != ADMIN          |
+| `VaultMarket` | `closeMarket`      | Permissionless                    | Requires `block.timestamp >= resolutionTime`         |
+| `VaultToken`  | `settle`           | VaultMarket                       | `onlyMarket`                                         |
+
 
 **Whitelisted Caller Pattern:**
 
@@ -2914,152 +3017,171 @@ function setFeeCollector(address caller, bool allowed) external onlyOwner {
 
 ### Critical Vulnerabilities and Mitigations
 
-| ID | Vulnerability | Contract | Mitigation |
-|----|---------------|----------|------------|
-| C1 | Batch Settlement DoS | VaultCLOB | Soft reverts with try/catch per match; emits `MatchFailed` |
-| C2 | Fee Unpredictability | VaultRisk | Authoritative `previewEffectiveFee()` matches actual execution |
-| C3 | Sybil Fee Evasion | VaultCredit | Enforce `MIN_CREATOR_FEE` (0.5%) to registered ProfileID |
-| C4 | Price Manipulation | VaultRisk | Use CLOB mid-price as reference, not AMM spot |
-| C5 | FPMM sell reverts if pool lacks complementary inventory | VaultMarket | Check `pool.balance[complement] >= requiredMerge`; revert `InsufficientPoolInventory` |
-| C6 | Post-resolution pool/LP inventory stranded | VaultMarket, VaultCLMM | `reclaimPoolInventory()` for FPMM; `removeLiquidity()` stays open on resolved markets |
-| C7 | CLOB order expiry not enforced on-chain | VaultCLOB | `settleBatch` checks `block.timestamp <= order.expiry`; revert `OrderExpired` |
-| C8 | CLOB fill price direction unchecked | VaultCLOB | Buy: `fillPrice <= order.price`; Sell: `fillPrice >= order.price` |
-| C9 | CLOB volume bypasses velocity/surge fees | VaultCLOB, VaultRisk | `settleBatch` calls `updateVelocity(notional)`; VaultCLOB added to whitelist |
-| C10 | `linkWallet` has no wallet consent — unauthorized profile linking | VaultCredit | Requires EIP-712 signature from wallet being linked |
-| C11 | `cancelOrder` cannot verify caller is maker (only stores hash) | VaultCLOB | Changed to accept full `Order` struct; verify `msg.sender == order.maker` |
-| C12 | CLOB settlement missing cross-order validation | VaultCLOB | Matched orders must share `(marketId, outcomeId)` with opposite `isBuy` |
+
+| ID  | Vulnerability                                                     | Contract               | Mitigation                                                                            |
+| --- | ----------------------------------------------------------------- | ---------------------- | ------------------------------------------------------------------------------------- |
+| C1  | Batch Settlement DoS                                              | VaultCLOB              | Soft reverts with try/catch per match; emits `MatchFailed`                            |
+| C2  | Fee Unpredictability                                              | VaultRisk              | Authoritative `previewEffectiveFee()` matches actual execution                        |
+| C3  | Sybil Fee Evasion                                                 | VaultCredit            | Enforce `MIN_CREATOR_FEE` (0.5%) to registered ProfileID                              |
+| C4  | Price Manipulation                                                | VaultRisk              | Use CLOB mid-price as reference, not AMM spot                                         |
+| C5  | FPMM sell reverts if pool lacks complementary inventory           | VaultMarket            | Check `pool.balance[complement] >= requiredMerge`; revert `InsufficientPoolInventory` |
+| C6  | Post-resolution pool/LP inventory stranded                        | VaultMarket, VaultCLMM | `reclaimPoolInventory()` for FPMM; `removeLiquidity()` stays open on resolved markets |
+| C7  | CLOB order expiry not enforced on-chain                           | VaultCLOB              | `settleBatch` checks `block.timestamp <= order.expiry`; revert `OrderExpired`         |
+| C8  | CLOB fill price direction unchecked                               | VaultCLOB              | Buy: `fillPrice <= order.price`; Sell: `fillPrice >= order.price`                     |
+| C9  | CLOB volume bypasses velocity/surge fees                          | VaultCLOB, VaultRisk   | `settleBatch` calls `updateVelocity(notional)`; VaultCLOB added to whitelist          |
+| C10 | `linkWallet` has no wallet consent — unauthorized profile linking | VaultCredit            | Requires EIP-712 signature from wallet being linked                                   |
+| C11 | `cancelOrder` cannot verify caller is maker (only stores hash)    | VaultCLOB              | Changed to accept full `Order` struct; verify `msg.sender == order.maker`             |
+| C12 | CLOB settlement missing cross-order validation                    | VaultCLOB              | Matched orders must share `(marketId, outcomeId)` with opposite `isBuy`               |
+
 
 > **Velocity Rule (Clarification)**: Fees are computed using **pre-trade velocity** for user predictability. The `previewEffectiveFee()` method is authoritative — actual fee charged MUST match preview within tolerance. However, to prevent MEV boundary exploits (order splitting), use **interpolated LUTs** so fee changes are continuous, not step functions. Users should expect small variance (~1-2 bps) due to block timing.
 
 ### Architectural Anti-Patterns (Avoided)
 
-| Pattern | Risk | Solution |
-|---------|------|----------|
-| Push Payments | Reverts lock funds | Pull pattern with `withdrawEarnings()` |
-| Unchecked Math | Overflow exploits | Explicit checks on invariants, `mulDiv` for LUT |
+
+| Pattern                    | Risk                      | Solution                                                               |
+| -------------------------- | ------------------------- | ---------------------------------------------------------------------- |
+| Push Payments              | Reverts lock funds        | Pull pattern with `withdrawEarnings()`                                 |
+| Unchecked Math             | Overflow exploits         | Explicit checks on invariants, `mulDiv` for LUT                        |
 | Fee-on-Transfer Collateral | Solvency invariant breaks | USDC-only assumption documented; no fee-on-transfer or rebasing tokens |
-| Unbounded Outcome Count | Gas DoS on FPMM math | `MAX_OUTCOMES = 8` enforced in `createMarket` |
+| Unbounded Outcome Count    | Gas DoS on FPMM math      | `MAX_OUTCOMES = 8` enforced in `createMarket`                          |
+
 
 ### Code Pattern Requirements
 
-| Pattern | Requirement |
-|---------|-------------|
-| Transient Storage | `nonReentrant` on ALL external functions touching VaultToken |
-| LUT Interpolation | Use `MathLib.mulDiv` to handle WAD scaling |
-| EIP-712 Domain | Recompute `DOMAIN_SEPARATOR` if `block.chainid` changes (fork protection) |
+
+| Pattern           | Requirement                                                               |
+| ----------------- | ------------------------------------------------------------------------- |
+| Transient Storage | `nonReentrant` on ALL external functions touching VaultToken              |
+| LUT Interpolation | Use `MathLib.mulDiv` to handle WAD scaling                                |
+| EIP-712 Domain    | Recompute `DOMAIN_SEPARATOR` if `block.chainid` changes (fork protection) |
+
 
 ### Risk Mitigations
 
-| Risk | Mitigation |
-|------|------------|
-| LVR / News shocks | Surge multipliers with cooldown |
-| Toxic flow | Inventory skew fees (CLOB mid-price reference) |
-| CLMM mis-ranging | Wide-band minimum, tight-band caps |
-| Sybil creators | ProfileID identity binding + MIN_CREATOR_FEE |
-| Oracle risk | Evidence requirements, dispute window, FPMM sanity bounds on CLOB mid-price |
-| MEV / boundary exploits | Interpolated LUTs (continuous fees, no step functions) |
-| USDC blacklist | **Acknowledged** (USDC centralization risk); `redeemTo()`/`mergeTo()` rescue variants |
-| Post-resolution stranded inventory | `reclaimPoolInventory()` for FPMM; `removeLiquidity()` open on resolved markets |
-| Unbounded outcome gas | `MAX_OUTCOMES = 8` on `createMarket` |
-| Dispute window bypass | `processEarnings()` gated on `block.timestamp >= disputeDeadline` |
-| Cross-contract coupling | All contracts deployed as cohort with immutable cross-references; migration at resolution |
-| Fee-on-transfer collateral | USDC-only assumption documented; invariants depend on exact-amount transfers |
-| CLOB velocity bypass | `settleBatch` calls `updateVelocity`; VaultCLOB whitelisted |
-| Unauthorized wallet linking | `linkWallet` requires EIP-712 consent signature from target wallet |
-| Cancel order spoofing | `cancelOrder` takes full Order struct; verifies `msg.sender == maker` |
-| CLOB cross-order mismatch | Settlement validates matched orders share market/outcome with opposite sides |
-| No CLMM pause | CLMM gates swaps/adds via `VaultMarket.isMarketActive()` |
-| Global velocity side-effect | **Intentional** design tradeoff documented; per-market velocity is v2 enhancement |
+
+| Risk                               | Mitigation                                                                                |
+| ---------------------------------- | ----------------------------------------------------------------------------------------- |
+| LVR / News shocks                  | Surge multipliers with cooldown                                                           |
+| Toxic flow                         | Inventory skew fees (CLOB mid-price reference)                                            |
+| CLMM mis-ranging                   | Wide-band minimum, tight-band caps                                                        |
+| Sybil creators                     | ProfileID identity binding + MIN_CREATOR_FEE                                              |
+| Oracle risk                        | Evidence requirements, dispute window, FPMM sanity bounds on CLOB mid-price               |
+| MEV / boundary exploits            | Interpolated LUTs (continuous fees, no step functions)                                    |
+| USDC blacklist                     | **Acknowledged** (USDC centralization risk); `redeemTo()`/`mergeTo()` rescue variants     |
+| Post-resolution stranded inventory | `reclaimPoolInventory()` for FPMM; `removeLiquidity()` open on resolved markets           |
+| Unbounded outcome gas              | `MAX_OUTCOMES = 8` on `createMarket`                                                      |
+| Dispute window bypass              | `processEarnings()` gated on `block.timestamp >= disputeDeadline`                         |
+| Cross-contract coupling            | All contracts deployed as cohort with immutable cross-references; migration at resolution |
+| Fee-on-transfer collateral         | USDC-only assumption documented; invariants depend on exact-amount transfers              |
+| CLOB velocity bypass               | `settleBatch` calls `updateVelocity`; VaultCLOB whitelisted                               |
+| Unauthorized wallet linking        | `linkWallet` requires EIP-712 consent signature from target wallet                        |
+| Cancel order spoofing              | `cancelOrder` takes full Order struct; verifies `msg.sender == maker`                     |
+| CLOB cross-order mismatch          | Settlement validates matched orders share market/outcome with opposite sides              |
+| No CLMM pause                      | CLMM gates swaps/adds via `VaultMarket.isMarketActive()`                                  |
+| Global velocity side-effect        | **Intentional** design tradeoff documented; per-market velocity is v2 enhancement         |
+
 
 ### Engineering Checklist
 
 **Security Critical:**
-- [ ] `VaultCLOB.settleBatch`: try/catch per match, emit `MatchFailed` with compact codes (uint8)
-- [ ] `VaultCLOB.settleBatch`: Bound max matches per batch (~50), bound per-order validation cost
-- [ ] `VaultCLOB.settleBatch`: Enforce `block.timestamp <= order.expiry` per order; revert `OrderExpired`
-- [ ] `VaultCLOB.settleBatch`: Enforce fill price direction (buy: `fillPrice <= order.price`, sell: `fillPrice >= order.price`)
-- [ ] `VaultCLOB`: Verify fill amount ≤ remaining, fill price respects limits, token flows net exactly
-- [ ] `VaultCLOB`: Route 3% fees via `VaultCredit.depositFees(marketId, fee, FeeSource.CLOB)`
-- [ ] `VaultCredit`: Pull pattern with `getClaimable()` + `withdrawEarnings()`
-- [ ] `VaultCredit.processEarnings`: Revert if `block.timestamp < market.disputeDeadline`
-- [ ] `VaultToken.split`: Revert if market is Paused/Resolved (lifecycle gating)
-- [ ] `VaultToken.settle`: Only VaultMarket can burn winning shares and release USDC
-- [ ] `VaultRisk.getInventorySkew`: Use CLOB mid-price (TWAP, min volume threshold, max change/block, ±10% FPMM sanity bound)
-- [ ] `VaultRisk.setLUT`: Validate monotonicity, bounds, length; keep rollback path
-- [ ] `VaultMarket.createMarket`: Enforce `MIN_CREATOR_FEE` (0.5%) to ProfileID
-- [ ] `VaultMarket.createMarket`: Enforce `outcomes <= MAX_OUTCOMES (8)`
-- [ ] `VaultMarket.swap` (sell): Check pool has sufficient complementary inventory to merge; revert `InsufficientPoolInventory`
-- [ ] `VaultMarket.resolve`: Set `disputeDeadline = block.timestamp + DISPUTE_PERIOD`
-- [ ] `VaultMarket`: Expose `reclaimPoolInventory(marketId)` for post-resolution FPMM inventory recovery
-- [ ] `VaultCLMM.removeLiquidity`: MUST NOT revert on resolved markets (only gate `addLiquidity` and `swap`)
-- [ ] `VaultCLMM.addLiquidity`/`swap`: Check `VaultMarket.isMarketActive(marketId)` and revert if paused/resolved
-- [ ] `VaultCLOB.settleBatch`: Validate matched orders share `(marketId, outcomeId)` with opposite `isBuy`
-- [ ] `VaultCLOB.cancelOrder`: Accept full `Order` struct; verify `msg.sender == order.maker`
-- [ ] `VaultCredit.linkWallet`: Require EIP-712 consent signature from wallet being linked
-- [ ] `VaultToken.split`/`merge`: Revert on `amount == 0`
-- [ ] `VaultMarket.redeem`: Revert with `NothingToRedeem` if user has zero winning shares
-- [ ] `VaultMarket`: Enforce state machine — Active/Paused/Closed/Resolved/Cancelled; Resolved and Cancelled are terminal
-- [ ] `VaultMarket.cancelMarket`: Admin-only; state → Cancelled; snapshot collateral for pro-rata refunds
-- [ ] `VaultMarket.claimRefund`: Pull-based; user reclaims proportional USDC from cancelled market; revert if already claimed
-- [ ] `VaultMarket.closeMarket`: Permissionless; require `block.timestamp >= resolutionTime`
-- [ ] `VaultMarket.resolveByOracle`: Require Closed + oracle staleness/snapshot/grace checks
-- [ ] `VaultMarket.resolve` (admin): For oracle markets, block until `resolutionTime + gracePeriod` expired
-- [ ] `VaultMarket.swap`/`split`: Auto-close if `block.timestamp >= resolutionTime` (lazy transition)
-- [ ] `VaultCredit.linkWallet`: Use mapping-based membership; cap `MAX_WALLETS_PER_PROFILE`
-- [ ] `VaultToken.encodeTokenId`: Validate `marketId < 2^248` to prevent bit-packing collision
-- [ ] `nonReentrant` on ALL external functions: `swap`, `addLiquidity`, `removeLiquidity`, `settleBatch`, `split`, `merge`, `redeem`
-- [ ] `LUTLib.interpSurge`: Use `mulDiv(t, LUT[i+1] - LUT[i], 1e18)` for WAD precision
-- [ ] `VaultCLOB.DOMAIN_SEPARATOR`: Dynamic recompute if `block.chainid` changes
-- [ ] `previewEffectiveFee()` MUST match actual fee charged (within ~1-2 bps tolerance)
+
+- `VaultCLOB.settleBatch`: try/catch per match, emit `MatchFailed` with compact codes (uint8)
+- `VaultCLOB.settleBatch`: Bound max matches per batch (~50), bound per-order validation cost
+- `VaultCLOB.settleBatch`: Enforce `block.timestamp <= order.expiry` per order; revert `OrderExpired`
+- `VaultCLOB.settleBatch`: Enforce fill price direction (buy: `fillPrice <= order.price`, sell: `fillPrice >= order.price`)
+- `VaultCLOB`: Verify fill amount ≤ remaining, fill price respects limits, token flows net exactly
+- `VaultCLOB`: Route 3% fees via `VaultCredit.depositFees(marketId, fee, FeeSource.CLOB)`
+- `VaultCredit`: Pull pattern with `getClaimable()` + `withdrawEarnings()`
+- `VaultCredit.processEarnings`: Revert if `block.timestamp < market.disputeDeadline`
+- `VaultToken.split`: Revert if market is Paused/Resolved (lifecycle gating)
+- `VaultToken.settle`: Only VaultMarket can burn winning shares and release USDC
+- `VaultRisk.getInventorySkew`: Use CLOB mid-price (TWAP, min volume threshold, max change/block, ±10% FPMM sanity bound)
+- `VaultRisk.setLUT`: Validate monotonicity, bounds, length; keep rollback path
+- `VaultMarket.createMarket`: Enforce `MIN_CREATOR_FEE` (0.5%) to ProfileID
+- `VaultMarket.createMarket`: Enforce `outcomes <= MAX_OUTCOMES (8)`
+- `VaultMarket.swap` (sell): Check pool has sufficient complementary inventory to merge; revert `InsufficientPoolInventory`
+- `VaultMarket.resolve`: Set `disputeDeadline = block.timestamp + DISPUTE_PERIOD`
+- `VaultMarket`: Expose `reclaimPoolInventory(marketId)` for post-resolution FPMM inventory recovery
+- `VaultCLMM.removeLiquidity`: MUST NOT revert on resolved markets (only gate `addLiquidity` and `swap`)
+- `VaultCLMM.addLiquidity`/`swap`: Check `VaultMarket.isMarketActive(marketId)` and revert if paused/resolved
+- `VaultCLOB.settleBatch`: Validate matched orders share `(marketId, outcomeId)` with opposite `isBuy`
+- `VaultCLOB.cancelOrder`: Accept full `Order` struct; verify `msg.sender == order.maker`
+- `VaultCredit.linkWallet`: Require EIP-712 consent signature from wallet being linked
+- `VaultToken.split`/`merge`: Revert on `amount == 0`
+- `VaultMarket.redeem`: Revert with `NothingToRedeem` if user has zero winning shares
+- `VaultMarket`: Enforce state machine — Active/Paused/Closed/Resolved/Cancelled; Resolved and Cancelled are terminal
+- `VaultMarket.cancelMarket`: Admin-only; state → Cancelled; snapshot collateral for pro-rata refunds
+- `VaultMarket.claimRefund`: Pull-based; user reclaims proportional USDC from cancelled market; revert if already claimed
+- `VaultMarket.closeMarket`: Permissionless; require `block.timestamp >= resolutionTime`
+- `VaultMarket.resolveByOracle`: Require Closed + oracle staleness/snapshot/grace checks
+- `VaultMarket.resolve` (admin): For oracle markets, block until `block.timestamp >= resolutionTime + gracePeriod` (use `>=`)
+- `VaultMarket.resolveByOracle`: Use strict `>` for grace check (`block.timestamp > deadline` reverts); at `==` both oracle and admin are valid
+- Test: `test_resolveAtExactGracePeriodBoundary()` — admin at `deadline` succeeds, admin at `deadline - 1` reverts, oracle at `deadline` succeeds, oracle at `deadline + 1` reverts
+- `VaultMarket.swap`/`split`: Auto-close if `block.timestamp >= resolutionTime` (lazy transition)
+- `VaultCredit.linkWallet`: Use mapping-based membership; cap `MAX_WALLETS_PER_PROFILE`
+- `VaultToken.encodeTokenId`: Validate `marketId < 2^248` to prevent bit-packing collision
+- `nonReentrant` on ALL external functions: `swap`, `addLiquidity`, `removeLiquidity`, `settleBatch`, `split`, `merge`, `redeem`
+- `LUTLib.interpSurge`: Use `mulDiv(t, LUT[i+1] - LUT[i], 1e18)` for WAD precision
+- `VaultCLOB.DOMAIN_SEPARATOR`: Dynamic recompute if `block.chainid` changes
+- `previewEffectiveFee()` MUST match actual fee charged (within ~1-2 bps tolerance)
 
 **Solvency Invariants (fuzz/property tests):**
-- [ ] `totalSupply(encodeTokenId(marketId, i))` equal for all outcome indices `i` per market
-- [ ] `collateralLocked[marketId] == completeSetsOutstanding[marketId]` after every write
-- [ ] `merge(split(x)) == x` for all valid x
-- [ ] FPMM sell bounded by pool complementary inventory
-- [ ] Total USDC redeemed per market ≤ collateral locked
+
+- `totalSupply(encodeTokenId(marketId, i))` equal for all outcome indices `i` per market
+- `collateralLocked[marketId] == completeSetsOutstanding[marketId]` after every write
+- `merge(split(x)) == x` for all valid x
+- FPMM sell bounded by pool complementary inventory
+- Total USDC redeemed per market ≤ collateral locked
 
 **Unit Conversion:**
-- [ ] `UnitLib`: USDC 6 decimals ↔ Shares 18 decimals with explicit rounding
-- [ ] Round DOWN on outputs (user receives less), UP on inputs (user pays more)
-- [ ] Property test: `merge(split(x)) == x` for all valid x
+
+- `UnitLib`: USDC 6 decimals ↔ Shares 18 decimals with explicit rounding
+- Round DOWN on outputs (user receives less), UP on inputs (user pays more)
+- Property test: `merge(split(x)) == x` for all valid x
 
 **CLMM Math (High Priority):**
-- [ ] Differential fuzz test `CLMMLib` against Uniswap v3 reference (mandatory)
-- [ ] Fuzz all tick/liquidity/price conversions
-- [ ] Invariants: `liquidity >= 0`, price in tick range, fee growth monotonic
-- [ ] Explicit overflow checks on int24/int128/uint128 casts
-- [ ] Protocol LP fees route via `VaultCredit.depositFees(marketId, fee, FeeSource.CLMM)`
+
+- Differential fuzz test `CLMMLib` against Uniswap v3 reference (mandatory)
+- Fuzz all tick/liquidity/price conversions
+- Invariants: `liquidity >= 0`, price in tick range, fee growth monotonic
+- Casting discipline: audit each cast in `CLMMLib` against Uniswap v3 reference; use `SafeCastLib` only where reference uses checked casts; use `unchecked` where reference relies on wrapping; document each site with v3 source line citation
+- Protocol LP fees route via `VaultCredit.depositFees(marketId, fee, FeeSource.CLMM)`
 
 **Access Control:**
-- [ ] `VaultRisk.updateVelocity`: Only callable by VaultMarket/VaultCLMM/VaultCLOB (whitelisted)
-- [ ] `VaultCLOB.settleBatch`: Call `VaultRisk.updateVelocity(notional)` after processing fills
-- [ ] `VaultCredit.recordDebt`: Only callable by VaultMarket (`onlyMarket`)
-- [ ] `VaultCredit.processEarnings`: Only callable by VaultMarket (`onlyMarket`)
-- [ ] `VaultCredit.depositFees`: Only callable by VaultMarket/VaultCLOB/VaultCLMM (`onlyFeeCollector`)
-- [ ] Emit events on whitelist changes for observability
+
+- `VaultRisk.updateVelocity`: Only callable by VaultMarket/VaultCLMM/VaultCLOB (whitelisted)
+- `VaultCLOB.settleBatch`: Call `VaultRisk.updateVelocity(notional)` after processing fills
+- `VaultCredit.recordDebt`: Only callable by VaultMarket (`onlyMarket`)
+- `VaultCredit.processEarnings`: Only callable by VaultMarket (`onlyMarket`)
+- `VaultCredit.depositFees`: Only callable by VaultMarket/VaultCLOB/VaultCLMM (`onlyFeeCollector`)
+- Emit events on whitelist changes for observability
 
 **Transient Storage:**
-- [ ] Each contract uses unique slot hash (e.g., `keccak256("VaultMarket.ReentrancyGuard")`)
-- [ ] No slot `0` usage to avoid library collisions
-- [ ] Fork test `nonReentrant` paths on exact Arbitrum environment
+
+- Each contract uses unique slot hash (e.g., `keccak256("VaultMarket.ReentrancyGuard")`)
+- No slot `0` usage to avoid library collisions
+- Fork test `nonReentrant` paths on exact Arbitrum environment
 
 **Deployment:**
-- [ ] `evm_version = "cancun"` in foundry.toml (NOT osaka)
-- [ ] `Deploy.s.sol` uses consistent deployer key for vanity address
-- [ ] Salt mining includes deployer address in hash
-- [ ] Store `(deployer, salt)` pair in deployment artifacts
-- [ ] CI fork tests on Arbitrum Sepolia/One
+
+- `evm_version = "cancun"` in foundry.toml (NOT osaka)
+- `Deploy.s.sol` uses consistent deployer key for vanity address
+- Salt mining includes deployer address in hash
+- Store `(deployer, salt)` pair in deployment artifacts
+- CI fork tests on Arbitrum Sepolia/One
 
 **Metadata:**
-- [ ] `VaultToken.uri()` returns fully on-chain JSON (data URI)
-- [ ] Metadata includes marketId, outcomeId, totalSupply
+
+- `VaultToken.uri()` returns fully on-chain JSON (data URI)
+- Metadata includes marketId, outcomeId, totalSupply
 
 **Operational:**
-- [ ] Admin behind Gnosis Safe with hardware keys
-- [ ] Role separation: RESOLVER_ROLE, RISK_ROLE, CREDIT_ROLE
-- [ ] Relayer failover keys documented, SLA published
-- [ ] Emergency role rotation capability on-chain
+
+- Admin behind Gnosis Safe with hardware keys
+- Role separation: RESOLVER_ROLE, RISK_ROLE, CREDIT_ROLE
+- Relayer failover keys documented, SLA published
+- Emergency role rotation capability on-chain
 
 ### Audit Surface
 
@@ -3078,54 +3200,61 @@ Architecture-level audit (pre-implementation). Severity rubric: Critical (total 
 
 ### Critical Findings (Acknowledged)
 
-| ID | Finding | Status |
-|----|---------|--------|
-| CRITICAL-01 | Admin key compromise = total loss (markets, params, credit) | **Accepted** (trusted model) + operational controls |
-| CRITICAL-02 | Relayer-only CLOB = censorship/MEV vector | **Accepted** + failover keys, SLA |
-| CRITICAL-03 | CLOB mid-price oracle = implicit oracle risk | **Mitigated** via TWAP, volume threshold, change caps, ±10% FPMM sanity bounds |
-| CRITICAL-04 | USDC blacklist can permanently lock user funds | **Acknowledged** (USDC centralization); `redeemTo()`/`mergeTo()` rescue variants added |
+
+| ID          | Finding                                                     | Status                                                                                 |
+| ----------- | ----------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| CRITICAL-01 | Admin key compromise = total loss (markets, params, credit) | **Accepted** (trusted model) + operational controls                                    |
+| CRITICAL-02 | Relayer-only CLOB = censorship/MEV vector                   | **Accepted** + failover keys, SLA                                                      |
+| CRITICAL-03 | CLOB mid-price oracle = implicit oracle risk                | **Mitigated** via TWAP, volume threshold, change caps, ±10% FPMM sanity bounds         |
+| CRITICAL-04 | USDC blacklist can permanently lock user funds              | **Acknowledged** (USDC centralization); `redeemTo()`/`mergeTo()` rescue variants added |
+
 
 ### High Findings (Mitigated)
 
-| ID | Finding | Mitigation |
-|----|---------|------------|
-| HIGH-01 | EVM `osaka` target unsupported on Arbitrum | Changed to `cancun`, fork tests required |
-| HIGH-02 | ERC-1155 callbacks = reentrancy surface | Contract-unique transient slots, all paths guarded |
-| HIGH-03 | USDC 6 decimals vs Shares 18 decimals | `UnitLib` with explicit rounding, property tests |
-| HIGH-04 | CLMM tick math easy to get wrong | Differential fuzz testing vs Uniswap v3, SafeCastLib |
-| HIGH-05 | FPMM sell path undocumented; pool may lack complementary inventory | Explicit sell sourcing rule + `InsufficientPoolInventory` revert |
-| HIGH-06 | Post-resolution FPMM/CLMM inventory stranded | `reclaimPoolInventory()` for FPMM; `removeLiquidity()` stays open on resolved markets |
-| HIGH-07 | CLOB order expiry not enforced on-chain | `block.timestamp <= order.expiry` check in `settleBatch`; `OrderExpired` revert |
-| HIGH-08 | CLOB fill price direction unchecked vs Order struct | Single `price` field = limit; buy: `fillPrice <= price`, sell: `fillPrice >= price` |
-| HIGH-09 | CLOB volume invisible to surge fee engine | `settleBatch` calls `updateVelocity`; VaultCLOB added to whitelist |
-| HIGH-10 | `linkWallet` lacks wallet consent; unauthorized linking | EIP-712 signature required from wallet being linked |
-| HIGH-11 | `cancelOrder(hash)` cannot verify maker identity | Changed to `cancelOrder(Order)` with `msg.sender == maker` check |
-| HIGH-12 | CLOB matched orders not validated for same market/side | Cross-order validation: same `(marketId, outcomeId)`, opposite `isBuy` |
+
+| ID      | Finding                                                            | Mitigation                                                                                                                                              |
+| ------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| HIGH-01 | EVM `osaka` target unsupported on Arbitrum                         | Changed to `cancun`, fork tests required                                                                                                                |
+| HIGH-02 | ERC-1155 callbacks = reentrancy surface                            | Contract-unique transient slots, all paths guarded                                                                                                      |
+| HIGH-03 | USDC 6 decimals vs Shares 18 decimals                              | `UnitLib` with explicit rounding, property tests                                                                                                        |
+| HIGH-04 | CLMM tick math easy to get wrong                                   | Differential fuzz testing vs Uniswap v3; **SafeCast trap**: do NOT blindly apply checked casts — follow v3 wrapping/checked logic exactly per cast site |
+| HIGH-05 | FPMM sell path undocumented; pool may lack complementary inventory | Explicit sell sourcing rule + `InsufficientPoolInventory` revert                                                                                        |
+| HIGH-06 | Post-resolution FPMM/CLMM inventory stranded                       | `reclaimPoolInventory()` for FPMM; `removeLiquidity()` stays open on resolved markets                                                                   |
+| HIGH-07 | CLOB order expiry not enforced on-chain                            | `block.timestamp <= order.expiry` check in `settleBatch`; `OrderExpired` revert                                                                         |
+| HIGH-08 | CLOB fill price direction unchecked vs Order struct                | Single `price` field = limit; buy: `fillPrice <= price`, sell: `fillPrice >= price`                                                                     |
+| HIGH-09 | CLOB volume invisible to surge fee engine                          | `settleBatch` calls `updateVelocity`; VaultCLOB added to whitelist                                                                                      |
+| HIGH-10 | `linkWallet` lacks wallet consent; unauthorized linking            | EIP-712 signature required from wallet being linked                                                                                                     |
+| HIGH-11 | `cancelOrder(hash)` cannot verify maker identity                   | Changed to `cancelOrder(Order)` with `msg.sender == maker` check                                                                                        |
+| HIGH-12 | CLOB matched orders not validated for same market/side             | Cross-order validation: same `(marketId, outcomeId)`, opposite `isBuy`                                                                                  |
+
 
 ### Medium Findings (Addressed)
 
-| ID | Finding | Mitigation |
-|----|---------|------------|
-| MEDIUM-01 | Soft-revert string griefing | Compact failure codes (uint8), bounded batches |
-| MEDIUM-02 | Settlement price/amount under-specified | On-chain fill constraints documented with price direction enforcement |
-| MEDIUM-03 | Risk engine whitelist liveness | Observability events on changes |
-| MEDIUM-04 | Malformed LUT can brick pricing | Validation on upload (monotonicity, bounds, length) |
-| MEDIUM-05 | Pre vs post velocity inconsistency | Clarified: pre-trade + interpolated LUTs |
-| MEDIUM-06 | Credit sybil/identity risk | Operational (off-chain identity binding) |
-| MEDIUM-07 | `processEarnings` callable before dispute window expires | On-chain gate: revert if `block.timestamp < disputeDeadline` |
-| MEDIUM-08 | No max outcome count; FPMM gas DoS | `MAX_OUTCOMES = 8` enforced in `createMarket` |
-| MEDIUM-09 | Cross-contract immutable coupling unclear | Documented: all contracts deploy as cohort; migration at resolution boundaries |
-| MEDIUM-10 | Equal supply invariant not explicitly stated | Added: `totalSupply` must be equal across all outcomes per market |
-| MEDIUM-11 | Fee-on-transfer collateral breaks solvency | Documented: USDC-only assumption; no rebasing/fee tokens |
-| MEDIUM-12 | Credit line scope ambiguous | Documented: scoped to FPMM initial liquidity only via VaultMarket |
-| MEDIUM-13 | No emergency pause on VaultCLMM | CLMM gates `addLiquidity`/`swap` via `VaultMarket.isMarketActive()` |
-| MEDIUM-14 | `DISPUTE_PERIOD` undefined | Added as constant: 86400 (24 hours) |
-| MEDIUM-15 | Market state transitions not formalized | Added explicit state machine: Active↔Paused, Active/Paused→Resolved (terminal) |
-| MEDIUM-16 | `split(0)`/`merge(0)` not guarded | Zero-amount calls revert |
-| MEDIUM-17 | Double redemption not explicitly guarded | `redeem` reads balance atomically; second call reverts `NothingToRedeem` |
-| MEDIUM-18 | `getPositionsByOwner` unbounded return | Paginated variant added |
-| MEDIUM-19 | Wallet linking creates unbounded arrays (gas bomb) | Mapping-based membership; view-only enumeration; `MAX_WALLETS_PER_PROFILE` cap |
-| MEDIUM-20 | No `Closed` state; resolution timing ambiguous | Added `Closed` state with lazy transition at `resolutionTime`; formal state machine |
+
+| ID        | Finding                                                              | Mitigation                                                                               |
+| --------- | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| MEDIUM-01 | Soft-revert string griefing                                          | Compact failure codes (uint8), bounded batches                                           |
+| MEDIUM-02 | Settlement price/amount under-specified                              | On-chain fill constraints documented with price direction enforcement                    |
+| MEDIUM-03 | Risk engine whitelist liveness                                       | Observability events on changes                                                          |
+| MEDIUM-04 | Malformed LUT can brick pricing                                      | Validation on upload (monotonicity, bounds, length)                                      |
+| MEDIUM-05 | Pre vs post velocity inconsistency                                   | Clarified: pre-trade + interpolated LUTs                                                 |
+| MEDIUM-06 | Credit sybil/identity risk                                           | Operational (off-chain identity binding)                                                 |
+| MEDIUM-07 | `processEarnings` callable before dispute window expires             | On-chain gate: revert if `block.timestamp < disputeDeadline`                             |
+| MEDIUM-08 | No max outcome count; FPMM gas DoS                                   | `MAX_OUTCOMES = 8` enforced in `createMarket`                                            |
+| MEDIUM-09 | Cross-contract immutable coupling unclear                            | Documented: all contracts deploy as cohort; migration at resolution boundaries           |
+| MEDIUM-10 | Equal supply invariant not explicitly stated                         | Added: `totalSupply` must be equal across all outcomes per market                        |
+| MEDIUM-11 | Fee-on-transfer collateral breaks solvency                           | Documented: USDC-only assumption; no rebasing/fee tokens                                 |
+| MEDIUM-12 | Credit line scope ambiguous                                          | Documented: scoped to FPMM initial liquidity only via VaultMarket                        |
+| MEDIUM-13 | No emergency pause on VaultCLMM                                      | CLMM gates `addLiquidity`/`swap` via `VaultMarket.isMarketActive()`                      |
+| MEDIUM-14 | `DISPUTE_PERIOD` undefined                                           | Added as constant: 86400 (24 hours)                                                      |
+| MEDIUM-15 | Market state transitions not formalized                              | Added explicit state machine: Active↔Paused, Active/Paused→Resolved (terminal)           |
+| MEDIUM-16 | `split(0)`/`merge(0)` not guarded                                    | Zero-amount calls revert                                                                 |
+| MEDIUM-17 | Double redemption not explicitly guarded                             | `redeem` reads balance atomically; second call reverts `NothingToRedeem`                 |
+| MEDIUM-18 | `getPositionsByOwner` unbounded return                               | Paginated variant added                                                                  |
+| MEDIUM-19 | Wallet linking creates unbounded arrays (gas bomb)                   | Mapping-based membership; view-only enumeration; `MAX_WALLETS_PER_PROFILE` cap           |
+| MEDIUM-20 | No `Closed` state; resolution timing ambiguous                       | Added `Closed` state with lazy transition at `resolutionTime`; formal state machine      |
+| MEDIUM-21 | Grace period off-by-one (`>` vs `>=`) can lock or overlap resolution | Oracle uses `>` (valid at `==`), admin uses `>=` (valid at `==`); boundary test required |
+
 
 ### Positive Design Elements
 
@@ -3146,17 +3275,19 @@ Architecture-level audit (pre-implementation). Severity rubric: Critical (total 
 
 ## Appendix: Recommended Parameters
 
-| Parameter | Default | Notes |
-|-----------|---------|-------|
-| f0 (baseline fee) | 300 bps | 3% trading fee |
-| f_max (cap) | 1500 bps | 15% max under surge |
-| alpha (velocity decay) | 0.97/block | L2-tuned |
-| beta (cooldown decay) | 0.995/block | Slow anti-oscillation |
-| gamma (inventory skew) | tuned | Market-class dependent |
-| alpha_wide (CLMM wide band) | >= 20% | Safety allocation |
-| alpha_max (tight bands) | <= 40% | Cap tight-band exposure |
-| Credit limit (creator) | $500-$2k | Tiered by verification |
-| Credit limit (trusted KOL) | $1k-$10k | Tiered, debt-first |
+
+| Parameter                   | Default     | Notes                   |
+| --------------------------- | ----------- | ----------------------- |
+| f0 (baseline fee)           | 300 bps     | 3% trading fee          |
+| f_max (cap)                 | 1500 bps    | 15% max under surge     |
+| alpha (velocity decay)      | 0.97/block  | L2-tuned                |
+| beta (cooldown decay)       | 0.995/block | Slow anti-oscillation   |
+| gamma (inventory skew)      | tuned       | Market-class dependent  |
+| alpha_wide (CLMM wide band) | >= 20%      | Safety allocation       |
+| alpha_max (tight bands)     | <= 40%      | Cap tight-band exposure |
+| Credit limit (creator)      | $500-$2k    | Tiered by verification  |
+| Credit limit (trusted KOL)  | $1k-$10k    | Tiered, debt-first      |
+
 
 ---
 

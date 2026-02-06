@@ -82,7 +82,7 @@ export function Header() {
   const xp = xpData?.xp ?? 0;
   const balance = profile?.balance ?? 0;
 
-  // Fetch daily spin status
+  // Fetch spin status (resets every 6 hours)
   const { data: spinStatus, refetch: refetchSpinStatus } = useQuery({
     queryKey: ["daily-spin-status"],
     queryFn: async () => {
@@ -99,7 +99,7 @@ export function Header() {
   // Only show daily spin button once we've loaded status AND feature is not disabled
   const dailySpinEnabled = spinStatus !== undefined && !spinStatus?.featureDisabled;
 
-  // Countdown timer for next daily spin
+  // Countdown timer for next spin (6h cooldown)
   const [spinCountdown, setSpinCountdown] = useState<string>("");
   
   useEffect(() => {

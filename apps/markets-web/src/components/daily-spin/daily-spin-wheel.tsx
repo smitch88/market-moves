@@ -354,7 +354,7 @@ export function DailySpinWheel({
         {/* Header */}
         <div className={`flex items-center justify-between ${isLarge ? 'px-8 pt-6 pb-4' : 'px-5 pt-5 pb-3'}`}>
           <div>
-            <h2 className={`${isLarge ? 'text-xl' : 'text-base'} font-semibold text-foreground`}>Daily Spin</h2>
+            <h2 className={`${isLarge ? 'text-xl' : 'text-base'} font-semibold text-foreground`}>Free Spin</h2>
             <p className={`${isLarge ? 'text-sm' : 'text-xs'} text-muted-foreground`}>Win up to $20,000</p>
           </div>
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-muted transition-colors">

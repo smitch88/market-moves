@@ -2,9 +2,10 @@ import { prisma, BalanceReason } from "@vault/database";
 import { adjustBalance } from "./balance-service";
 
 /**
- * Daily Spin Service
+ * Spin Service (every 6 hours)
  * 
- * Handles daily spin rewards with a weighted probability distribution.
+ * Handles spin rewards with a weighted probability distribution.
+ * Users can spin once every 6 hours (4x per day).
  * Every spin is a guaranteed win! Min $500, Max $20,000.
  * Expected value: $2,000 per spin.
  * 
@@ -94,8 +95,11 @@ export interface DailySpinResult {
   canSpinAt?: Date;
 }
 
+/** Spin cooldown in milliseconds (6 hours) */
+const SPIN_COOLDOWN_MS = 6 * 60 * 60 * 1000;
+
 /**
- * Get today's date at midnight UTC
+ * Get today's date at midnight UTC (for date-bucket in DB)
  */
 function getTodayUTC(): Date {
   const now = new Date();
@@ -103,28 +107,54 @@ function getTodayUTC(): Date {
 }
 
 /**
- * Check if user can spin today
+ * Get the current 6-hour epoch index (0-3) within the day.
+ * Epoch 0 = 00:00–05:59, Epoch 1 = 06:00–11:59, etc.
+ */
+function getCurrentEpoch(): number {
+  const now = new Date();
+  return Math.floor(now.getUTCHours() / 6);
+}
+
+/**
+ * Get the start time of the next 6-hour epoch.
+ */
+function getNextEpochStart(): Date {
+  const now = new Date();
+  const currentEpoch = getCurrentEpoch();
+  const nextEpoch = currentEpoch + 1;
+  
+  if (nextEpoch >= 4) {
+    // Next epoch is epoch 0 of the next day
+    const tomorrow = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+    tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+    return tomorrow;
+  }
+  
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), nextEpoch * 6));
+}
+
+/**
+ * Check if user can spin (every 6 hours)
  */
 export async function canUserSpin(userId: string): Promise<{ canSpin: boolean; nextSpinAt?: Date; lastReward?: number }> {
   const today = getTodayUTC();
+  const epoch = getCurrentEpoch();
   
   const existingSpin = await prisma.dailySpin.findUnique({
     where: {
-      userId_spinDate: {
+      userId_spinDate_spinEpoch: {
         userId,
         spinDate: today,
+        spinEpoch: epoch,
       },
     },
   });
   
   if (existingSpin) {
-    // User already spun today - next spin is tomorrow at midnight UTC
-    const tomorrow = new Date(today);
-    tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
-    
+    // User already spun this epoch - next spin at start of next epoch
     return {
       canSpin: false,
-      nextSpinAt: tomorrow,
+      nextSpinAt: getNextEpochStart(),
       lastReward: Number(existingSpin.reward),
     };
   }
@@ -133,26 +163,26 @@ export async function canUserSpin(userId: string): Promise<{ canSpin: boolean; n
 }
 
 /**
- * Execute a daily spin for a user
+ * Execute a spin for a user
  * Uses database unique constraint to prevent double spins even under race conditions
  */
 export async function executeDailySpin(userId: string): Promise<DailySpinResult> {
   const today = getTodayUTC();
-  const tomorrow = new Date(today);
-  tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+  const epoch = getCurrentEpoch();
   
   // Generate the reward upfront
   const reward = generateSpinReward();
   
   try {
     // Use a transaction with the spin creation to ensure atomicity
-    // The unique constraint on (userId, spinDate) prevents double spins
+    // The unique constraint on (userId, spinDate, spinEpoch) prevents double spins
     const result = await prisma.$transaction(async (tx) => {
       // Try to create the spin record - will fail if already exists due to unique constraint
       await tx.dailySpin.create({
         data: {
           userId,
           spinDate: today,
+          spinEpoch: epoch,
           reward: reward.amount,
         },
       });
@@ -173,7 +203,7 @@ export async function executeDailySpin(userId: string): Promise<DailySpinResult>
       newBalance: result.newBalance,
     };
   } catch (error: unknown) {
-    // Check if this is a unique constraint violation (user already spun today)
+    // Check if this is a unique constraint violation (user already spun this epoch)
     if (
       error instanceof Error && 
       'code' in error && 
@@ -181,8 +211,8 @@ export async function executeDailySpin(userId: string): Promise<DailySpinResult>
     ) {
       return {
         success: false,
-        error: "You've already spun today! Come back tomorrow.",
-        canSpinAt: tomorrow,
+        error: "You've already spun this period! Come back in a few hours.",
+        canSpinAt: getNextEpochStart(),
       };
     }
     

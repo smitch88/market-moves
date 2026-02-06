@@ -137,7 +137,7 @@ export function DailySpinBanner({ onBalanceUpdate, className = "" }: DailySpinBa
             
             <div>
               <div className={`text-sm font-semibold tracking-wide ${canSpin ? "text-white" : "text-white/50"}`}>
-                {canSpin ? "Daily Spin Ready!" : "Daily Spin"}
+                {canSpin ? "Spin Ready!" : "Free Spin"}
               </div>
               <div className="text-xs text-white/30">
                 {canSpin ? (

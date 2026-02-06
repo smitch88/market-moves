@@ -9,7 +9,7 @@ import { isFeatureEnabled, FeatureFlags } from "@/lib/services/feature-flag-serv
 
 /**
  * GET /api/me/daily-spin
- * Check if user can spin today and get prize tier info
+ * Check if user can spin (resets every 6 hours) and get prize tier info
  */
 export async function GET() {
   try {
@@ -27,7 +27,7 @@ export async function GET() {
     const spinStatus = await canUserSpin(user.id);
     const history = await getUserSpinHistory(user.id, 5);
     
-    // If user can't spin (already spun today), include their last reward
+    // If user can't spin (already spun this period), include their last reward
     const todayReward = !spinStatus.canSpin && history.length > 0 
       ? Number(history[0].reward) 
       : undefined;
