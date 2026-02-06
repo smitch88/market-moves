@@ -35,8 +35,8 @@ import {
   Play,
   Clock,
   Coins,
+  Upload,
 } from "lucide-react";
-import { ImageUpload } from "@/components/admin";
 
 const TIMEFRAME_OPTIONS = [
   { value: 1, label: "1 minute" },
@@ -437,20 +437,84 @@ export default function AdminAutoMarketsPage() {
                 placeholder="Ethereum"
               />
             </div>
-            <ImageUpload
-              label="Event banner (optional)"
-              value={form.eventBannerUrl}
-              onChange={(url) => setForm((p) => ({ ...p, eventBannerUrl: url }))}
-              folder="auto-markets"
-              aspectRatio="banner"
-            />
-            <ImageUpload
-              label="Event logo (optional)"
-              value={form.eventLogoUrl}
-              onChange={(url) => setForm((p) => ({ ...p, eventLogoUrl: url }))}
-              folder="auto-markets"
-              aspectRatio="square"
-            />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="eventBannerUrl">Banner URL</Label>
+                <div className="flex gap-1">
+                  <Input
+                    id="eventBannerUrl"
+                    type="url"
+                    value={form.eventBannerUrl}
+                    onChange={(e) => setForm((p) => ({ ...p, eventBannerUrl: e.target.value }))}
+                    placeholder="https://..."
+                    className="text-xs"
+                  />
+                  <label className="shrink-0">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        try {
+                          const res = await fetch(`/api/admin/upload?filename=${encodeURIComponent(file.name)}&folder=auto-markets`, {
+                            method: "POST",
+                            body: file,
+                          });
+                          if (res.ok) {
+                            const { url } = await res.json();
+                            setForm((p) => ({ ...p, eventBannerUrl: url }));
+                            toast.success("Banner uploaded");
+                          }
+                        } catch { toast.error("Upload failed"); }
+                      }}
+                    />
+                    <Button type="button" variant="outline" size="sm" className="h-9 px-2" asChild>
+                      <span><Upload className="h-3.5 w-3.5" /></span>
+                    </Button>
+                  </label>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="eventLogoUrl">Logo URL</Label>
+                <div className="flex gap-1">
+                  <Input
+                    id="eventLogoUrl"
+                    type="url"
+                    value={form.eventLogoUrl}
+                    onChange={(e) => setForm((p) => ({ ...p, eventLogoUrl: e.target.value }))}
+                    placeholder="https://..."
+                    className="text-xs"
+                  />
+                  <label className="shrink-0">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        try {
+                          const res = await fetch(`/api/admin/upload?filename=${encodeURIComponent(file.name)}&folder=auto-markets`, {
+                            method: "POST",
+                            body: file,
+                          });
+                          if (res.ok) {
+                            const { url } = await res.json();
+                            setForm((p) => ({ ...p, eventLogoUrl: url }));
+                            toast.success("Logo uploaded");
+                          }
+                        } catch { toast.error("Upload failed"); }
+                      }}
+                    />
+                    <Button type="button" variant="outline" size="sm" className="h-9 px-2" asChild>
+                      <span><Upload className="h-3.5 w-3.5" /></span>
+                    </Button>
+                  </label>
+                </div>
+              </div>
+            </div>
             <div className="space-y-2">
               <Label>Timeframe *</Label>
               <Select

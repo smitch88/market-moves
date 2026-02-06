@@ -29,8 +29,8 @@ import {
   Save,
   Clock,
   Coins,
+  Upload,
 } from "lucide-react";
-import { ImageUpload } from "@/components/admin";
 
 const CATEGORY_OPTIONS = [
   "CRYPTO",
@@ -282,36 +282,86 @@ export default function AdminAutoMarketConfigDetailPage({
                 <p className="text-sm">{config.chain ?? "—"}</p>
               )}
             </div>
-            <div className="space-y-2 sm:col-span-2">
+            <div className="space-y-2">
+              <Label>Event banner</Label>
               {editMode ? (
-                <ImageUpload
-                  label="Event banner (optional)"
-                  value={form.eventBannerUrl}
-                  onChange={(url) => setForm((p) => ({ ...p, eventBannerUrl: url }))}
-                  folder="auto-markets"
-                  aspectRatio="banner"
-                />
+                <div className="flex gap-1">
+                  <Input
+                    type="url"
+                    value={form.eventBannerUrl}
+                    onChange={(e) => setForm((p) => ({ ...p, eventBannerUrl: e.target.value }))}
+                    placeholder="https://..."
+                    className="text-xs"
+                  />
+                  <label className="shrink-0">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        try {
+                          const res = await fetch(`/api/admin/upload?filename=${encodeURIComponent(file.name)}&folder=auto-markets`, {
+                            method: "POST",
+                            body: file,
+                          });
+                          if (res.ok) {
+                            const { url } = await res.json();
+                            setForm((p) => ({ ...p, eventBannerUrl: url }));
+                            toast.success("Banner uploaded");
+                          }
+                        } catch { toast.error("Upload failed"); }
+                      }}
+                    />
+                    <Button type="button" variant="outline" size="sm" className="h-9 px-2" asChild>
+                      <span><Upload className="h-3.5 w-3.5" /></span>
+                    </Button>
+                  </label>
+                </div>
               ) : (
-                <>
-                  <Label>Event banner</Label>
-                  <p className="text-sm break-all">{config.eventBannerUrl ?? "—"}</p>
-                </>
+                <p className="text-sm break-all">{config.eventBannerUrl ?? "—"}</p>
               )}
             </div>
             <div className="space-y-2">
+              <Label>Event logo</Label>
               {editMode ? (
-                <ImageUpload
-                  label="Event logo (optional)"
-                  value={form.eventLogoUrl}
-                  onChange={(url) => setForm((p) => ({ ...p, eventLogoUrl: url }))}
-                  folder="auto-markets"
-                  aspectRatio="square"
-                />
+                <div className="flex gap-1">
+                  <Input
+                    type="url"
+                    value={form.eventLogoUrl}
+                    onChange={(e) => setForm((p) => ({ ...p, eventLogoUrl: e.target.value }))}
+                    placeholder="https://..."
+                    className="text-xs"
+                  />
+                  <label className="shrink-0">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        try {
+                          const res = await fetch(`/api/admin/upload?filename=${encodeURIComponent(file.name)}&folder=auto-markets`, {
+                            method: "POST",
+                            body: file,
+                          });
+                          if (res.ok) {
+                            const { url } = await res.json();
+                            setForm((p) => ({ ...p, eventLogoUrl: url }));
+                            toast.success("Logo uploaded");
+                          }
+                        } catch { toast.error("Upload failed"); }
+                      }}
+                    />
+                    <Button type="button" variant="outline" size="sm" className="h-9 px-2" asChild>
+                      <span><Upload className="h-3.5 w-3.5" /></span>
+                    </Button>
+                  </label>
+                </div>
               ) : (
-                <>
-                  <Label>Event logo</Label>
-                  <p className="text-sm break-all">{config.eventLogoUrl ?? "—"}</p>
-                </>
+                <p className="text-sm break-all">{config.eventLogoUrl ?? "—"}</p>
               )}
             </div>
             <div className="space-y-2">
