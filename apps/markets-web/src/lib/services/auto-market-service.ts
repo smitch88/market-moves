@@ -411,18 +411,19 @@ async function settleMarket(
       const pool1 = Number(market.seed1) + Number(market.pool1);
       const totalPool = pool0 + pool1;
       const netPool = totalPool * (1 - fee);
-      const losingPositionIds: string[] = [];
+      const pureLosingPositionIds: string[] = [];
 
       const winningPositions = market.positions.filter((p) => {
         const winningShares = isOutcome0 ? Number(p.shares0) : Number(p.shares1);
-        const losingShares = isOutcome0 ? Number(p.shares1) : Number(p.shares0);
-        if (losingShares > 0) losingPositionIds.push(p.id);
+        // Only auto-close positions with ZERO winning shares
+        // Positions with any winning shares need manual redemption
+        if (winningShares === 0) pureLosingPositionIds.push(p.id);
         return winningShares > 0;
       });
 
-      if (losingPositionIds.length > 0) {
+      if (pureLosingPositionIds.length > 0) {
         await tx.position.updateMany({
-          where: { id: { in: losingPositionIds } },
+          where: { id: { in: pureLosingPositionIds } },
           data: { claimedAt: new Date() },
         });
       }

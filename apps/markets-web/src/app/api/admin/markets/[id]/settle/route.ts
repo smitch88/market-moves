@@ -70,7 +70,7 @@ export async function POST(
       let potentialTotalPayout = 0;
       let winnersCount = 0;
       let losersCount = 0;
-      const losingPositionIds: string[] = [];
+      const pureLosingPositionIds: string[] = [];
       
       for (const position of market.positions) {
         const winningShares = isOutcome0 ? position.shares0 : position.shares1;
@@ -81,17 +81,21 @@ export async function POST(
           winnersCount++;
         }
         
-        // Track losing positions to auto-close them
+        // Track pure losing positions (no winning shares) to auto-close them
         if (Number(losingShares) > 0) {
-          losingPositionIds.push(position.id);
           losersCount++;
+          // Only auto-close if they have ZERO winning shares
+          // Positions with any winning shares need manual redemption
+          if (Number(winningShares) === 0) {
+            pureLosingPositionIds.push(position.id);
+          }
         }
       }
       
-      // Auto-close losing positions (set claimedAt so they don't need manual redemption)
-      if (losingPositionIds.length > 0) {
+      // Auto-close pure losing positions (set claimedAt so they don't need manual redemption)
+      if (pureLosingPositionIds.length > 0) {
         await tx.position.updateMany({
-          where: { id: { in: losingPositionIds } },
+          where: { id: { in: pureLosingPositionIds } },
           data: { claimedAt: new Date() },
         });
       }
@@ -269,7 +273,7 @@ export async function POST(
             winningIndex: market.resolvedOutcome,
             winnersCount,
             losersCount,
-            losingPositionsAutoClosed: losingPositionIds.length,
+            losingPositionsAutoClosed: pureLosingPositionIds.length,
             potentialTotalPayout,
             payoutsDistributed: false, // Winning payouts require manual redemption
           },
@@ -284,7 +288,7 @@ export async function POST(
         settlementRunId,
         winnersCount,
         losersCount,
-        losingPositionsAutoClosed: losingPositionIds.length,
+        losingPositionsAutoClosed: pureLosingPositionIds.length,
         potentialTotalPayout,
         payoutsDistributed: false, // Winning payouts require manual redemption
         betsUpdated: {
