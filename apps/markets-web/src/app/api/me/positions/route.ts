@@ -124,14 +124,20 @@ export async function GET(request: NextRequest) {
     }
 
     // Check for filter params
-    const includeSettled = searchParams.get("includeSettled") === "true";
+    // filter: "active" (default) = unclaimed, "closed" = claimed, "all" = both
+    const filter = searchParams.get("filter") || "active";
+    
+    // Build claimedAt filter based on filter param
+    const claimedAtFilter = 
+      filter === "closed" ? { claimedAt: { not: null } } :
+      filter === "all" ? {} :
+      { claimedAt: null }; // default to active (unclaimed)
 
     // Otherwise return all positions for the user
     const positions = await prisma.position.findMany({
       where: {
         userId: user.id,
-        // Filter out claimed positions unless explicitly requested
-        ...(includeSettled ? {} : { claimedAt: null }),
+        ...claimedAtFilter,
         OR: [
           { shares0: { gt: 0 } },
           { shares1: { gt: 0 } },

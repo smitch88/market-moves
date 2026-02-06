@@ -60,8 +60,8 @@ export async function POST(
       const netPool = totalPool * (1 - fee);
 
       // NOTE: Payouts are NOT automatically distributed here.
-      // Users must manually redeem their positions via /api/me/redeem
-      // This settlement just marks the market and bets with the correct status.
+      // Users must manually redeem their WINNING positions via /api/me/redeem
+      // LOSING positions are auto-closed during settlement (no action needed by user).
       
       // Track affected users for PnL snapshots
       const affectedUserIds: string[] = [];
@@ -69,13 +69,31 @@ export async function POST(
       // Calculate potential payouts for logging purposes only (CPMM: 1 share = $1)
       let potentialTotalPayout = 0;
       let winnersCount = 0;
+      let losersCount = 0;
+      const losingPositionIds: string[] = [];
       
       for (const position of market.positions) {
-        const userShares = isOutcome0 ? position.shares0 : position.shares1;
-        if (Number(userShares) > 0) {
-          potentialTotalPayout += Math.floor(Number(userShares) * (1 - fee));
+        const winningShares = isOutcome0 ? position.shares0 : position.shares1;
+        const losingShares = isOutcome0 ? position.shares1 : position.shares0;
+        
+        if (Number(winningShares) > 0) {
+          potentialTotalPayout += Math.floor(Number(winningShares) * (1 - fee));
           winnersCount++;
         }
+        
+        // Track losing positions to auto-close them
+        if (Number(losingShares) > 0) {
+          losingPositionIds.push(position.id);
+          losersCount++;
+        }
+      }
+      
+      // Auto-close losing positions (set claimedAt so they don't need manual redemption)
+      if (losingPositionIds.length > 0) {
+        await tx.position.updateMany({
+          where: { id: { in: losingPositionIds } },
+          data: { claimedAt: new Date() },
+        });
       }
       
       // Create raffle entries for winners (still automatic as it's a reward, not payment)
@@ -250,8 +268,10 @@ export async function POST(
             winningOutcome: winningOutcomeLabel,
             winningIndex: market.resolvedOutcome,
             winnersCount,
+            losersCount,
+            losingPositionsAutoClosed: losingPositionIds.length,
             potentialTotalPayout,
-            payoutsDistributed: false, // Payouts require manual redemption
+            payoutsDistributed: false, // Winning payouts require manual redemption
           },
         },
       });
@@ -263,8 +283,10 @@ export async function POST(
         market: updatedMarket,
         settlementRunId,
         winnersCount,
+        losersCount,
+        losingPositionsAutoClosed: losingPositionIds.length,
         potentialTotalPayout,
-        payoutsDistributed: false, // Users must redeem manually
+        payoutsDistributed: false, // Winning payouts require manual redemption
         betsUpdated: {
           won: winningBetsCount,
           lost: losingBetsCount,

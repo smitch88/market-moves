@@ -120,8 +120,8 @@ export function RedeemPositionsModal({ open, onOpenChange }: RedeemPositionsModa
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
+      <DialogContent className="sm:max-w-lg flex flex-col max-h-[min(28rem,85dvh)] !grid-rows-none p-0">
+        <DialogHeader className="px-6 pt-6 pb-0 shrink-0">
           <DialogTitle className="flex items-center gap-2">
             {redeemed ? "Positions Redeemed!" : "Redeem Your Winnings"}
           </DialogTitle>
@@ -134,7 +134,7 @@ export function RedeemPositionsModal({ open, onOpenChange }: RedeemPositionsModa
         </DialogHeader>
 
         {redeemed ? (
-          <div className="py-8 text-center">
+          <div className="py-8 px-6 text-center">
             <div className="w-16 h-16 rounded-full bg-green-500/20 flex items-center justify-center mx-auto mb-4">
               <Check className="h-8 w-8 text-green-500" />
             </div>
@@ -162,7 +162,7 @@ export function RedeemPositionsModal({ open, onOpenChange }: RedeemPositionsModa
             </Button>
           </div>
         ) : isLoading ? (
-          <div className="space-y-4 py-4">
+          <div className="space-y-4 py-4 px-6">
             {Array.from({ length: 3 }).map((_, i) => (
               <div key={i} className="flex items-center justify-between p-3 rounded-lg border border-border">
                 <div className="space-y-2">
@@ -174,13 +174,13 @@ export function RedeemPositionsModal({ open, onOpenChange }: RedeemPositionsModa
             ))}
           </div>
         ) : error ? (
-          <div className="py-8 text-center text-muted-foreground">
+          <div className="py-8 px-6 text-center text-muted-foreground">
             Failed to load redeemable positions
           </div>
         ) : summary && summary.positionsCount > 0 ? (
-          <div className="space-y-4">
-            {/* Positions list */}
-            <div className="max-h-64 overflow-y-auto space-y-2">
+          <>
+            {/* Positions list - scrollable */}
+            <div className="min-h-0 overflow-y-auto px-6 space-y-2">
               {summary.positions.map((position) => (
                 <div
                   key={position.positionId}
@@ -227,8 +227,8 @@ export function RedeemPositionsModal({ open, onOpenChange }: RedeemPositionsModa
               ))}
             </div>
 
-            {/* Summary */}
-            <div className="pt-4 border-t border-border">
+            {/* Summary - pinned to bottom */}
+            <div className="px-6 pb-6 pt-4 border-t border-border shrink-0">
               <div className="flex items-center justify-between mb-4">
                 <div className="text-sm text-muted-foreground">
                   {summary.winnersCount} winning • {summary.losersCount} losing
@@ -269,9 +269,9 @@ export function RedeemPositionsModal({ open, onOpenChange }: RedeemPositionsModa
                 )}
               </Button>
             </div>
-          </div>
+          </>
         ) : (
-          <div className="py-8 text-center text-muted-foreground">
+          <div className="py-8 px-6 text-center text-muted-foreground">
             No positions to redeem
           </div>
         )}

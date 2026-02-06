@@ -23,6 +23,7 @@ import { ShareMarketPnLModal } from "./share-market-pnl-modal";
 import { useAuthFetch } from "@/lib/auth/auth-fetch";
 
 type PositionView = "individual" | "by-market";
+type PositionFilter = "active" | "closed";
 
 interface Position {
   id: string;
@@ -491,13 +492,14 @@ export function ProfilePositions({ userHandle, readOnly = false }: ProfilePositi
   const queryClient = useQueryClient();
   const [showRedeemModal, setShowRedeemModal] = useState(false);
   const [positionView, setPositionView] = useState<PositionView>("individual");
+  const [positionFilter, setPositionFilter] = useState<PositionFilter>("active");
   const authFetch = useAuthFetch();
 
   // For public profiles, fetch from public API
   const isPublicView = !!userHandle;
 
   const { data: positions, isLoading, error } = useQuery({
-    queryKey: isPublicView ? ["public-positions", userHandle] : ["positions"],
+    queryKey: isPublicView ? ["public-positions", userHandle] : ["positions", positionFilter],
     queryFn: async (): Promise<Position[]> => {
       if (isPublicView) {
         const res = await fetch(`/api/users/${userHandle}/positions`);
@@ -553,7 +555,7 @@ export function ProfilePositions({ userHandle, readOnly = false }: ProfilePositi
           },
         }));
       } else {
-        const res = await authFetch("/api/me/positions");
+        const res = await authFetch(`/api/me/positions?filter=${positionFilter}`);
         if (!res.ok) throw new Error("Failed to fetch positions");
         return res.json();
       }
@@ -812,21 +814,54 @@ export function ProfilePositions({ userHandle, readOnly = false }: ProfilePositi
 
   if (allPositionRows.length === 0) {
     return (
-      <div className="text-center py-16">
-        <p className="text-muted-foreground mb-4">No open positions</p>
+      <div>
+        {/* Filter toggle - only for own profile */}
         {!isPublicView && (
-          <Link href="/">
-            <Button variant="outline">Browse markets</Button>
-          </Link>
+          <div className="flex items-center gap-3 pb-4 mb-2">
+            <div className="flex items-center border border-border rounded-md">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setPositionFilter("active")}
+                className={cn(
+                  "h-8 px-3 rounded-r-none border-r border-border text-xs",
+                  positionFilter === "active" && "bg-muted"
+                )}
+              >
+                Active
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setPositionFilter("closed")}
+                className={cn(
+                  "h-8 px-3 rounded-l-none text-xs",
+                  positionFilter === "closed" && "bg-muted"
+                )}
+              >
+                Closed
+              </Button>
+            </div>
+          </div>
         )}
+        <div className="text-center py-16">
+          <p className="text-muted-foreground mb-4">
+            {positionFilter === "closed" ? "No closed positions" : "No active positions"}
+          </p>
+          {!isPublicView && positionFilter === "active" && (
+            <Link href="/">
+              <Button variant="outline">Browse markets</Button>
+            </Link>
+          )}
+        </div>
       </div>
     );
   }
 
   return (
     <div>
-      {/* Redeemable positions banner - only for own profile */}
-      {!isPublicView && hasRedeemable && redeemableSummary && (
+      {/* Redeemable positions banner - only for own profile viewing active positions */}
+      {!isPublicView && positionFilter === "active" && hasRedeemable && redeemableSummary && (
         <div className="mb-6 p-3 sm:p-4 rounded-xl bg-gradient-to-r from-green-500/10 to-primary/10 border border-green-500/20">
           {/* Mobile layout */}
           <div className="sm:hidden space-y-3">
@@ -888,9 +923,38 @@ export function ProfilePositions({ userHandle, readOnly = false }: ProfilePositi
 
       {/* Stats + View toggle bar */}
       <div className="flex items-center justify-between gap-4 pb-4 mb-2">
-        {/* Left: Stats - Modal on mobile, inline on desktop */}
-        {/* Mobile: Stats button */}
-        <div className="sm:hidden">
+        {/* Left side: Filter + Stats */}
+        <div className="flex items-center gap-3">
+          {/* Filter toggle - only for own profile */}
+          {!isPublicView && (
+            <div className="flex items-center border border-border rounded-md">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setPositionFilter("active")}
+                className={cn(
+                  "h-8 px-3 rounded-r-none border-r border-border text-xs",
+                  positionFilter === "active" && "bg-muted"
+                )}
+              >
+                Active
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setPositionFilter("closed")}
+                className={cn(
+                  "h-8 px-3 rounded-l-none text-xs",
+                  positionFilter === "closed" && "bg-muted"
+                )}
+              >
+                Closed
+              </Button>
+            </div>
+          )}
+
+          {/* Mobile: Stats button */}
+          <div className="sm:hidden">
           <Dialog>
             <DialogTrigger asChild>
               <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs px-2">
@@ -977,6 +1041,7 @@ export function ProfilePositions({ userHandle, readOnly = false }: ProfilePositi
           <div className="text-muted-foreground">
             {positionRows.length} position{positionRows.length !== 1 ? "s" : ""}
           </div>
+        </div>
         </div>
 
         {/* Right: View toggle */}
