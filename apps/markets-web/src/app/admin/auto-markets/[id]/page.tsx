@@ -30,6 +30,7 @@ import {
   Clock,
   Coins,
 } from "lucide-react";
+import { ImageUpload } from "@/components/admin";
 
 const CATEGORY_OPTIONS = [
   "CRYPTO",
@@ -281,30 +282,36 @@ export default function AdminAutoMarketConfigDetailPage({
                 <p className="text-sm">{config.chain ?? "—"}</p>
               )}
             </div>
-            <div className="space-y-2">
-              <Label>Event banner URL (optional)</Label>
+            <div className="space-y-2 sm:col-span-2">
               {editMode ? (
-                <Input
-                  type="url"
+                <ImageUpload
+                  label="Event banner (optional)"
                   value={form.eventBannerUrl}
-                  onChange={(e) => setForm((p) => ({ ...p, eventBannerUrl: e.target.value }))}
-                  placeholder="https://..."
+                  onChange={(url) => setForm((p) => ({ ...p, eventBannerUrl: url }))}
+                  folder="auto-markets"
+                  aspectRatio="banner"
                 />
               ) : (
-                <p className="text-sm break-all">{config.eventBannerUrl ?? "—"}</p>
+                <>
+                  <Label>Event banner</Label>
+                  <p className="text-sm break-all">{config.eventBannerUrl ?? "—"}</p>
+                </>
               )}
             </div>
             <div className="space-y-2">
-              <Label>Event logo URL (optional)</Label>
               {editMode ? (
-                <Input
-                  type="url"
+                <ImageUpload
+                  label="Event logo (optional)"
                   value={form.eventLogoUrl}
-                  onChange={(e) => setForm((p) => ({ ...p, eventLogoUrl: e.target.value }))}
-                  placeholder="https://..."
+                  onChange={(url) => setForm((p) => ({ ...p, eventLogoUrl: url }))}
+                  folder="auto-markets"
+                  aspectRatio="square"
                 />
               ) : (
-                <p className="text-sm break-all">{config.eventLogoUrl ?? "—"}</p>
+                <>
+                  <Label>Event logo</Label>
+                  <p className="text-sm break-all">{config.eventLogoUrl ?? "—"}</p>
+                </>
               )}
             </div>
             <div className="space-y-2">

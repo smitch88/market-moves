@@ -31,13 +31,12 @@ import {
   Plus,
   RefreshCw,
   TrendingUp,
-  CheckCircle,
-  XCircle,
   Settings,
   Play,
   Clock,
   Coins,
 } from "lucide-react";
+import { ImageUpload } from "@/components/admin";
 
 const TIMEFRAME_OPTIONS = [
   { value: 1, label: "1 minute" },
@@ -438,27 +437,20 @@ export default function AdminAutoMarketsPage() {
                 placeholder="Ethereum"
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="eventBannerUrl">Event banner URL (optional)</Label>
-              <Input
-                id="eventBannerUrl"
-                type="url"
-                value={form.eventBannerUrl}
-                onChange={(e) => setForm((p) => ({ ...p, eventBannerUrl: e.target.value }))}
-                placeholder="https://..."
-              />
-              <p className="text-xs text-muted-foreground">Used when the cron creates the event</p>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="eventLogoUrl">Event logo URL (optional)</Label>
-              <Input
-                id="eventLogoUrl"
-                type="url"
-                value={form.eventLogoUrl}
-                onChange={(e) => setForm((p) => ({ ...p, eventLogoUrl: e.target.value }))}
-                placeholder="https://..."
-              />
-            </div>
+            <ImageUpload
+              label="Event banner (optional)"
+              value={form.eventBannerUrl}
+              onChange={(url) => setForm((p) => ({ ...p, eventBannerUrl: url }))}
+              folder="auto-markets"
+              aspectRatio="banner"
+            />
+            <ImageUpload
+              label="Event logo (optional)"
+              value={form.eventLogoUrl}
+              onChange={(url) => setForm((p) => ({ ...p, eventLogoUrl: url }))}
+              folder="auto-markets"
+              aspectRatio="square"
+            />
             <div className="space-y-2">
               <Label>Timeframe *</Label>
               <Select
