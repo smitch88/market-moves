@@ -89,6 +89,8 @@ vault-markets/
 | `/admin/jobs` | Background job monitoring and manual triggers |
 | `/admin/resolution-sources` | Resolution source management |
 | `/admin/resolution-sources/[id]` | Resolution source detail - manage data points |
+| `/admin/auto-markets` | Auto-market configs (crypto price markets created by cron) |
+| `/admin/auto-markets/[id]` | Edit single auto-market config |
 
 ---
 
@@ -274,6 +276,14 @@ model UserPnLSnapshot {
 }
 ```
 
+### Auto-market config (cron-created crypto markets)
+Markets created by the create-auto-markets cron are linked to a config and store the opening price for resolution.
+
+- **Market** has optional `autoMarketConfigId`, `openingPrice` (price at creation).
+- **AutoMarketConfig**: `name`, `isActive`, `tokenSymbol`, `tokenName`, `coingeckoId`, `chain?`, `timeframeMinutes` (1/5/15/60/360), `timeframeLabel`, `feeBps`, `seed0`/`seed1`, `category` (default CRYPTO), `cronExpression?`, `lastCreatedAt?`. Unique on `(tokenSymbol, timeframeMinutes)`.
+
+---
+
 ### Leaderboard Snapshots (Materialized View)
 ```prisma
 // Pre-computed PnL leaderboard data (refreshed every 30 minutes via cron)
@@ -435,6 +445,11 @@ model MarketRequest {
 - Frontend shows "last updated" timestamp for PnL data
 - Automatic fallback to live calculation if snapshot unavailable
 
+### Automated crypto markets (cron)
+- **Create cron** (every 5 min): Reads active `AutoMarketConfig` entries; for each config whose timeframe window is due, fetches current price from CoinGecko, creates event + market (Over/Under the opening price; outcome titles include threshold e.g. "Over $97,500" / "Under $97,500"), stores opening price, publishes market (OPEN).
+- **Process cron** (every minute): Finds OPEN auto-markets whose `closesAt` has passed; for each, fetches closing price from CoinGecko, closes market (refunds pending bets), resolves (Over wins if closing price ≥ opening price, else Under wins), settles (WON/LOST, raffle entries, referral bonuses). Full lifecycle is fully automated.
+- Config is stored in `AutoMarketConfig` (token, chain label, timeframe 1/5/15/60/360 min, fee/liquidity). At least one admin user must exist for cron-originated audit logs.
+
 ### Referral System
 - Unique referral codes per user
 - 10,000 XP bonus for both users
@@ -487,6 +502,9 @@ ADMIN_EMAILS=admin@example.com
 # App
 APP_URL=https://vault.markets
 
+# Cron (Vercel cron jobs)
+CRON_SECRET=...
+
 # Optional
 OPENAI_API_KEY=...
 BLOB_READ_WRITE_TOKEN=...
@@ -535,6 +553,19 @@ Vault Markets operates as two frontend applications sharing a common backend:
 - **Signal pipeline**: Off-chain prediction data (prices, volume heatmaps, bet distributions) serves as a dashboard/API for market makers configuring CLMM liquidity bands
 
 See `CONTRACTS_ARCHITECTURE.md` for full technical details on the graduation system, predictor signal pipeline, and on-chain/off-chain boundary.
+
+---
+
+## Cron jobs (Vercel)
+
+| Schedule | Path | Description |
+|----------|------|-------------|
+| `0 0 * * *` | `/api/cron/daily-kol-competition` | Daily KOL competition and XP distribution |
+| `*/30 * * * *` | `/api/cron/refresh-pnl-snapshot` | Refresh PnL leaderboard snapshot |
+| `*/5 * * * *` | `/api/cron/create-auto-markets` | Create new crypto price markets per active config |
+| `* * * * *` | `/api/cron/process-auto-markets` | Close, resolve, and settle expired auto-markets |
+
+All cron endpoints require `Authorization: Bearer <CRON_SECRET>`. POST is supported for manual triggers (e.g. local dev).
 
 ---
 

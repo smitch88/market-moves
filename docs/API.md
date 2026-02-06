@@ -587,6 +587,21 @@ All admin endpoints require `role: "ADMIN"`.
 | GET | `/api/admin/requests/[id]` | Get request |
 | PATCH | `/api/admin/requests/[id]` | Update request status |
 
+### Auto-market config (automated crypto markets)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/admin/auto-market-configs` | List all auto-market configs |
+| POST | `/api/admin/auto-market-configs` | Create config (token, timeframe, etc.) |
+| GET | `/api/admin/auto-market-configs/[id]` | Get single config |
+| PATCH | `/api/admin/auto-market-configs/[id]` | Update config (e.g. isActive, name, feeBps) |
+
+**POST body (create):** `name`, `tokenSymbol`, `tokenName`, `coingeckoId`, `chain?`, `timeframeMinutes`, `timeframeLabel`, `feeBps?` (default 100), `seed0?`/`seed1?` (default 100000), `category?` (default CRYPTO), `cronExpression?`, `isActive?` (default true). Unique on `(tokenSymbol, timeframeMinutes)`.
+
+**PATCH body (update):** Any of the create fields as optional; e.g. `isActive: false` to disable a config.
+
+---
+
 ### AI Generation
 
 | Method | Endpoint | Description |
@@ -942,6 +957,51 @@ Vercel Cron Job - runs every 30 minutes.
     "durationMs": 4532,
     "refreshedAt": "2024-01-15T12:30:00.000Z"
   }
+}
+```
+
+---
+
+### GET /api/cron/create-auto-markets
+Vercel Cron Job - runs every 5 minutes.
+
+**Security:** Requires `CRON_SECRET` in Authorization header.
+
+**Actions:** For each active `AutoMarketConfig` whose timeframe window is due, fetches current price from CoinGecko, creates event + market (Over/Under the opening price; outcomes e.g. "Over $97,500" / "Under $97,500"), sets opening price, publishes market (OPEN). Updates config `lastCreatedAt`.
+
+**Response:**
+```json
+{
+  "success": true,
+  "summary": {
+    "created": 2,
+    "skipped": 1,
+    "errors": 0,
+    "durationMs": 1200
+  },
+  "errors": []
+}
+```
+
+---
+
+### GET /api/cron/process-auto-markets
+Vercel Cron Job - runs every minute.
+
+**Security:** Requires `CRON_SECRET` in Authorization header.
+
+**Actions:** Finds OPEN markets with `autoMarketConfigId` and `closesAt` in the past. For each: fetches closing price from CoinGecko, closes market (refunds pending bets), resolves (Over wins if closing price ≥ opening price, else Under wins), settles (WON/LOST, raffle entries, referral bonuses).
+
+**Response:**
+```json
+{
+  "success": true,
+  "summary": {
+    "processed": 1,
+    "errors": 0,
+    "durationMs": 800
+  },
+  "errors": []
 }
 ```
 

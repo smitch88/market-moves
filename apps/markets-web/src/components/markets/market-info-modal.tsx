@@ -15,6 +15,7 @@ import {
 } from "@vault/ui";
 import { Info, Calendar, Clock, Trophy, ExternalLink, CheckCircle, XCircle, Lock } from "lucide-react";
 import { cn } from "@vault/ui/lib/utils";
+import { formatThresholdPrice } from "@/components/sports/market-utils";
 
 interface MarketInfoModalProps {
   market: Market;
@@ -138,6 +139,16 @@ export function MarketInfoModal({ market, outcomes = [], trigger, className }: M
               <h4 className="text-sm font-medium text-muted-foreground mb-1">Question</h4>
               <p className="text-sm font-medium">{market.question}</p>
             </div>
+
+            {/* Resolution (auto-markets: Over/Under at threshold) */}
+            {"openingPrice" in market && market.openingPrice != null && (
+              <div>
+                <h4 className="text-sm font-medium text-muted-foreground mb-0.5">Resolution</h4>
+                <p className="text-sm">
+                  <strong>Over</strong> wins if price ≥ {formatThresholdPrice(Number(market.openingPrice))} at close · <strong>Under</strong> wins if price &lt; threshold
+                </p>
+              </div>
+            )}
 
             {/* Status */}
             <div>

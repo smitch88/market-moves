@@ -107,6 +107,7 @@ function serializeMarket(market: any) {
     outcomePrices: market.outcomePrices,
     outcomeColors: market.outcomeColors,
     resolvedOutcome: market.resolvedOutcome,
+    openingPrice: market.openingPrice != null ? toNum(market.openingPrice) : null,
     createdAt: market.createdAt?.toISOString() ?? null,
     updatedAt: market.updatedAt?.toISOString() ?? null,
     bets: market.bets?.map(serializeBet) ?? [],

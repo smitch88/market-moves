@@ -22,6 +22,8 @@ import {
   AlertCircle,
   Play,
   TrendingUp,
+  Repeat,
+  Coins,
 } from "lucide-react";
 
 interface SnapshotStatus {
@@ -51,6 +53,24 @@ const jobs: JobConfig[] = [
     endpoint: "/api/admin/jobs/refresh-pnl-snapshot",
     icon: <TrendingUp className="h-5 w-5" />,
     statusKey: "pnl-snapshot",
+  },
+  {
+    id: "create-auto-markets",
+    name: "Create Auto-Markets",
+    description: "Creates new crypto price markets for active configs whose timeframe window is due (CoinGecko price, event + market, publish).",
+    schedule: "Every 5 minutes",
+    endpoint: "/api/admin/jobs/create-auto-markets",
+    icon: <Repeat className="h-5 w-5" />,
+    statusKey: "create-auto-markets",
+  },
+  {
+    id: "process-auto-markets",
+    name: "Process Auto-Markets",
+    description: "Closes, resolves, and settles expired auto-markets (fetch closing price, close → resolve Over/Under → settle).",
+    schedule: "Every minute",
+    endpoint: "/api/admin/jobs/process-auto-markets",
+    icon: <Coins className="h-5 w-5" />,
+    statusKey: "process-auto-markets",
   },
 ];
 
@@ -112,7 +132,56 @@ export default function AdminJobsPage() {
     },
   });
 
+  const createAutoMarketsMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/admin/jobs/create-auto-markets", { method: "POST" });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || error.message || "Failed to run");
+      }
+      return res.json();
+    },
+    onSuccess: (data) => {
+      const s = data.summary;
+      toast.success(`Created ${s?.created ?? 0} market(s) in ${s?.durationMs ?? 0}ms`);
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    },
+  });
+
+  const processAutoMarketsMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/admin/jobs/process-auto-markets", { method: "POST" });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || error.message || "Failed to run");
+      }
+      return res.json();
+    },
+    onSuccess: (data) => {
+      const s = data.summary;
+      toast.success(`Processed ${s?.processed ?? 0} market(s) in ${s?.durationMs ?? 0}ms`);
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    },
+  });
+
   const pnlSnapshot: SnapshotStatus | null = pnlSnapshotData?.snapshot || null;
+
+  const runJob = (job: JobConfig) => {
+    if (job.id === "pnl-snapshot") refreshPnlSnapshotMutation.mutate();
+    else if (job.id === "create-auto-markets") createAutoMarketsMutation.mutate();
+    else if (job.id === "process-auto-markets") processAutoMarketsMutation.mutate();
+  };
+
+  const isJobRunning = (job: JobConfig) => {
+    if (job.id === "pnl-snapshot") return refreshPnlSnapshotMutation.isPending;
+    if (job.id === "create-auto-markets") return createAutoMarketsMutation.isPending;
+    if (job.id === "process-auto-markets") return processAutoMarketsMutation.isPending;
+    return false;
+  };
 
   const formatDuration = (ms: number) => {
     if (ms < 1000) return `${ms}ms`;
@@ -153,7 +222,8 @@ export default function AdminJobsPage() {
         {jobs.map((job) => {
           const isLoading = job.id === "pnl-snapshot" && pnlSnapshotLoading;
           const snapshot = job.id === "pnl-snapshot" ? pnlSnapshot : null;
-          const isRunning = job.id === "pnl-snapshot" && refreshPnlSnapshotMutation.isPending;
+          const isRunning = isJobRunning(job);
+          const hasStatus = job.id === "pnl-snapshot";
           const status = snapshot?.status || "idle";
           const statusInfo = statusConfig[status as keyof typeof statusConfig] || statusConfig.idle;
 
@@ -171,15 +241,11 @@ export default function AdminJobsPage() {
                     </div>
                   </div>
                   <Button
-                    onClick={() => {
-                      if (job.id === "pnl-snapshot") {
-                        refreshPnlSnapshotMutation.mutate();
-                      }
-                    }}
-                    disabled={isRunning || status === "running"}
+                    onClick={() => runJob(job)}
+                    disabled={isRunning || (hasStatus && status === "running")}
                     className="flex-shrink-0"
                   >
-                    {isRunning || status === "running" ? (
+                    {isRunning || (hasStatus && status === "running") ? (
                       <>
                         <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                         Running...
@@ -199,69 +265,63 @@ export default function AdminJobsPage() {
                     <Loader2 className="h-4 w-4 animate-spin" />
                     <span className="text-sm">Loading status...</span>
                   </div>
-                ) : snapshot ? (
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                    {/* Status */}
-                    <div className="space-y-1">
-                      <p className="text-xs text-muted-foreground uppercase tracking-wider">Status</p>
-                      <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-sm font-medium ${statusInfo.color}`}>
-                        {statusInfo.icon}
-                        {statusInfo.label}
+                ) : hasStatus && snapshot ? (
+                  <>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                      <div className="space-y-1">
+                        <p className="text-xs text-muted-foreground uppercase tracking-wider">Status</p>
+                        <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-sm font-medium ${statusInfo.color}`}>
+                          {statusInfo.icon}
+                          {statusInfo.label}
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-xs text-muted-foreground uppercase tracking-wider">Last Run</p>
+                        <div className="flex items-center gap-1.5">
+                          <Clock className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-sm font-medium">
+                            {formatDistanceToNow(new Date(snapshot.lastRefresh), { addSuffix: true })}
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {format(new Date(snapshot.lastRefresh), "MMM d, yyyy HH:mm:ss")}
+                        </p>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-xs text-muted-foreground uppercase tracking-wider">Users</p>
+                        <div className="flex items-center gap-1.5">
+                          <Users className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-sm font-medium">{snapshot.userCount.toLocaleString()}</span>
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-xs text-muted-foreground uppercase tracking-wider">Duration</p>
+                        <div className="flex items-center gap-1.5">
+                          <Timer className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-sm font-medium">{formatDuration(snapshot.durationMs)}</span>
+                        </div>
                       </div>
                     </div>
-
-                    {/* Last Run */}
-                    <div className="space-y-1">
-                      <p className="text-xs text-muted-foreground uppercase tracking-wider">Last Run</p>
-                      <div className="flex items-center gap-1.5">
-                        <Clock className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm font-medium">
-                          {formatDistanceToNow(new Date(snapshot.lastRefresh), { addSuffix: true })}
-                        </span>
+                    {snapshot?.error && (
+                      <div className="mt-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20">
+                        <div className="flex items-start gap-2">
+                          <XCircle className="h-4 w-4 text-red-400 mt-0.5 flex-shrink-0" />
+                          <div>
+                            <p className="text-sm font-medium text-red-400">Last run failed</p>
+                            <p className="text-xs text-red-400/80 mt-1">{snapshot.error}</p>
+                          </div>
+                        </div>
                       </div>
-                      <p className="text-xs text-muted-foreground">
-                        {format(new Date(snapshot.lastRefresh), "MMM d, yyyy HH:mm:ss")}
-                      </p>
-                    </div>
-
-                    {/* Users Processed */}
-                    <div className="space-y-1">
-                      <p className="text-xs text-muted-foreground uppercase tracking-wider">Users</p>
-                      <div className="flex items-center gap-1.5">
-                        <Users className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm font-medium">{snapshot.userCount.toLocaleString()}</span>
-                      </div>
-                    </div>
-
-                    {/* Duration */}
-                    <div className="space-y-1">
-                      <p className="text-xs text-muted-foreground uppercase tracking-wider">Duration</p>
-                      <div className="flex items-center gap-1.5">
-                        <Timer className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm font-medium">{formatDuration(snapshot.durationMs)}</span>
-                      </div>
-                    </div>
-                  </div>
+                    )}
+                  </>
                 ) : (
                   <div className="text-sm text-muted-foreground">
-                    No snapshot data available. Run the job to create the initial snapshot.
+                    {hasStatus
+                      ? "No snapshot data available. Run the job to create the initial snapshot."
+                      : "Trigger manually when needed. Run Now executes the job immediately."}
                   </div>
                 )}
 
-                {/* Error Display */}
-                {snapshot?.error && (
-                  <div className="mt-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20">
-                    <div className="flex items-start gap-2">
-                      <XCircle className="h-4 w-4 text-red-400 mt-0.5 flex-shrink-0" />
-                      <div>
-                        <p className="text-sm font-medium text-red-400">Last run failed</p>
-                        <p className="text-xs text-red-400/80 mt-1">{snapshot.error}</p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Schedule Info */}
                 <div className="mt-4 pt-4 border-t border-border/50">
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <RefreshCw className="h-4 w-4" />

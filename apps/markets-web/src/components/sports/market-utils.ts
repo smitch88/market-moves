@@ -137,6 +137,13 @@ export function formatVolume(v: number): string {
   return `$${v.toFixed(0)}`;
 }
 
+/** Format price threshold for auto-markets (Over/Under). Over wins if price ≥ at close. */
+export function formatThresholdPrice(price: number): string {
+  if (price >= 1000) return `$${Math.round(price).toLocaleString()}`;
+  if (price >= 1) return `$${price.toFixed(2)}`;
+  return `$${price.toFixed(4)}`;
+}
+
 // Calculate market volume
 export function getMarketVolume(market: Market): number {
   return Number(market.seed0 || 0) + Number(market.seed1 || 0) + Number(market.pool0 || 0) + Number(market.pool1 || 0);

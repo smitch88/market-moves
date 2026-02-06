@@ -129,7 +129,7 @@ export function GenericMarketRow({
                   </span>
                 )}
               </div>
-              <div className="flex items-center gap-2 mt-0.5 sm:mt-1">
+              <div className="flex items-center gap-2 mt-0.5 sm:mt-1 flex-wrap">
                 <p className="text-xs text-muted-foreground">
                   {formatVolume(volume)} volume
                 </p>

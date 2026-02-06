@@ -454,6 +454,11 @@ model Market {
   createdByKolId String?
   createdByKol   User?  @relation("KOLCreatedMarkets", fields: [createdByKolId], references: [id], onDelete: SetNull)
 
+  // Auto-market (cron-created crypto price markets)
+  autoMarketConfigId String?
+  autoMarketConfig   AutoMarketConfig? @relation(fields: [autoMarketConfigId], references: [id], onDelete: SetNull)
+  openingPrice       Decimal?          @db.Decimal(19, 4) // Price at market creation for auto-resolution
+
   // Relations
   bets                 Bet[]
   event                Event                 @relation(fields: [eventId], references: [id], onDelete: Cascade)
@@ -474,6 +479,45 @@ model Market {
   @@index([isPublished])
   @@index([resolutionSourceId])
   @@index([createdByKolId])
+  @@index([autoMarketConfigId])
+}
+
+/// Config for automated crypto price markets (cron-created "Will X go up/down?" markets)
+model AutoMarketConfig {
+  id       String  @id @default(cuid())
+  name     String // e.g., "BTC 15min"
+  isActive Boolean @default(true)
+
+  // Token config
+  tokenSymbol String  // e.g., "BTC", "ETH", "SOL"
+  tokenName   String  // e.g., "Bitcoin", "Ethereum"
+  coingeckoId String  // e.g., "bitcoin", "ethereum", "solana"
+  chain       String? // Optional label: "Ethereum", "Solana", etc.
+
+  // Timeframe config
+  timeframeMinutes Int    // 15, 60, 360
+  timeframeLabel   String // "15 minutes", "1 hour", "6 hours"
+
+  // Market defaults
+  feeBps  Int     @default(100)
+  seed0   Decimal @default(100000) @db.Decimal(19, 2)
+  seed1   Decimal @default(100000) @db.Decimal(19, 2)
+  category MarketCategory @default(CRYPTO)
+
+  // Event display (used when cron creates the event)
+  eventBannerUrl String?
+  eventLogoUrl   String?
+
+  // Scheduling
+  cronExpression String?   // Optional override (e.g., "*/15 * * * *")
+  lastCreatedAt  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  markets Market[]
+
+  @@unique([tokenSymbol, timeframeMinutes])
 }
 
 /// Price snapshots for historical price tracking

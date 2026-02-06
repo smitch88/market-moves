@@ -982,6 +982,20 @@ DRAFT → PUBLISHED → OPEN → CLOSED → RESOLVED → SETTLED
 
 ---
 
+## 15. Automated crypto market lifecycle
+
+Crypto price markets (Over/Under the opening price) are created and fully resolved by crons. No manual steps are required after config is set.
+
+**Setup (admin):** Create one or more `AutoMarketConfig` entries via `POST /api/admin/auto-market-configs` (token symbol, CoinGecko id, timeframe: 1 / 5 / 15 / 60 / 360 minutes, optional chain label, fee/liquidity). Configs can be toggled with `PATCH .../auto-market-configs/[id]` (e.g. `isActive: false`).
+
+**Create cron (every 5 min):** For each active config whose timeframe window is due, the cron fetches the current token price from CoinGecko, creates an event and a binary market (Over/Under the opening price; outcomes are e.g. "Over $97,500" / "Under $97,500"), stores the opening price on the market, and publishes the market (OPEN). Event slug is unique per token/timeframe/window (e.g. `btc-15min-2026-02-06-1445`).
+
+**Process cron (every minute):** Finds OPEN markets that have `autoMarketConfigId` and `closesAt` in the past. For each: fetches closing price from CoinGecko, closes the market (refunds any pending bets), resolves (Over wins if closing price ≥ opening price, else Under wins), then settles (marks bets WON/LOST, creates raffle entries, referral bonuses). Users redeem winnings via the normal redeem flow.
+
+**Flow summary:** Config → Create cron (event + market + publish) → OPEN → users bet → Process cron (close → resolve → settle) → SETTLED → users redeem.
+
+---
+
 ## Market Graduation Workflow
 
 Markets graduate from `markets-web` (free-to-play) to `markets-arena` (real money on-chain).
