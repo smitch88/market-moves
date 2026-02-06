@@ -10,11 +10,7 @@
       "schedule": "*/30 * * * *"
     },
     {
-      "path": "/api/cron/create-auto-markets",
-      "schedule": "* * * * *"
-    },
-    {
-      "path": "/api/cron/process-auto-markets",
+      "path": "/api/cron/auto-markets",
       "schedule": "* * * * *"
     }
   ]

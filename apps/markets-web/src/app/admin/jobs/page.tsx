@@ -22,7 +22,6 @@ import {
   AlertCircle,
   Play,
   TrendingUp,
-  Repeat,
   Coins,
 } from "lucide-react";
 
@@ -55,22 +54,13 @@ const jobs: JobConfig[] = [
     statusKey: "pnl-snapshot",
   },
   {
-    id: "create-auto-markets",
-    name: "Create Auto-Markets",
-    description: "Creates new crypto price markets for active configs whose timeframe window is due (CoinGecko price, event + market, publish).",
-    schedule: "Every 5 minutes",
-    endpoint: "/api/admin/jobs/create-auto-markets",
-    icon: <Repeat className="h-5 w-5" />,
-    statusKey: "create-auto-markets",
-  },
-  {
-    id: "process-auto-markets",
-    name: "Process Auto-Markets",
-    description: "Closes, resolves, and settles expired auto-markets (fetch closing price, close → resolve Over/Under → settle).",
+    id: "auto-markets",
+    name: "Auto-Markets",
+    description: "Processes expired markets (close → resolve → settle), then creates new markets for active configs. Runs every minute.",
     schedule: "Every minute",
-    endpoint: "/api/admin/jobs/process-auto-markets",
+    endpoint: "/api/admin/jobs/auto-markets",
     icon: <Coins className="h-5 w-5" />,
-    statusKey: "process-auto-markets",
+    statusKey: "auto-markets",
   },
 ];
 
@@ -132,9 +122,9 @@ export default function AdminJobsPage() {
     },
   });
 
-  const createAutoMarketsMutation = useMutation({
+  const autoMarketsMutation = useMutation({
     mutationFn: async () => {
-      const res = await fetch("/api/admin/jobs/create-auto-markets", { method: "POST" });
+      const res = await fetch("/api/admin/jobs/auto-markets", { method: "POST" });
       if (!res.ok) {
         const error = await res.json();
         throw new Error(error.error || error.message || "Failed to run");
@@ -143,25 +133,11 @@ export default function AdminJobsPage() {
     },
     onSuccess: (data) => {
       const s = data.summary;
-      toast.success(`Created ${s?.created ?? 0} market(s) in ${s?.durationMs ?? 0}ms`);
-    },
-    onError: (error: Error) => {
-      toast.error(error.message);
-    },
-  });
-
-  const processAutoMarketsMutation = useMutation({
-    mutationFn: async () => {
-      const res = await fetch("/api/admin/jobs/process-auto-markets", { method: "POST" });
-      if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.error || error.message || "Failed to run");
-      }
-      return res.json();
-    },
-    onSuccess: (data) => {
-      const s = data.summary;
-      toast.success(`Processed ${s?.processed ?? 0} market(s) in ${s?.durationMs ?? 0}ms`);
+      const parts = [];
+      if (s?.processed > 0) parts.push(`processed ${s.processed}`);
+      if (s?.created > 0) parts.push(`created ${s.created}`);
+      const msg = parts.length > 0 ? parts.join(", ") : "No changes";
+      toast.success(`${msg} (${s?.durationMs ?? 0}ms)`);
     },
     onError: (error: Error) => {
       toast.error(error.message);
@@ -172,14 +148,12 @@ export default function AdminJobsPage() {
 
   const runJob = (job: JobConfig) => {
     if (job.id === "pnl-snapshot") refreshPnlSnapshotMutation.mutate();
-    else if (job.id === "create-auto-markets") createAutoMarketsMutation.mutate();
-    else if (job.id === "process-auto-markets") processAutoMarketsMutation.mutate();
+    else if (job.id === "auto-markets") autoMarketsMutation.mutate();
   };
 
   const isJobRunning = (job: JobConfig) => {
     if (job.id === "pnl-snapshot") return refreshPnlSnapshotMutation.isPending;
-    if (job.id === "create-auto-markets") return createAutoMarketsMutation.isPending;
-    if (job.id === "process-auto-markets") return processAutoMarketsMutation.isPending;
+    if (job.id === "auto-markets") return autoMarketsMutation.isPending;
     return false;
   };
 

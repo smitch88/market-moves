@@ -29,7 +29,6 @@ import {
 import {
   Loader2,
   Plus,
-  RefreshCw,
   TrendingUp,
   Settings,
   Play,
@@ -146,9 +145,9 @@ export default function AdminAutoMarketsPage() {
     onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
   });
 
-  const runCreateMutation = useMutation({
+  const runCronMutation = useMutation({
     mutationFn: async () => {
-      const res = await fetch("/api/admin/jobs/create-auto-markets", {
+      const res = await fetch("/api/admin/jobs/auto-markets", {
         method: "POST",
       });
       if (!res.ok) {
@@ -158,29 +157,11 @@ export default function AdminAutoMarketsPage() {
       return res.json();
     },
     onSuccess: (data) => {
-      toast.success(
-        `Created ${data.summary?.created ?? 0} market(s) in ${data.summary?.durationMs ?? 0}ms`
-      );
-      queryClient.invalidateQueries({ queryKey: ["adminAutoMarketConfigs"] });
-    },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
-  });
-
-  const runProcessMutation = useMutation({
-    mutationFn: async () => {
-      const res = await fetch("/api/admin/jobs/process-auto-markets", {
-        method: "POST",
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || err.message || "Failed");
-      }
-      return res.json();
-    },
-    onSuccess: (data) => {
-      toast.success(
-        `Processed ${data.summary?.processed ?? 0} market(s) in ${data.summary?.durationMs ?? 0}ms`
-      );
+      const parts = [];
+      if (data.summary?.processed > 0) parts.push(`processed ${data.summary.processed}`);
+      if (data.summary?.created > 0) parts.push(`created ${data.summary.created}`);
+      const msg = parts.length > 0 ? parts.join(", ") : "No changes";
+      toast.success(`${msg} (${data.summary?.durationMs ?? 0}ms)`);
       queryClient.invalidateQueries({ queryKey: ["adminAutoMarketConfigs"] });
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
@@ -247,27 +228,15 @@ export default function AdminAutoMarketsPage() {
         <div className="flex flex-wrap gap-2">
           <Button
             variant="outline"
-            onClick={() => runCreateMutation.mutate()}
-            disabled={runCreateMutation.isPending}
+            onClick={() => runCronMutation.mutate()}
+            disabled={runCronMutation.isPending}
           >
-            {runCreateMutation.isPending ? (
+            {runCronMutation.isPending ? (
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
             ) : (
               <Play className="h-4 w-4 mr-2" />
             )}
-            Run create now
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => runProcessMutation.mutate()}
-            disabled={runProcessMutation.isPending}
-          >
-            {runProcessMutation.isPending ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            ) : (
-              <RefreshCw className="h-4 w-4 mr-2" />
-            )}
-            Run process now
+            Run now
           </Button>
           <Button onClick={() => setCreateOpen(true)}>
             <Plus className="h-4 w-4 mr-2" />
@@ -279,7 +248,7 @@ export default function AdminAutoMarketsPage() {
       <GlassCard variant="solid">
         <GlassCardContent className="p-4">
           <p className="text-sm text-muted-foreground">
-            Create configs per token and timeframe (1m to monthly). Cron creates markets every 5 min and processes expired ones every minute. Use &quot;Run create now&quot; / &quot;Run process now&quot; to trigger manually.
+            Create configs per token and timeframe (1m to monthly). Cron runs every minute: processes expired markets first, then creates new ones. Use &quot;Run now&quot; to trigger manually.
           </p>
         </GlassCardContent>
       </GlassCard>
