@@ -22,6 +22,8 @@ import { MobileActivitySheet } from "@/components/events/mobile-activity-sheet";
 type MarketWithDisplay = Market & {
   displayLabel?: string | null;
   sortOrder?: number | null;
+  openingPrice?: number | null;
+  autoMarketConfigId?: string | null;
 };
 
 interface MarketDetailProps {

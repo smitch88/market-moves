@@ -18,7 +18,7 @@ import { cn } from "@vault/ui/lib/utils";
 import { formatThresholdPrice } from "@/components/sports/market-utils";
 
 interface MarketInfoModalProps {
-  market: Market;
+  market: Market & { openingPrice?: number | null };
   outcomes?: string[];
   trigger?: React.ReactNode;
   className?: string;
@@ -141,11 +141,22 @@ export function MarketInfoModal({ market, outcomes = [], trigger, className }: M
             </div>
 
             {/* Resolution (auto-markets: Over/Under at threshold) */}
-            {"openingPrice" in market && market.openingPrice != null && (
+            {market.openingPrice != null && (
               <div>
                 <h4 className="text-sm font-medium text-muted-foreground mb-0.5">Resolution</h4>
                 <p className="text-sm">
                   <strong>Over</strong> wins if price ≥ {formatThresholdPrice(Number(market.openingPrice))} at close · <strong>Under</strong> wins if price &lt; threshold
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Price data from{" "}
+                  <a
+                    href="https://www.coingecko.com/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary hover:underline"
+                  >
+                    CoinGecko
+                  </a>
                 </p>
               </div>
             )}

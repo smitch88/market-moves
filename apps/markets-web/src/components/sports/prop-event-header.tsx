@@ -229,6 +229,17 @@ export function PropEventHeader({ event }: PropEventHeaderProps) {
                   {tag.label}
                 </Badge>
               ))}
+              {event.markets.some(m => m.autoMarketConfigId) && (
+                <a
+                  href="https://www.coingecko.com/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-[10px] sm:text-xs text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <span>via</span>
+                  <span className="font-medium">CoinGecko</span>
+                </a>
+              )}
             </motion.div>
 
             {/* Title */}

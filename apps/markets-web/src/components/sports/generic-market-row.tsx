@@ -48,7 +48,7 @@ function getResolvedInfo(market: Market): { label: string; index: number; isSett
 // =============================================================================
 
 export interface GenericMarketRowProps {
-  market: Market & { displayLabel?: string | null; sortOrder?: number | null; autoMarketConfigId?: string | null };
+  market: Market & { displayLabel?: string | null; sortOrder?: number | null; autoMarketConfigId?: string | null; openingPrice?: number | null };
   selectedMarketId?: string;
   selectedOutcome?: number | null;
   onSelectOutcome: (marketId: string, outcomeIndex: number) => void;
@@ -133,6 +133,20 @@ export function GenericMarketRow({
                 <p className="text-xs text-muted-foreground">
                   {formatVolume(volume)} volume
                 </p>
+                {market.openingPrice != null && (
+                  <span className="text-xs text-muted-foreground">
+                    ·{" "}
+                    <a
+                      href="https://www.coingecko.com/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="hover:text-foreground transition-colors"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      CoinGecko
+                    </a>
+                  </span>
+                )}
                 <MarketInfoModal market={market} outcomes={outcomes} />
               </div>
             </div>
