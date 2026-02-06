@@ -257,7 +257,7 @@ export function DailySpinWheel({
         const data = await res.json();
         setSpinStatus(data);
         
-        // If user already spun today, show their result
+        // If user already spun this window, show their result
         if (!data.canSpin && data.todayReward !== undefined) {
           setResult({
             amount: data.todayReward,
@@ -354,7 +354,7 @@ export function DailySpinWheel({
         {/* Header */}
         <div className={`flex items-center justify-between ${isLarge ? 'px-8 pt-6 pb-4' : 'px-5 pt-5 pb-3'}`}>
           <div>
-            <h2 className={`${isLarge ? 'text-xl' : 'text-base'} font-semibold text-foreground`}>Free Spin</h2>
+            <h2 className={`${isLarge ? 'text-xl' : 'text-base'} font-semibold text-foreground`}>Daily Spin</h2>
             <p className={`${isLarge ? 'text-sm' : 'text-xs'} text-muted-foreground`}>Win up to $20,000</p>
           </div>
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-muted transition-colors">
@@ -389,7 +389,7 @@ export function DailySpinWheel({
                   {result.label}
                 </div>
                 <div className={`${isLarge ? 'text-base mt-2' : 'text-sm mt-1'} text-muted-foreground`}>
-                  {spinStatus?.canSpin === false && !isSpinning ? "Today's reward" : "Added to balance"}
+                  {spinStatus?.canSpin === false && !isSpinning ? "Last spin reward" : "Added to balance"}
                 </div>
               </div>
               </div>

@@ -926,12 +926,12 @@ model ResolutionDataPoint {
 // DAILY SPIN
 // ============================================================================
 
-/// Spin rewards for users (every 6 hours)
+/// Spin rewards for users (once per 6-hour window)
 model DailySpin {
   id        String   @id @default(cuid())
   userId    String
-  spinDate  DateTime @db.Date // Date-bucket for legacy compat
-  spinEpoch Int      @default(0) // 6-hour epoch index (0-3 per day) for multi-spin tracking
+  spinDate  DateTime @db.Date // Date portion of the spin
+  spinEpoch Int      @default(0) // 6-hour window index (0-3 per day)
   reward    Decimal  @db.Decimal(19, 2) // Amount won (can be 0)
   createdAt DateTime @default(now())
 

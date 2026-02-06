@@ -5,7 +5,7 @@ import { adjustBalance } from "./balance-service";
  * Spin Service (every 6 hours)
  * 
  * Handles spin rewards with a weighted probability distribution.
- * Users can spin once every 6 hours (4x per day).
+ * Users can spin once every 6 hours (up to 4 times per day).
  * Every spin is a guaranteed win! Min $500, Max $20,000.
  * Expected value: $2,000 per spin.
  * 
@@ -95,66 +95,45 @@ export interface DailySpinResult {
   canSpinAt?: Date;
 }
 
-/** Spin cooldown in milliseconds (6 hours) */
-const SPIN_COOLDOWN_MS = 6 * 60 * 60 * 1000;
+const SPIN_WINDOW_HOURS = 6;
 
 /**
- * Get today's date at midnight UTC (for date-bucket in DB)
+ * Get the current 6-hour spin window.
+ * Returns the date (UTC midnight) and epoch (0-3) for the current window,
+ * plus the start of the next window.
  */
-function getTodayUTC(): Date {
+function getCurrentSpinWindow(): { date: Date; epoch: number; nextWindowAt: Date } {
   const now = new Date();
-  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-}
-
-/**
- * Get the current 6-hour epoch index (0-3) within the day.
- * Epoch 0 = 00:00–05:59, Epoch 1 = 06:00–11:59, etc.
- */
-function getCurrentEpoch(): number {
-  const now = new Date();
-  return Math.floor(now.getUTCHours() / 6);
-}
-
-/**
- * Get the start time of the next 6-hour epoch.
- */
-function getNextEpochStart(): Date {
-  const now = new Date();
-  const currentEpoch = getCurrentEpoch();
-  const nextEpoch = currentEpoch + 1;
+  const todayUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const currentHour = now.getUTCHours();
+  const epoch = Math.floor(currentHour / SPIN_WINDOW_HOURS); // 0, 1, 2, or 3
   
-  if (nextEpoch >= 4) {
-    // Next epoch is epoch 0 of the next day
-    const tomorrow = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-    tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
-    return tomorrow;
-  }
+  const nextWindowAt = new Date(todayUTC);
+  nextWindowAt.setUTCHours((epoch + 1) * SPIN_WINDOW_HOURS);
   
-  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), nextEpoch * 6));
+  return { date: todayUTC, epoch, nextWindowAt };
 }
 
 /**
- * Check if user can spin (every 6 hours)
+ * Check if user can spin in the current 6-hour window
  */
 export async function canUserSpin(userId: string): Promise<{ canSpin: boolean; nextSpinAt?: Date; lastReward?: number }> {
-  const today = getTodayUTC();
-  const epoch = getCurrentEpoch();
+  const { date, epoch, nextWindowAt } = getCurrentSpinWindow();
   
   const existingSpin = await prisma.dailySpin.findUnique({
     where: {
       userId_spinDate_spinEpoch: {
         userId,
-        spinDate: today,
+        spinDate: date,
         spinEpoch: epoch,
       },
     },
   });
   
   if (existingSpin) {
-    // User already spun this epoch - next spin at start of next epoch
     return {
       canSpin: false,
-      nextSpinAt: getNextEpochStart(),
+      nextSpinAt: nextWindowAt,
       lastReward: Number(existingSpin.reward),
     };
   }
@@ -163,12 +142,11 @@ export async function canUserSpin(userId: string): Promise<{ canSpin: boolean; n
 }
 
 /**
- * Execute a spin for a user
+ * Execute a spin for a user in the current 6-hour window
  * Uses database unique constraint to prevent double spins even under race conditions
  */
 export async function executeDailySpin(userId: string): Promise<DailySpinResult> {
-  const today = getTodayUTC();
-  const epoch = getCurrentEpoch();
+  const { date, epoch, nextWindowAt } = getCurrentSpinWindow();
   
   // Generate the reward upfront
   const reward = generateSpinReward();
@@ -181,7 +159,7 @@ export async function executeDailySpin(userId: string): Promise<DailySpinResult>
       await tx.dailySpin.create({
         data: {
           userId,
-          spinDate: today,
+          spinDate: date,
           spinEpoch: epoch,
           reward: reward.amount,
         },
@@ -203,7 +181,7 @@ export async function executeDailySpin(userId: string): Promise<DailySpinResult>
       newBalance: result.newBalance,
     };
   } catch (error: unknown) {
-    // Check if this is a unique constraint violation (user already spun this epoch)
+    // Check if this is a unique constraint violation (user already spun this window)
     if (
       error instanceof Error && 
       'code' in error && 
@@ -211,8 +189,8 @@ export async function executeDailySpin(userId: string): Promise<DailySpinResult>
     ) {
       return {
         success: false,
-        error: "You've already spun this period! Come back in a few hours.",
-        canSpinAt: getNextEpochStart(),
+        error: "You've already spun this window! Come back in a few hours.",
+        canSpinAt: nextWindowAt,
       };
     }
     
@@ -304,10 +282,11 @@ export async function getAdminSpins(options: {
 }
 
 /**
- * Admin: Get daily spin statistics
+ * Admin: Get spin statistics
  */
 export async function getSpinStats() {
-  const today = getTodayUTC();
+  const now = new Date();
+  const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
   const weekAgo = new Date(today);
   weekAgo.setUTCDate(weekAgo.getUTCDate() - 7);
   
