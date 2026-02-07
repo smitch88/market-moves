@@ -108,6 +108,25 @@ Use [Solady](https://github.com/Vectorized/solady) optimized primitives wherever
 
 > **Collateral Assumption:** This protocol assumes the collateral token (USDC) does **not** charge transfer fees. All solvency invariants depend on `transferFrom(amount)` delivering exactly `amount`. If the collateral is ever changed to a fee-on-transfer or rebasing token, the complete-set model breaks. This is an intentional design constraint.
 
+### Fund-Flow Spec (USDC Transfer Paths)
+
+Every state-changing method that moves USDC uses the **two-transfer pattern**: collateral goes directly to `VaultToken` (custody), fees go directly to `VaultCredit` (earnings waterfall). No USDC is ever held temporarily in `VaultMarket`, `VaultCLMM`, or `VaultCLOB`.
+
+| Operation | USDC Source | Collateral Transfer | Fee Transfer | Authoritative State |
+| --- | --- | --- | --- | --- |
+| **Buy (FPMM/CLMM)** | User | `USDC.transferFrom(user, VaultToken, amountNet)` | `USDC.transferFrom(user, VaultCredit, fee)` | VaultToken: `collateralLocked += amountNet` |
+| **Sell (FPMM/CLMM)** | VaultToken | `VaultToken.releaseCollateral(user, usdcOut)` | `VaultToken.releaseCollateral(VaultCredit, fee)` | VaultToken: `collateralLocked -= (usdcOut + fee)` |
+| **Split (user)** | User | `USDC.transferFrom(user, VaultToken, amount)` | None (no fee on split) | VaultToken: `collateralLocked += amount` |
+| **Merge (user)** | VaultToken | `VaultToken.releaseCollateral(user, amount)` | None (no fee on merge) | VaultToken: `collateralLocked -= amount` |
+| **Redeem (winner)** | VaultToken | `VaultToken.settle(marketId, user, shares)` → releases USDC to user | None (fee already collected at trade time) | VaultToken: `collateralLocked -= payout` |
+| **claimRefund (cancelled)** | VaultToken | `VaultToken.releaseCollateral(user, refundAmount)` | None | VaultToken: `collateralLocked -= refundAmount` |
+| **CLOB settlement** | Buyer | `USDC.transferFrom(buyer, seller, netAmount)` | `USDC.transferFrom(buyer, VaultCredit, fee)` | CLOB: fill status updated |
+| **withdrawEarnings** | VaultCredit | `USDC.transfer(profileOwner, claimable)` | N/A (this IS the fee withdrawal) | VaultCredit: `claimable -= amount` |
+
+> **Key invariant per call:** After every write method, `VaultToken.balanceOf(USDC) >= Σ collateralLocked[marketId]` for all active/closed markets. Fee USDC is NEVER held in VaultToken — it routes directly to VaultCredit on collection. `depositFees(marketId, amount, source)` on VaultCredit is **pure accounting** (records fee allocation to creator profile's escrow) — the USDC transfer to VaultCredit happens in the same transaction BEFORE `depositFees` is called.
+
+> **Implementation enforcement:** Each venue contract (`VaultMarket`, `VaultCLMM`, `VaultCLOB`) performs exactly two `transferFrom` calls on buy: one for collateral (→ VaultToken), one for fee (→ VaultCredit). On sell, `VaultToken` performs the release and splits output between user and VaultCredit in a single internal `_releaseAndRoute()` function. This eliminates custody surface area in venue contracts and ensures `depositFees()` never needs to move USDC itself.
+
 ---
 
 ## Contract Architecture
@@ -310,6 +329,36 @@ Libraries (pure/view)
 
 > **Redemption Authority**: `settle()` is restricted to `VaultMarket` and is the only path to redeem **winning** shares (single-outcome payout). This avoids abusing `merge()` for post-resolution payouts.
 
+> **ERC-1155 Receiver Hook Requirements (Reserve Desync Prevention):**
+>
+> Any contract that holds ERC-1155 outcome shares (`VaultMarket`, `VaultCLMM`, `VaultCLOB`) MUST implement `onERC1155Received` and `onERC1155BatchReceived` to **reject unsolicited transfers**. Without this, a user can call `VaultToken.safeTransferFrom(user, VaultMarket, tokenId, amount, "")` directly, desyncing cached FPMM reserves from actual ERC-1155 balances — breaking spot pricing, enabling inventory manipulation, and creating potential solvency edge cases.
+>
+> ```solidity
+> // Required on VaultMarket, VaultCLMM, VaultCLOB
+> function onERC1155Received(
+>     address operator, address, uint256, uint256, bytes calldata
+> ) external view returns (bytes4) {
+>     // Only accept transfers from VaultToken initiated by this contract or authorized protocol contracts
+>     if (msg.sender != address(vaultToken)) revert UnauthorizedTransfer();
+>     if (operator != address(this) && !_isAuthorizedOperator(operator)) revert UnauthorizedOperator();
+>     return this.onERC1155Received.selector;
+> }
+>
+> function onERC1155BatchReceived(
+>     address operator, address, uint256[] calldata, uint256[] calldata, bytes calldata
+> ) external view returns (bytes4) {
+>     if (msg.sender != address(vaultToken)) revert UnauthorizedTransfer();
+>     if (operator != address(this) && !_isAuthorizedOperator(operator)) revert UnauthorizedOperator();
+>     return this.onERC1155BatchReceived.selector;
+> }
+> ```
+>
+> **Hook design rules (reentrancy safety):**
+> - Receiver hooks MUST be **minimal**: validate sender/operator, return selector. No state changes.
+> - Do **NOT** put `nonReentrant` on receiver hooks — they are called *during* guarded execution (e.g., inside a `nonReentrant` `swap()` call). Adding a guard to the hook would cause self-revert.
+> - `nonReentrant` goes on **state-changing user entrypoints** only: `swap`, `split`, `merge`, `addLiquidity`, `removeLiquidity`, `settleBatch`, `redeem`, `claimRefund`.
+> - Enforce **checks-effects-interactions** ordering before any ERC-1155 transfer to user-controlled contracts (external recipient could have a malicious `onERC1155Received`).
+
 > **USDC Blacklist Risk (Acknowledged):** USDC has Circle admin blacklist capabilities. If a user’s address is blacklisted, `merge()`, `redeem()`, and `withdrawEarnings()` will permanently revert since they transfer USDC to `msg.sender`. This is an accepted centralization risk inherent to USDC collateral. Mitigation: expose `redeemTo(address recipient)` and `mergeTo(address recipient)` variants so users can redirect USDC to a non-blacklisted address they control. The pull pattern on `withdrawEarnings()` already allows admin intervention if needed.
 
 > **Event Hierarchy (On-Chain)**: `VaultMarket` acts as the on-chain **Event registry**. Each Market includes `eventId` and can be grouped/filtered on-chain without relying on the indexer.
@@ -344,7 +393,7 @@ Libraries (pure/view)
 | ------------------------- | ----------------- | ------------------------------------------------------------------------------------ |
 | `MIN_CREATOR_FEE`         | 50 bps (0.5%)     | Minimum creator fee to prevent sybil evasion                                         |
 | `MAX_OUTCOMES`            | 8                 | Maximum outcomes per market to bound FPMM gas costs                                  |
-| `DISPUTE_PERIOD`          | 86400 (24 hours)  | Time after resolution before `processEarnings` is callable                           |
+| `EARNINGS_FINALITY_DELAY`          | 86400 (24 hours)  | Time after resolution before `processEarnings` is callable                           |
 | `DEFAULT_GRACE_PERIOD`    | 172800 (48 hours) | Max delay after `resolutionTime` before admin fallback is allowed for oracle markets |
 | `DEFAULT_STALE_TOLERANCE` | 3600 (1 hour)     | Max oracle data age for `resolveByOracle`                                            |
 
@@ -400,6 +449,48 @@ Libraries (pure/view)
 | `cancelMarket(uint256 marketId)`                           | Admin          | Cancel market (Active/Paused/Closed → Cancelled). Enables pull-based refunds. |
 | `claimRefund(uint256 marketId)`                            | User           | Claim proportional USDC refund after market cancellation                      |
 
+> **Cancellation Refund Math (Solvency-Critical):**
+>
+> When a market is cancelled, each outcome share redeems at `1/N` of collateral (where N = number of outcomes). This ensures the payout vector sums to exactly 1 and the system remains solvent.
+>
+> ```solidity
+> // claimRefund(marketId) implementation
+> function claimRefund(uint256 marketId) external returns (uint256 refund) {
+>     Market storage m = markets[marketId];
+>     if (m.state != MarketState.Cancelled) revert MarketNotCancelled();
+>     if (claimed[marketId][msg.sender]) revert AlreadyClaimed();
+>     claimed[marketId][msg.sender] = true;
+>
+>     uint8 N = m.outcomes;
+>     uint256 totalRefund;
+>
+>     // Each outcome share redeems at 1/N of collateral per share
+>     // Users may hold unbalanced positions (e.g., only YES shares from FPMM buy)
+>     for (uint8 i; i < N; i++) {
+>         uint256 tokenId = encodeTokenId(marketId, i);
+>         uint256 balance = vaultToken.balanceOf(msg.sender, tokenId);
+>         if (balance > 0) {
+>             // Round DOWN to prevent rounding profit attacks across wallets
+>             totalRefund += (balance * m.collateralPerShare) / N;
+>             vaultToken.burn(msg.sender, tokenId, balance); // MUST burn to prevent double-claim
+>         }
+>     }
+>
+>     if (totalRefund == 0) revert NothingToRefund();
+>     vaultToken.releaseCollateral(msg.sender, totalRefund);
+>     emit RefundClaimed(marketId, msg.sender, totalRefund);
+>     return totalRefund;
+> }
+> ```
+>
+> **Key constraints:**
+> - Payout vector: `p[i] = 1/N` for all outcomes. Sum = 1. System solvent.
+> - Rounding: **always down** (`balance * collateralPerShare / N`). Dust retained in contract, sweepable by admin.
+> - Shares **MUST be burned** on claim — prevents double-claim without relying solely on the `claimed` mapping.
+> - Unbalanced positions: Users who bought one outcome on FPMM get proportional refund without needing to rebuild complete sets.
+> - `cancelMarket()` snapshots `collateralPerShare = collateralLocked[marketId] / completeSetsOutstanding[marketId]` at cancellation time.
+> - **Rounding attack mitigation:** Splitting holdings across wallets to maximize rounding gains is bounded because we round down per-wallet. Maximum rounding profit per wallet per outcome = `(N-1) wei`. With 2 outcomes, an attacker gains at most 1 wei per wallet — economically negligible.
+> - **Required fuzz test:** `Σ refundPaid ≤ collateralLocked[marketId]` for all possible claim orderings.
 
 > **Swap Direction & Deadlines**: `SwapParams` includes `isBuy` (buy vs sell) and `deadline` to prevent stale execution. `Swap` events emit `fee` and `newPrice` for indexers and analytics.
 
@@ -513,7 +604,7 @@ struct Market {
     MarketState state;
     uint64 createdAt;         // block.timestamp at creation
     uint64 resolutionTime;    // when market closes for resolution
-    uint64 disputeDeadline;   // resolvedAt + DISPUTE_PERIOD; 0 if unresolved
+    uint64 finalityDeadline;   // resolvedAt + EARNINGS_FINALITY_DELAY; 0 if unresolved
     uint64 updatedAt;         // last state change
     uint64 resolvedAt;        // 0 if unresolved
     OracleConfig oracleConfig; // optional; resolverType == ADMIN if no oracle
@@ -601,6 +692,34 @@ Closed → (grace period expired, oracle unavailable) → resolve() by Admin →
 > - Admin: `block.timestamp >= deadline` permits (so `block.timestamp == deadline` is the first valid admin second)
 > - This means at `t == resolutionTime + gracePeriod`: **both** oracle and admin can resolve. This is safe because either produces a valid resolution.
 > - **Required test:** `test_resolveAtExactGracePeriodBoundary()` — admin tries to resolve at `block.timestamp == resolutionTime + gracePeriod` (should succeed) AND at `block.timestamp == resolutionTime + gracePeriod - 1` (should revert).
+
+> **Oracle Decimal Normalization (Critical):**
+>
+> Chainlink feeds return prices in varying decimal scales: ETH/USD uses 8 decimals, USDC/USD uses 8 decimals, but some feeds use 18. The market's `resolutionThreshold` MUST be stored in a **canonical scale** (e.g., 18 decimals), and `resolveByOracle()` MUST normalize the oracle answer before comparison:
+>
+> ```solidity
+> // Inside resolveByOracle(marketId)
+> (, int256 answer,, uint256 updatedAt,) = priceFeed.latestRoundData();
+>
+> // 1. Validate answer is positive (negative prices are nonsensical for our markets)
+> if (answer <= 0) revert InvalidOracleAnswer(answer);
+>
+> // 2. Normalize to 18 decimals
+> uint8 feedDecimals = priceFeed.decimals(); // e.g., 8
+> uint256 normalizedAnswer;
+> if (feedDecimals <= 18) {
+>     normalizedAnswer = uint256(answer) * 10**(18 - feedDecimals);
+> } else {
+>     normalizedAnswer = uint256(answer) / 10**(feedDecimals - 18);
+> }
+>
+> // 3. Compare against canonical threshold
+> uint8 winner = normalizedAnswer >= market.resolutionThreshold ? YES : NO;
+> ```
+>
+> **Why `answer <= 0` is checked:** Chainlink feeds can return negative values (e.g., during flash crashes, or for feeds like EUR/USD that can technically go negative). For prediction markets asking "Will asset X be above $Y?", a negative price is pathological — the market should fall through to admin resolution rather than auto-resolving with garbage data.
+>
+> **Market configuration:** `createMarket()` stores `resolutionThreshold` in 18-decimal scale and records the `feedDecimals` from the Chainlink aggregator at creation time. This prevents errors if a feed's decimal configuration changes between market creation and resolution (unlikely but possible during aggregator upgrades).
 
 ---
 
@@ -983,15 +1102,23 @@ export async function main() {
 | `MatchFailed` | `bytes32 orderHash, uint8 reasonCode` | Individual match failed in batch |
 
 
-> **Soft Revert Pattern**: `settleBatch` uses try/catch internally. If an individual match fails (insufficient balance, cancelled order, etc.), it emits `MatchFailed` and continues processing remaining orders. This prevents DoS where one bad order blocks the entire batch.
+> **Settlement Pattern (Hard Revert):** `settleBatch` uses **hard revert** (not try/catch) for individual matches. If any single match in the batch fails (insufficient balance, cancelled order, expired, etc.), the entire batch reverts. This is the correct choice for a trusted-relayer model:
 >
-> **Implementation Notes:**
+> - The relayer pre-validates all matches off-chain before submitting; failures indicate a bug or race condition, not adversarial input.
+> - Hard revert is simpler, cheaper (~2,600 gas saved per match vs external self-call), and easier to audit.
+> - On failure, the relayer removes the bad match and resubmits. Turnaround is sub-second on Arbitrum.
+> - `try/catch` only catches **external** calls in Solidity. If per-match logic is internal (which it should be for gas efficiency), `try/catch` doesn't work anyway without an expensive `this._settleOneMatch(...)` self-call pattern.
+> - `MatchFailed` events are NOT emitted (since the tx reverts). The relayer detects failures via simulation (`eth_call`) before submitting.
 >
-> - Use compact failure codes (`uint8`) instead of dynamic strings in `MatchFailed` to prevent gas griefing
-> - Bound max matches per batch (e.g., 50) to limit gas consumption
-> - Bound per-order validation cost
+> **Implementation notes:**
+>
+> - Bound max matches per batch: `MAX_MATCHES_PER_BATCH = 50` to limit gas consumption
+> - Bound per-order validation cost (compact structs, no dynamic strings)
+> - Each match is atomic: both legs (buyer pays USDC, seller delivers shares) complete together or neither does
 
-> **CLOB Fee Routing**: `settleBatch` deducts the 3% trading fee from fills and calls `VaultCredit.depositFees(marketId, feeAmount, FeeSource.CLOB)` so that all CLOB fees enter the debt-first waterfall.
+> **CLOB Fee Routing (Unified with VaultRisk):** `settleBatch` MUST call `VaultRisk.getEffectiveFee(marketId, outcomeId, isBuy)` per fill and charge the **same dynamic fee schedule** as FPMM/CLMM venues. Fees are routed to `VaultCredit.depositFees(marketId, feeAmount, FeeSource.CLOB)` so all CLOB fees enter the debt-first waterfall.
+>
+> **Why fee parity is critical:** If the CLOB charges a fixed 3% while FPMM charges 8%+ during surge/skew conditions, sophisticated flow routes through the cheaper venue, defeating the risk engine's protective pricing. This directly undermines IL Reduction Strategy 5 (dynamic fee uplift on high-skew markets) which depends on ALL venues charging the elevated rate. The fee schedule MUST be unified across all venues — `VaultRisk.getEffectiveFee()` is the single source of truth for fee calculation.
 
 > **CLOB Velocity Update (Critical):** `settleBatch` MUST call `VaultRisk.updateVelocity(notional)` after processing fills. Without this, CLOB volume is invisible to the surge fee engine and attackers can route massive directional flow through the CLOB at base fees while FPMM/CLMM traders pay surge pricing. VaultCLOB must be added to the `VaultRisk.updateVelocity` whitelist alongside VaultMarket and VaultCLMM.
 
@@ -1108,19 +1235,45 @@ enum FeeSource { FPMM, CLOB, CLMM }
 | `setCreditLimit(uint256 profileId, uint256 limit)`                | Admin                           | Set/update credit limit (auto-creates profile via `_ensureProfile` if needed)   |
 | `recordDebt(uint256 profileId, uint256 amount)`                   | Internal                        | Add debt (called by Market)                                                     |
 | `depositFees(uint256 marketId, uint256 amount, FeeSource source)` | VaultMarket/VaultCLOB/VaultCLMM | Deposit fees into debt-first waterfall                                          |
-| `withdrawEarnings()`                                              | ProfileOwner                    | Auto-processes pending earnings (dispute-gated), then pulls claimable funds     |
+| `withdrawEarnings()`                                              | ProfileOwner                    | Auto-processes pending earnings (finality-gated), then pulls claimable funds    |
 | `setProfileStatus(uint256 profileId, ProfileStatus status)`       | Admin                           | Update tier (auto-creates profile via `_ensureProfile` if needed)               |
 
 
-> **Pull Pattern (Merged)**: `withdrawEarnings()` auto-processes pending earnings for up to `MAX_AUTO_PROCESS` (5) resolved markets where `block.timestamp >= disputeDeadline`, then transfers all claimable funds. This merges two transactions (`processEarnings` + `withdrawEarnings`) into one value-bearing call. For profiles with many pending markets, repeated calls process in batches. This prevents revert-on-receive attacks (pull, not push) and eliminates a purposeless intermediate transaction.
+> **Pull Pattern (Merged)**: `withdrawEarnings()` auto-processes pending earnings for up to `MAX_AUTO_PROCESS` (5) resolved markets where `block.timestamp >= finalityDeadline`, then transfers all claimable funds. This merges two transactions (`processEarnings` + `withdrawEarnings`) into one value-bearing call. For profiles with many pending markets, repeated calls process in batches. This prevents revert-on-receive attacks (pull, not push) and eliminates a purposeless intermediate transaction.
 >
+> **Pending Markets Data Structure (Gas Trap Prevention):**
+>
+> The pending markets per profile (`pendingMarkets[profileId]`) MUST use a **cursor-indexed linked list** or **swap-and-pop array** — NOT a naive array that shifts elements on deletion. Without this, `withdrawEarnings()` gas cost grows linearly with total-ever-pending markets (including already-processed ones).
+>
+> ```solidity
+> // Recommended: swap-and-pop for O(1) removal
+> mapping(uint256 => uint256[]) internal pendingMarkets; // profileId => marketId[]
+> mapping(uint256 => mapping(uint256 => uint256)) internal pendingIndex; // profileId => marketId => index
+>
+> function _removePending(uint256 profileId, uint256 marketId) internal {
+>     uint256 idx = pendingIndex[profileId][marketId];
+>     uint256 lastIdx = pendingMarkets[profileId].length - 1;
+>     if (idx != lastIdx) {
+>         uint256 lastMarket = pendingMarkets[profileId][lastIdx];
+>         pendingMarkets[profileId][idx] = lastMarket;
+>         pendingIndex[profileId][lastMarket] = idx;
+>     }
+>     pendingMarkets[profileId].pop();
+>     delete pendingIndex[profileId][marketId];
+> }
+> ```
+>
+> **Why this matters:** A prolific creator or KOL may participate in 1,000+ markets. If `pendingMarkets` is a flat array that shifts on removal, processing the first market costs O(N) to shift all subsequent elements. Over time, even `MAX_AUTO_PROCESS = 5` iterations become expensive. The swap-and-pop pattern ensures O(1) removal regardless of array size.
+>
+> **Cursor for `withdrawEarnings` iteration:** The `MAX_AUTO_PROCESS` loop iterates from `pendingMarkets[profileId].length - 1` downward, checking finality. Processed markets are removed via swap-and-pop. If no finalized markets remain in the first 5 checked, the function proceeds directly to the claimable balance transfer (no revert). A view function `getPendingMarketCount(profileId)` allows UIs to show progress.
+
 > **Lazy Profile Creation**: There is no user-facing `registerProfile()`. Profiles are created atomically via `_ensureProfile(address)` when needed — triggered by admin actions (`setCreditLimit`, `setProfileStatus`) or user `linkWallet()`. Casual traders never pay gas for identity registration.
 
 > **Fee Ingestion**: `depositFees(marketId, amount, FeeSource)` is callable by `VaultMarket` (FPMM), `VaultCLOB` (CLOB fills), and `VaultCLMM` (protocol LP fees). This ensures all venue fees flow into the debt-first waterfall.
 
 > **Fee Events**: `depositFees` emits `FeesDeposited(marketId, amount, source)` for indexing.
 
-> **Dispute Window Enforcement (On-Chain):** `processEarnings()` MUST revert with `DisputeWindowActive(marketId, disputeDeadline)` if `block.timestamp < market.disputeDeadline`. This ensures the dispute period is enforced at the contract level, not just cosmetically in the UI. `redeem()` is callable immediately after resolution since users are redeeming their own winning shares — losers never need to transact at all.
+> **Earnings Finality Enforcement (On-Chain):** `processEarnings()` MUST revert with `EarningsFinalityActive(marketId, finalityDeadline)` if `block.timestamp < market.finalityDeadline`. This ensures the earnings finality delay is enforced at the contract level, not just cosmetically in the UI. **Naming rationale:** This delay is NOT a dispute mechanism (there is no on-chain dispute/arbitration flow). It is a **finality buffer** that gives admins time to correct an erroneous resolution via `resolve()` override before creator/LP earnings are distributed. Calling it "dispute period" falsely implies a formal dispute process exists. `redeem()` is callable immediately after resolution since users are redeeming their own winning shares — losers never need to transact at all.
 
 > **Wallet Link Authorization:** `linkWallet()` requires an EIP-712 signature from the wallet being linked, preventing unauthorized profile association. Without this, an attacker could link a victim's wallet to their own profile and subject the victim's earnings to the attacker's debt-first waterfall. `unlinkWallet()` is callable by either the profile owner or the wallet itself (so a wallet can always remove itself).
 
@@ -1426,7 +1579,7 @@ This section maps user journeys to contract calls, events, and backend integrati
 │ // Internal flow:                                                           │
 │ // 1. Verify all signatures                                                 │
 │ // 2. Calculate net USDC and share transfers                                │
-│ // 3. Deduct 3% fee on fills                                                │
+│ // 3. Deduct dynamic fee via VaultRisk.getEffectiveFee() per fill            │
 │ // 4. depositFees(marketId, feeAmount, FeeSource.CLOB) → VaultCredit         │
 │ // 5. Execute transfers atomically                                          │
 │ // 6. Mark orders as filled                                                 │
@@ -1583,7 +1736,7 @@ This section maps user journeys to contract calls, events, and backend integrati
 │                                                                             │
 │ // This triggers:                                                           │
 │ // 1. Market state → Resolved, resolvedAt = block.timestamp                 │
-│ // 2. disputeDeadline = block.timestamp + DISPUTE_PERIOD                    │
+│ // 2. finalityDeadline = block.timestamp + EARNINGS_FINALITY_DELAY                    │
 │ // 3. Creator fees escrowed until finality                                  │
 │ // 4. redeem() callable immediately; processEarnings() gated on deadline    │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1597,7 +1750,7 @@ This section maps user journeys to contract calls, events, and backend integrati
 │     uint8 winner,                                                           │
 │     string evidenceUri,                                                     │
 │     uint256 resolvedAt,                                                     │
-│     uint256 disputeDeadline                                                 │
+│     uint256 finalityDeadline                                                 │
 │ );                                                                          │
 └─────────────────────────────────────────────────────────────────────────────┘
                                     │
@@ -3063,7 +3216,7 @@ Relayer → VaultCLOB.settleBatch(orders[], signatures[])
   │    └── OrderLib.validateSig(hash, sig)
   │    └── check nonce/fill status
   ├── net USDC deltas per user
-  ├── fee = 3% of fill notional
+  ├── fee = VaultRisk.getEffectiveFee() per fill (dynamic, same as FPMM/CLMM)
   ├── VaultCredit.depositFees(marketId, fee, FeeSource.CLOB)
   ├── USDC.transferFrom(...) // netted
   ├── VaultToken.safeBatchTransferFrom(...) // shares
@@ -4257,7 +4410,7 @@ function cancelOrders(Order[] calldata orders) external {
 
 #### Fix 3: `processEarnings()` Caller & Automation
 
-**Problem:** `processEarnings(profileId, marketId)` is gated on `block.timestamp >= market.disputeDeadline`. Who calls it? If each creator/KOL must call it themselves, that's a transaction with no direct value exchange (the value comes from the subsequent `withdrawEarnings()`). At 100 creators per market, that's 100 unpaid txs.
+**Problem:** `processEarnings(profileId, marketId)` is gated on `block.timestamp >= market.finalityDeadline`. Who calls it? If each creator/KOL must call it themselves, that's a transaction with no direct value exchange (the value comes from the subsequent `withdrawEarnings()`). At 100 creators per market, that's 100 unpaid txs.
 
 **Fix:** Absorb `processEarnings` into `withdrawEarnings()` automatically:
 
@@ -4265,10 +4418,10 @@ function cancelOrders(Order[] calldata orders) external {
 function withdrawEarnings() external {
     uint256 profileId = _getProfileId(msg.sender);
 
-    // Auto-process any unprocessed markets where dispute window has passed
+    // Auto-process any unprocessed markets where finality delay has passed
     uint256[] memory pending = _getPendingMarkets(profileId);
     for (uint256 i; i < pending.length && i < MAX_AUTO_PROCESS; i++) {
-        if (block.timestamp >= markets[pending[i]].disputeDeadline) {
+        if (block.timestamp >= markets[pending[i]].finalityDeadline) {
             _processEarnings(profileId, pending[i]);
         }
     }
@@ -4282,7 +4435,7 @@ function withdrawEarnings() external {
 
 This collapses two transactions (processEarnings + withdrawEarnings) into one value-bearing call. The `MAX_AUTO_PROCESS` cap (e.g., 5) prevents gas spikes. For profiles with many pending markets, repeated `withdrawEarnings()` calls process in batches.
 
-> **Alternatively:** Add `processEarnings` to the CRE resolution workflow. After the dispute window expires, the workflow calls `processEarnings(profileId, marketId)` for all affected profiles via a second consumer contract action. This removes the burden from users entirely.
+> **Alternatively:** Add `processEarnings` to the CRE resolution workflow. After the finality delay expires, the workflow calls `processEarnings(profileId, marketId)` for all affected profiles via a second consumer contract action. This removes the burden from users entirely.
 
 #### Fix 4: CRE Resolution Workflow — Paginated Scanning
 
@@ -4596,12 +4749,12 @@ function setFeeCollector(address caller, bool allowed) external onlyOwner {
 | Toxic flow                         | Inventory skew fees (CLOB mid-price reference)                                            |
 | CLMM mis-ranging                   | Wide-band minimum, tight-band caps                                                        |
 | Sybil creators                     | ProfileID identity binding + MIN_CREATOR_FEE                                              |
-| Oracle risk                        | Evidence requirements, dispute window, FPMM sanity bounds on CLOB mid-price               |
+| Oracle risk                        | Evidence requirements, earnings finality delay, FPMM sanity bounds on CLOB mid-price       |
 | MEV / boundary exploits            | Interpolated LUTs (continuous fees, no step functions)                                    |
 | USDC blacklist                     | **Acknowledged** (USDC centralization risk); `redeemTo()`/`mergeTo()` rescue variants     |
 | Post-resolution stranded inventory | `reclaimPoolInventory()` for FPMM; `removeLiquidity()` open on resolved markets           |
 | Unbounded outcome gas              | `MAX_OUTCOMES = 8` on `createMarket`                                                      |
-| Dispute window bypass              | `processEarnings()` gated on `block.timestamp >= disputeDeadline`                         |
+| Earnings finality bypass           | `processEarnings()` gated on `block.timestamp >= finalityDeadline`                         |
 | Cross-contract coupling            | All contracts deployed as cohort with immutable cross-references; migration at resolution |
 | Fee-on-transfer collateral         | USDC-only assumption documented; invariants depend on exact-amount transfers              |
 | CLOB velocity bypass               | `settleBatch` calls `updateVelocity`; VaultCLOB whitelisted                               |
@@ -4621,9 +4774,9 @@ function setFeeCollector(address caller, bool allowed) external onlyOwner {
 - `VaultCLOB.settleBatch`: Enforce `block.timestamp <= order.expiry` per order; revert `OrderExpired`
 - `VaultCLOB.settleBatch`: Enforce fill price direction (buy: `fillPrice <= order.price`, sell: `fillPrice >= order.price`)
 - `VaultCLOB`: Verify fill amount ≤ remaining, fill price respects limits, token flows net exactly
-- `VaultCLOB`: Route 3% fees via `VaultCredit.depositFees(marketId, fee, FeeSource.CLOB)`
+- `VaultCLOB`: Route dynamic fees (via `VaultRisk.getEffectiveFee()`) to `VaultCredit.depositFees(marketId, fee, FeeSource.CLOB)`
 - `VaultCredit`: Pull pattern with `getClaimable()` + `withdrawEarnings()`
-- `VaultCredit.processEarnings`: Revert if `block.timestamp < market.disputeDeadline`
+- `VaultCredit.processEarnings`: Revert if `block.timestamp < market.finalityDeadline`
 - `VaultToken.split`: Revert if market is Paused/Resolved (lifecycle gating)
 - `VaultToken.settle`: Only VaultMarket can burn winning shares and release USDC
 - `VaultRisk.getInventorySkew`: Use CLOB mid-price (TWAP, min volume threshold, max change/block, ±10% FPMM sanity bound)
@@ -4631,7 +4784,7 @@ function setFeeCollector(address caller, bool allowed) external onlyOwner {
 - `VaultMarket.createMarket`: Enforce `MIN_CREATOR_FEE` (0.5%) to ProfileID
 - `VaultMarket.createMarket`: Enforce `outcomes <= MAX_OUTCOMES (8)`
 - `VaultMarket.swap` (sell): Check pool has sufficient complementary inventory to merge; revert `InsufficientPoolInventory`
-- `VaultMarket.resolve`: Set `disputeDeadline = block.timestamp + DISPUTE_PERIOD`
+- `VaultMarket.resolve`: Set `finalityDeadline = block.timestamp + EARNINGS_FINALITY_DELAY`
 - `VaultMarket`: Expose `reclaimPoolInventory(marketId)` for post-resolution FPMM inventory recovery
 - `VaultCLMM.removeLiquidity`: MUST NOT revert on resolved markets (only gate `addLiquidity` and `swap`)
 - `VaultCLMM.addLiquidity`/`swap`: Check `VaultMarket.isMarketActive(marketId)` and revert if paused/resolved
@@ -4769,14 +4922,14 @@ Architecture-level audit (pre-implementation). Severity rubric: Critical (total 
 | MEDIUM-04 | Malformed LUT can brick pricing                                      | Validation on upload (monotonicity, bounds, length)                                      |
 | MEDIUM-05 | Pre vs post velocity inconsistency                                   | Clarified: pre-trade + interpolated LUTs                                                 |
 | MEDIUM-06 | Credit sybil/identity risk                                           | Operational (off-chain identity binding)                                                 |
-| MEDIUM-07 | `processEarnings` callable before dispute window expires             | On-chain gate: revert if `block.timestamp < disputeDeadline`                             |
+| MEDIUM-07 | `processEarnings` callable before earnings finality expires           | On-chain gate: revert if `block.timestamp < finalityDeadline`                             |
 | MEDIUM-08 | No max outcome count; FPMM gas DoS                                   | `MAX_OUTCOMES = 8` enforced in `createMarket`                                            |
 | MEDIUM-09 | Cross-contract immutable coupling unclear                            | Documented: all contracts deploy as cohort; migration at resolution boundaries           |
 | MEDIUM-10 | Equal supply invariant not explicitly stated                         | Added: `totalSupply` must be equal across all outcomes per market                        |
 | MEDIUM-11 | Fee-on-transfer collateral breaks solvency                           | Documented: USDC-only assumption; no rebasing/fee tokens                                 |
 | MEDIUM-12 | Credit line scope ambiguous                                          | Documented: scoped to FPMM initial liquidity only via VaultMarket                        |
 | MEDIUM-13 | No emergency pause on VaultCLMM                                      | CLMM gates `addLiquidity`/`swap` via `VaultMarket.isMarketActive()`                      |
-| MEDIUM-14 | `DISPUTE_PERIOD` undefined                                           | Added as constant: 86400 (24 hours)                                                      |
+| MEDIUM-14 | `EARNINGS_FINALITY_DELAY` undefined                                           | Added as constant: 86400 (24 hours)                                                      |
 | MEDIUM-15 | Market state transitions not formalized                              | Added explicit state machine: Active↔Paused, Active/Paused→Resolved (terminal)           |
 | MEDIUM-16 | `split(0)`/`merge(0)` not guarded                                    | Zero-amount calls revert                                                                 |
 | MEDIUM-17 | Double redemption not explicitly guarded                             | `redeem` reads winning balance atomically; second call reverts `NothingToRedeem` (balance is zero) |
